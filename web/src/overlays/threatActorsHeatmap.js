@@ -399,9 +399,17 @@ async function enable(map, mode, onCountryClick) {
       strokeOpacity: 0.8
     });
 
-    map.layers.add(polygonLayer);
-    map.layers.add(outlineLayer);
-    map.layers.add(labelLayer);
+    // Add layers below threat intel layer if it exists (proper z-order)
+    const threatIntelLayer = map.layers.getLayerById("threat-intel-layer");
+    if (threatIntelLayer) {
+      map.layers.add(polygonLayer, "threat-intel-layer");
+      map.layers.add(outlineLayer, "threat-intel-layer");
+      map.layers.add(labelLayer, "threat-intel-layer");
+    } else {
+      map.layers.add(polygonLayer);
+      map.layers.add(outlineLayer);
+      map.layers.add(labelLayer);
+    }
     
     // Show the legend for country view
     const legend = document.getElementById("countryLegend");
@@ -470,7 +478,13 @@ async function enable(map, mode, onCountryClick) {
       opacity: 0.85
     });
 
-    map.layers.add(heat);
+    // Add heatmap layer below threat intel layer if it exists (proper z-order)
+    const threatIntelLayer = map.layers.getLayerById("threat-intel-layer");
+    if (threatIntelLayer) {
+      map.layers.add(heat, "threat-intel-layer");
+    } else {
+      map.layers.add(heat);
+    }
     
     // Add click handling for heatmap - find nearest country point
     if (onCountryClick) {
