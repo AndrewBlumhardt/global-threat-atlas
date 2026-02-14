@@ -11,15 +11,15 @@ export function addAutoScrollControl(map) {
   const control = document.createElement("div");
   control.className = "azure-maps-control-container";
   control.style.position = "fixed";
-  control.style.bottom = "160px";
-  control.style.left = "10px";
+  control.style.bottom = "10px";
+  control.style.right = "10px";
   control.style.zIndex = "1000";
   control.style.pointerEvents = "auto";
 
   const button = document.createElement("button");
   button.className = "azure-maps-control-button";
   button.title = "Toggle Auto Scroll";
-  button.textContent = "⇄";
+  button.textContent = "→";
   button.style.fontSize = "20px";
   button.style.width = "32px";
   button.style.height = "32px";
