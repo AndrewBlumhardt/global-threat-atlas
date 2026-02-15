@@ -233,6 +233,144 @@ body {
   color: rgba(255, 255, 255, 0.9);
 }
 
+/* Layer Control Panel */
+.layer-control {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 700;
+}
+
+.layer-control-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(17, 24, 39, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.layer-control-toggle:hover {
+  background: rgba(17, 24, 39, 1);
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.layer-control-toggle .icon {
+  font-size: 16px;
+}
+
+.layer-control-panel {
+  display: none;
+  margin-top: 8px;
+  background: rgba(17, 24, 39, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  min-width: 220px;
+}
+
+.layer-control.expanded .layer-control-panel {
+  display: block;
+}
+
+.layer-control-header {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.layer-control-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #60a5fa;
+}
+
+.layer-control-content {
+  padding: 8px;
+}
+
+.layer-item {
+  padding: 8px 6px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.layer-item:hover:not(.disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.layer-item.disabled {
+  opacity: 0.4;
+}
+
+.layer-item label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: white;
+  font-size: 13px;
+}
+
+.layer-item.disabled label {
+  cursor: not-allowed;
+}
+
+.layer-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+.layer-item input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+.layer-name {
+  flex: 1;
+}
+
+.layer-mode {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  margin-left: 24px;
+}
+
+.ta-mode-btn {
+  flex: 1;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ta-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.ta-mode-btn.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
 .panel-meta {
   padding: 14px 20px;
   background: rgba(0, 0, 0, 0.25);

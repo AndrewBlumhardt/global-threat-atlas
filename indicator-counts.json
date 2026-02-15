@@ -1,0 +1,11 @@
+{
+  "Message": "Using cached data",
+  "RefreshThresholdHours": 24,
+  "Status": "cached",
+  "Timestamp": "2026-02-14 10:49:42",
+  "FileSizeMB": 13.1,
+  "FileSizeBytes": 13739276,
+  "FileAgeHours": 2.21,
+  "LastModified": "2026-02-14T08:36:53-06:00",
+  "SourceId": "threat_intel_indicators"
+}

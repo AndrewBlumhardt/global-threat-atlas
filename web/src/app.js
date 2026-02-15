@@ -1,6 +1,7 @@
 import { createMap } from "./map/map-init.js";
-import { addThreatActorsToggle } from "./ui/threatActorsToggle.js";
-import { addThreatIntelToggle } from "./ui/threatIntelToggle.js";
+import { toggleThreatActorsHeatmap } from "./overlays/threatActorsHeatmap.js";
+import { toggleThreatIntelOverlay } from "./overlays/threatIntelOverlay.js";
+import { initLayerControl, updateLayerAvailability } from "./ui/layerControl.js";
 import { showCountryDetails, initPanelControls } from "./ui/panelManager.js";
 import { addAutoScrollControl } from "./ui/autoScroll.js";
 
@@ -17,10 +18,38 @@ async function main() {
     console.log("Map ready.");
     
     initPanelControls();
-    addThreatActorsToggle(map, (countryProps) => {
-      showCountryDetails(countryProps);
+    
+    // Initialize layer control with toggle callback
+    initLayerControl(async (layerType, enabled, mode) => {
+      console.log(`Layer toggle: ${layerType} = ${enabled}`, mode);
+      
+      switch (layerType) {
+        case 'threatActors':
+          await toggleThreatActorsHeatmap(map, enabled, mode, (countryProps) => {
+            showCountryDetails(countryProps);
+          });
+          break;
+        case 'threatIntel':
+          await toggleThreatIntelOverlay(map, enabled);
+          break;
+        case 'signInActivity':
+          // Future: toggle sign-in activity layer
+          console.log('Sign-in activity layer not yet implemented');
+          break;
+        case 'deviceLocations':
+          // Future: toggle device locations layer
+          console.log('Device locations layer not yet implemented');
+          break;
+      }
     });
-    addThreatIntelToggle(map);
+    
+    // Mark available layers (all current layers are available)
+    updateLayerAvailability('ThreatActors', true);
+    updateLayerAvailability('ThreatIntel', true);
+    // Future layers start disabled
+    updateLayerAvailability('SignInActivity', false);
+    updateLayerAvailability('DeviceLocations', false);
+    
     addAutoScrollControl(map);
   });
 

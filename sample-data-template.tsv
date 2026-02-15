@@ -1,0 +1,6 @@
+TimeGenerated	UserDisplayName	UserPrincipalName	IPAddress	ResultSignature	RiskState	RiskReason	ResourceDisplayName	Browser	OperatingSystem	DeviceId	isCompliant	isManaged	ConditionalAccessStatus	RiskLevelDuringSignIn	CountryOrRegion	State	City	Latitude	Longitude
+2026-02-14T10:30:00Z	John Doe	john.doe@contoso.com	203.0.113.45	Success	none		Microsoft 365	Chrome	Windows 10	device-001	True	True	success	none	United States	California	San Francisco	37.7749	-122.4194
+2026-02-14T11:15:00Z	Jane Smith	jane.smith@contoso.com	198.51.100.78	Success	none		Microsoft 365	Edge	Windows 11	device-002	True	True	success	none	United Kingdom	England	London	51.5074	-0.1278
+2026-02-14T12:45:00Z	Bob Johnson	bob.johnson@contoso.com	192.0.2.100	Success	atRisk	unfamiliarLocation	Azure Portal	Firefox	macOS	device-003	True	True	success	medium	Germany	Berlin	Berlin	52.5200	13.4050
+2026-02-14T13:20:00Z	Alice Williams	alice.williams@contoso.com	198.51.100.200	Success	none		Exchange Online	Safari	iOS		False	False	success	none	Canada	Ontario	Toronto	43.6532	-79.3832
+2026-02-14T14:05:00Z	Charlie Brown	charlie.brown@contoso.com	203.0.113.150	Failure	confirmedCompromised	maliciousIP	Microsoft 365	Chrome	Android	device-005	False	False	failure	high	Russia	Moscow	Moscow	55.7558	37.6173

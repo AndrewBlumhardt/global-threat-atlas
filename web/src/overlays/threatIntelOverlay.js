@@ -87,17 +87,17 @@ async function enable(map) {
 
     console.log(`Threat intel count range: 1 to ${maxCount}`);
 
-    // Add bubble layer for indicators
-    // Use fixed stops to avoid duplicate values in interpolate expression
+    // Add symbol layer for indicators (peg-like markers with 3D effect)
+    // Use smaller, more dimensional visualization
     const bubbleLayer = new atlas.layer.BubbleLayer(dataSource, THREAT_INTEL_LAYER_ID, {
       radius: maxCount > 1 ? [
         "interpolate",
         ["linear"],
         ["coalesce", ["get", "count"], ["get", "Count"], 1],
-        1, 8,
-        Math.ceil(maxCount / 2), 15,
-        maxCount, 25
-      ] : 10,
+        1, 4,
+        Math.ceil(maxCount / 2), 7,
+        maxCount, 10
+      ] : 6,
       color: maxCount > 1 ? [
         "interpolate",
         ["linear"],
@@ -106,10 +106,19 @@ async function enable(map) {
         Math.ceil(maxCount / 2), "#ff0000",
         maxCount, "#8b0000"
       ] : "#ff0000",
-      strokeColor: "#ffffff",
-      strokeWidth: 1,
-      opacity: 0.7,
-      blur: 0.5
+      strokeColor: [
+        "interpolate",
+        ["linear"],
+        ["coalesce", ["get", "count"], ["get", "Count"], 1],
+        1, "rgba(255, 255, 255, 0.9)",
+        Math.ceil(maxCount / 2), "rgba(255, 200, 200, 0.8)",
+        maxCount, "rgba(139, 0, 0, 0.9)"
+      ],
+      strokeWidth: 2,
+      opacity: 0.85,
+      blur: 0.2,
+      // Elevation gives 3D effect when map is pitched
+      pitchAlignment: "map"
     });
 
     map.layers.add(bubbleLayer);

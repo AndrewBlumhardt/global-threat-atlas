@@ -68,6 +68,56 @@
         </div>
       </div>
       
+      <!-- Layer Control Panel -->
+      <div id="layerControl" class="layer-control">
+        <button class="layer-control-toggle" title="Toggle layers">
+          <span class="icon">☰</span>
+          <span class="text">Layers</span>
+        </button>
+        <div class="layer-control-panel">
+          <div class="layer-control-header">
+            <h3>Map Layers</h3>
+          </div>
+          <div class="layer-control-content">
+            <!-- Threat Actors Layer -->
+            <div class="layer-item">
+              <label>
+                <input type="checkbox" id="layerThreatActors">
+                <span class="layer-name">Threat Actors</span>
+              </label>
+              <div id="threatActorsMode" class="layer-mode" style="display: none;">
+                <button class="ta-mode-btn active" data-mode="heatmap" title="Heatmap view">Heat</button>
+                <button class="ta-mode-btn" data-mode="country" title="Country view">By Country</button>
+              </div>
+            </div>
+            
+            <!-- Threat Intel IPs Layer -->
+            <div class="layer-item">
+              <label>
+                <input type="checkbox" id="layerThreatIntel">
+                <span class="layer-name">Threat Intel IPs</span>
+              </label>
+            </div>
+            
+            <!-- Sign-In Activity Layer (future) -->
+            <div class="layer-item disabled">
+              <label>
+                <input type="checkbox" id="layerSignInActivity" disabled>
+                <span class="layer-name">Sign-In Activity</span>
+              </label>
+            </div>
+            
+            <!-- Device Locations Layer (future) -->
+            <div class="layer-item disabled">
+              <label>
+                <input type="checkbox" id="layerDeviceLocations" disabled>
+                <span class="layer-name">Device Locations</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <div id="map"></div>
     </main>
 
