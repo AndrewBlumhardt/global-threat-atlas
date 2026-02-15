@@ -6,6 +6,7 @@
  */
 
 import { getDataUrl } from "../shared/demoMode.js";
+import { showDeviceDetails } from "../ui/panelManager.js";
 
 const DEVICE_SOURCE_ID = "device-locations-source";
 const DEVICE_SYMBOL_LAYER_ID = "device-locations-symbols";
@@ -165,6 +166,14 @@ async function enable(azureMap) {
       map.getCanvasContainer().style.cursor = "grab";
     });
 
+    // Add click handler for proximity search (500km radius)
+    map.events.add("click", symbolLayer, (e) => {
+      if (e.shapes && e.shapes.length > 0) {
+        const clickedPosition = e.shapes[0].getCoordinates();
+        showNearbyDevicesPanel(map, clickedPosition, dataSource);
+      }
+    });
+
     isEnabled = true;
     console.log("Device locations overlay enabled successfully");
 
@@ -199,6 +208,118 @@ function disable() {
   } catch (error) {
     console.error("Error disabling device locations overlay:", error);
   }
+}
+
+/**
+ * Show nearby devices in the left panel when user clicks on the map
+ */
+function showNearbyDevicesPanel(map, position, dataSource) {
+  const radiusKm = 500; // 500 km radius
+  const clickLng = position[0];
+  const clickLat = position[1];
+  
+  // Get all features from data source
+  const allFeatures = dataSource.toJson().features;
+  
+  // Calculate distances and filter by radius
+  const nearbyDevices = allFeatures
+    .map(feature => {
+      const [lng, lat] = feature.geometry.coordinates;
+      const distance = calculateDistance(clickLat, clickLng, lat, lng);
+      return {
+        distance,
+        properties: feature.properties,
+        coordinates: feature.geometry.coordinates
+      };
+    })
+    .filter(item => item.distance <= radiusKm)
+    .sort((a, b) => a.distance - b.distance);
+  
+  // Create location name from click position
+  let locationName = "Selected Area";
+  if (nearbyDevices.length > 0) {
+    const firstDevice = nearbyDevices[0].properties;
+    const city = firstDevice.City || '';
+    const country = firstDevice.CountryOrRegion || '';
+    locationName = [city, country].filter(Boolean).join(', ') || "Unknown Location";
+  }
+  
+  // Get threat intel IPs for correlation (if threat intel layer is active)
+  const threatIntelIPs = getThreatIntelIPsForDevices(map, nearbyDevices);
+  
+  // Show in panel
+  showDeviceDetails({
+    location: locationName,
+    count: nearbyDevices.length,
+    radius: radiusKm,
+    devices: nearbyDevices.map(item => ({
+      name: item.properties.DeviceName || 'Unknown',
+      deviceId: item.properties.DeviceId || '',
+      deviceType: item.properties.DeviceType || '',
+      user: item.properties.UserDisplayName || item.properties.UserPrincipalName || '',
+      userPrincipal: item.properties.UserPrincipalName || '',
+      ip: item.properties.IPAddress || item.properties.PublicIP || '',
+      city: item.properties.City || '',
+      country: item.properties.CountryOrRegion || '',
+      os: item.properties.OperatingSystem || item.properties.OSPlatform || '',
+      browser: item.properties.Browser || '',
+      isMsIP: item.properties.IsMicrosoftIP === true || item.properties.IsMicrosoftIP === 'True',
+      isCompliant: item.properties.isCompliant === 'True' || item.properties.isCompliant === true,
+      isManaged: item.properties.isManaged === 'True' || item.properties.isManaged === true,
+      cloudPlatform: item.properties.CloudPlatform || '',
+      sensorHealth: item.properties.SensorHealthState || '',
+      exposureLevel: item.properties.ExposureLevel || '',
+      time: item.properties.TimeGenerated || '',
+      distance: Math.round(item.distance * 10) / 10
+    })),
+    threatIntelIPs
+  });
+}
+
+/**
+ * Get threat intel IPs that match device IPs
+ */
+function getThreatIntelIPsForDevices(map, devices) {
+  try {
+    const threatIntelSource = map.sources.getById('threat-intel-source');
+    if (!threatIntelSource) return [];
+    
+    const deviceIPs = new Set(devices.map(d => d.properties.IPAddress || d.properties.PublicIP).filter(Boolean));
+    const threatFeatures = threatIntelSource.toJson().features;
+    
+    return threatFeatures
+      .filter(feature => {
+        const ip = feature.properties.ObservableValue || feature.properties.observableValue || feature.properties.ip;
+        return deviceIPs.has(ip);
+      })
+      .map(feature => ({
+        ip: feature.properties.ObservableValue || feature.properties.observableValue || feature.properties.ip || 'Unknown',
+        city: feature.properties.City || feature.properties.city || '',
+        country: feature.properties.Country || feature.properties.country || '',
+        type: feature.properties.Type || feature.properties.type || '',
+        label: feature.properties.Label || feature.properties.label || '',
+        confidence: feature.properties.Confidence || feature.properties.confidence || '',
+        description: feature.properties.Description || feature.properties.description || ''
+      }));
+  } catch (e) {
+    console.warn('Could not get threat intel IPs:', e);
+    return [];
+  }
+}
+
+/**
+ * Calculate distance between two points using Haversine formula
+ */
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
 }
 
 /**

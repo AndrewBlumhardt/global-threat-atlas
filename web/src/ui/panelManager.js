@@ -370,6 +370,280 @@ Please provide detailed, actionable intelligence suitable for security operation
 }
 
 /**
+ * Populate the left panel with nearby sign-in activity details
+ */
+export function showSignInDetails(signInData) {
+  const panel = document.getElementById("leftPanel");
+  const titleEl = document.getElementById("panelTitle");
+  const metaEl = document.getElementById("panelMeta");
+  const listEl = document.getElementById("panelList");
+
+  if (!panel || !titleEl || !metaEl || !listEl) {
+    console.warn("Panel elements not found");
+    return;
+  }
+
+  const { location, count, radius, signIns, threatIntelIPs } = signInData;
+
+  // Clear any existing content
+  listEl.innerHTML = "";
+  metaEl.innerHTML = "";
+
+  // Update panel content section
+  titleEl.textContent = location || "Selected Area - Sign-Ins";
+  
+  metaEl.innerHTML = `
+    <div style="margin-bottom: 16px;">
+      <strong>${count}</strong> sign-in${count !== 1 ? "s" : ""} within <strong>${radius} km</strong>
+      ${threatIntelIPs && threatIntelIPs.length > 0 ? `<br><span style="color: #ef4444; font-weight: 600;">${threatIntelIPs.length} related threat intel IP${threatIntelIPs.length !== 1 ? "s" : ""} detected</span>` : ""}
+    </div>
+  `;
+
+  // Build sign-in list
+  if (signIns && signIns.length > 0) {
+    const signInItems = signIns.map(signIn => {
+      const user = signIn.user || "Unknown";
+      const userPrincipal = signIn.userPrincipal || "";
+      const ip = signIn.ip || "";
+      const city = signIn.city || "";
+      const country = signIn.country || "";
+      const locationStr = [city, country].filter(Boolean).join(", ");
+      const result = signIn.result || "";
+      const resource = signIn.resource || "";
+      const browser = signIn.browser || "";
+      const os = signIn.os || "";
+      const deviceId = signIn.deviceId || "";
+      const isMsIP = signIn.isMsIP === true;
+      const isCompliant = signIn.isCompliant === true;
+      const isManaged = signIn.isManaged === true;
+      const riskState = signIn.riskState || "";
+      const riskReason = signIn.riskReason || "";
+      const caStatus = signIn.caStatus || "";
+      const distance = signIn.distance || 0;
+      const time = signIn.time ? new Date(signIn.time).toLocaleString() : "";
+      
+      const isSuccess = result === "SUCCESS" || result.toLowerCase() === "success";
+      const resultColor = isSuccess ? "#10b981" : "#ef4444";
+      const hasRisk = riskState && riskState.toLowerCase() !== "none";
+
+      return `
+        <div style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+            <div style="flex: 1;">
+              <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${escapeHtml(user)}</div>
+              ${userPrincipal ? `<div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 6px; font-family: monospace;">${escapeHtml(userPrincipal)}</div>` : ""}
+              ${locationStr ? `<div style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">📍 ${escapeHtml(locationStr)}</div>` : ""}
+              <div style="margin-bottom: 6px; display: flex; flex-wrap: wrap; gap: 4px;">
+                <span style="display: inline-block; padding: 3px 8px; background: ${resultColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">${escapeHtml(result)}</span>
+                ${isMsIP ? `<span style="display: inline-block; padding: 3px 8px; background: #059669; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">MS IP</span>` : ""}
+                ${isManaged ? `<span style="display: inline-block; padding: 3px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">Managed</span>` : ""}
+                ${isCompliant ? `<span style="display: inline-block; padding: 3px 8px; background: #10b981; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">Compliant</span>` : ""}
+                ${hasRisk ? `<span style="display: inline-block; padding: 3px 8px; background: #ef4444; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">⚠️ ${escapeHtml(riskState)}</span>` : ""}
+              </div>
+            </div>
+            <div style="margin-left: 8px; font-size: 11px; color: rgba(255,255,255,0.5); white-space: nowrap;">
+              ${distance.toFixed(1)} km
+            </div>
+          </div>
+          ${resource ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px;"><strong>App:</strong> ${escapeHtml(resource)}</div>` : ""}
+          ${ip ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>IP:</strong> ${escapeHtml(ip)}</div>` : ""}
+          ${riskReason ? `<div style="font-size: 11px; color: #ef4444; margin-bottom: 4px;"><strong>Risk:</strong> ${escapeHtml(riskReason)}</div>` : ""}
+          ${caStatus ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>CA Status:</strong> ${escapeHtml(caStatus)}</div>` : ""}
+          ${os ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>OS:</strong> ${escapeHtml(os)}</div>` : ""}
+          ${browser ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>Browser:</strong> ${escapeHtml(browser)}</div>` : ""}
+          ${deviceId ? `<div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 4px; font-family: monospace;">${escapeHtml(deviceId.substring(0, 16))}...</div>` : ""}
+          ${time ? `<div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px;">${escapeHtml(time)}</div>` : ""}
+        </div>
+      `;
+    }).join("");
+
+    listEl.innerHTML = signInItems;
+    
+    // Add threat intel IP section if any related IPs found
+    if (threatIntelIPs && threatIntelIPs.length > 0) {
+      const threatSection = document.createElement("div");
+      threatSection.style.marginTop = "16px";
+      threatSection.style.borderTop = "2px solid rgba(239, 68, 68, 0.3)";
+      threatSection.style.paddingTop = "16px";
+      
+      const threatHeader = document.createElement("div");
+      threatHeader.style.padding = "0 12px 12px 12px";
+      threatHeader.style.fontWeight = "600";
+      threatHeader.style.fontSize = "14px";
+      threatHeader.style.color = "#ef4444";
+      threatHeader.textContent = `⚠️ Related Threat Intel IPs (${threatIntelIPs.length})`;
+      
+      threatSection.appendChild(threatHeader);
+      
+      const threatItems = threatIntelIPs.map(ti => {
+        return `
+          <div style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(239, 68, 68, 0.05);">
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; word-break: break-all;"><strong>IP:</strong> ${escapeHtml(ti.ip)}</div>
+            ${ti.city || ti.country ? `<div style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">${escapeHtml([ti.city, ti.country].filter(Boolean).join(", "))}</div>` : ""}
+            ${ti.type ? `<div style="margin-bottom: 4px;"><span style="display: inline-block; padding: 2px 8px; background: rgba(239, 68, 68, 0.2); border-radius: 4px; font-size: 11px;">${escapeHtml(ti.type)}</span></div>` : ""}
+            ${ti.label ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px;"><strong>Label:</strong> ${escapeHtml(ti.label)}</div>` : ""}
+            ${ti.confidence ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px;"><strong>Confidence:</strong> ${escapeHtml(ti.confidence)}</div>` : ""}
+            ${ti.description ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px;">${escapeHtml(ti.description)}</div>` : ""}
+          </div>
+        `;
+      }).join("");
+      
+      threatSection.innerHTML += threatItems;
+      listEl.appendChild(threatSection);
+    }
+  } else {
+    listEl.innerHTML = `<div style="padding: 12px; color: rgba(255,255,255,0.5);">No sign-ins found in this area</div>`;
+  }
+
+  // Show panel
+  panel.classList.remove("hidden");
+  panel.setAttribute("aria-hidden", "false");
+  
+  const floatingThreatBtn = document.getElementById("showControlPanel");
+  if (floatingThreatBtn) {
+    floatingThreatBtn.style.display = "none";
+  }
+}
+
+/**
+ * Populate the left panel with nearby device location details
+ */
+export function showDeviceDetails(deviceData) {
+  const panel = document.getElementById("leftPanel");
+  const titleEl = document.getElementById("panelTitle");
+  const metaEl = document.getElementById("panelMeta");
+  const listEl = document.getElementById("panelList");
+
+  if (!panel || !titleEl || !metaEl || !listEl) {
+    console.warn("Panel elements not found");
+    return;
+  }
+
+  const { location, count, radius, devices, threatIntelIPs } = deviceData;
+
+  // Clear any existing content
+  listEl.innerHTML = "";
+  metaEl.innerHTML = "";
+
+  // Update panel content section
+  titleEl.textContent = location || "Selected Area - Devices";
+  
+  metaEl.innerHTML = `
+    <div style="margin-bottom: 16px;">
+      <strong>${count}</strong> device${count !== 1 ? "s" : ""} within <strong>${radius} km</strong>
+      ${threatIntelIPs && threatIntelIPs.length > 0 ? `<br><span style="color: #ef4444; font-weight: 600;">${threatIntelIPs.length} related threat intel IP${threatIntelIPs.length !== 1 ? "s" : ""} detected</span>` : ""}
+    </div>
+  `;
+
+  // Build device list
+  if (devices && devices.length > 0) {
+    const deviceItems = devices.map(device => {
+      const name = device.name || "Unknown";
+      const deviceId = device.deviceId || "";
+      const deviceType = device.deviceType || "";
+      const user = device.user || "";
+      const userPrincipal = device.userPrincipal || "";
+      const ip = device.ip || "";
+      const city = device.city || "";
+      const country = device.country || "";
+      const locationStr = [city, country].filter(Boolean).join(", ");
+      const os = device.os || "";
+      const browser = device.browser || "";
+      const isMsIP = device.isMsIP === true;
+      const isCompliant = device.isCompliant === true;
+      const isManaged = device.isManaged === true;
+      const cloudPlatform = device.cloudPlatform || "";
+      const sensorHealth = device.sensorHealth || "";
+      const exposureLevel = device.exposureLevel || "";
+      const distance = device.distance || 0;
+      const time = device.time ? new Date(device.time).toLocaleString() : "";
+      
+      const exposureColor = 
+        exposureLevel === "High" ? "#ef4444" :
+        exposureLevel === "Medium" ? "#f59e0b" :
+        exposureLevel === "Low" ? "#10b981" : "#6b7280";
+      const healthColor = sensorHealth === "Active" ? "#10b981" : "#f59e0b";
+      const deviceTypeIcon = (deviceType === "Mobile" || deviceType === "Tablet") ? "📱" : "💻";
+
+      return `
+        <div style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+            <div style="flex: 1;">
+              <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px;">${deviceTypeIcon} ${escapeHtml(name)}</div>
+              ${user ? `<div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 4px;">👤 ${escapeHtml(user)}</div>` : ""}
+              ${locationStr ? `<div style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">📍 ${escapeHtml(locationStr)}</div>` : ""}
+              <div style="margin-bottom: 6px; display: flex; flex-wrap: wrap; gap: 4px;">
+                ${exposureLevel ? `<span style="display: inline-block; padding: 3px 8px; background: ${exposureColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">${escapeHtml(exposureLevel)} Risk</span>` : ""}
+                ${sensorHealth ? `<span style="display: inline-block; padding: 3px 8px; background: ${healthColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">${escapeHtml(sensorHealth)}</span>` : ""}
+                ${isMsIP ? `<span style="display: inline-block; padding: 3px 8px; background: #059669; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">MS IP</span>` : ""}
+                ${isManaged ? `<span style="display: inline-block; padding: 3px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">Managed</span>` : ""}
+                ${isCompliant ? `<span style="display: inline-block; padding: 3px 8px; background: #10b981; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">Compliant</span>` : ""}
+              </div>
+            </div>
+            <div style="margin-left: 8px; font-size: 11px; color: rgba(255,255,255,0.5); white-space: nowrap;">
+              ${distance.toFixed(1)} km
+            </div>
+          </div>
+          ${deviceType ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>Type:</strong> ${escapeHtml(deviceType)}</div>` : ""}
+          ${cloudPlatform ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>Platform:</strong> ${escapeHtml(cloudPlatform)}</div>` : ""}
+          ${os ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>OS:</strong> ${escapeHtml(os)}</div>` : ""}
+          ${browser ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>Browser:</strong> ${escapeHtml(browser)}</div>` : ""}
+          ${ip ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>IP:</strong> ${escapeHtml(ip)}</div>` : ""}
+          ${deviceId ? `<div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 4px; font-family: monospace;">${escapeHtml(deviceId.substring(0, 16))}...</div>` : ""}
+          ${time ? `<div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px;">Last seen: ${escapeHtml(time)}</div>` : ""}
+        </div>
+      `;
+    }).join("");
+
+    listEl.innerHTML = deviceItems;
+    
+    // Add threat intel IP section if any related IPs found
+    if (threatIntelIPs && threatIntelIPs.length > 0) {
+      const threatSection = document.createElement("div");
+      threatSection.style.marginTop = "16px";
+      threatSection.style.borderTop = "2px solid rgba(239, 68, 68, 0.3)";
+      threatSection.style.paddingTop = "16px";
+      
+      const threatHeader = document.createElement("div");
+      threatHeader.style.padding = "0 12px 12px 12px";
+      threatHeader.style.fontWeight = "600";
+      threatHeader.style.fontSize = "14px";
+      threatHeader.style.color = "#ef4444";
+      threatHeader.textContent = `⚠️ Related Threat Intel IPs (${threatIntelIPs.length})`;
+      
+      threatSection.appendChild(threatHeader);
+      
+      const threatItems = threatIntelIPs.map(ti => {
+        return `
+          <div style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(239, 68, 68, 0.05);">
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; word-break: break-all;"><strong>IP:</strong> ${escapeHtml(ti.ip)}</div>
+            ${ti.city || ti.country ? `<div style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">${escapeHtml([ti.city, ti.country].filter(Boolean).join(", "))}</div>` : ""}
+            ${ti.type ? `<div style="margin-bottom: 4px;"><span style="display: inline-block; padding: 2px 8px; background: rgba(239, 68, 68, 0.2); border-radius: 4px; font-size: 11px;">${escapeHtml(ti.type)}</span></div>` : ""}
+            ${ti.label ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px;"><strong>Label:</strong> ${escapeHtml(ti.label)}</div>` : ""}
+            ${ti.confidence ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px;"><strong>Confidence:</strong> ${escapeHtml(ti.confidence)}</div>` : ""}
+            ${ti.description ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px;">${escapeHtml(ti.description)}</div>` : ""}
+          </div>
+        `;
+      }).join("");
+      
+      threatSection.innerHTML += threatItems;
+      listEl.appendChild(threatSection);
+    }
+  } else {
+    listEl.innerHTML = `<div style="padding: 12px; color: rgba(255,255,255,0.5);">No devices found in this area</div>`;
+  }
+
+  // Show panel
+  panel.classList.remove("hidden");
+  panel.setAttribute("aria-hidden", "false");
+  
+  const floatingThreatBtn = document.getElementById("showControlPanel");
+  if (floatingThreatBtn) {
+    floatingThreatBtn.style.display = "none";
+  }
+}
+
+/**
  * Hide the left panel
  */
 export function hidePanel() {
