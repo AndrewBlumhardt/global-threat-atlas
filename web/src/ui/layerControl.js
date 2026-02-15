@@ -44,15 +44,23 @@ export function initLayerControl(toggleCallback) {
   if (taCheckbox) {
     taCheckbox.addEventListener('change', async (e) => {
       currentState.threatActors = e.target.checked;
+      console.log(`Threat Actors checkbox changed: ${e.target.checked}`);
+      
       if (onLayerToggle) {
         await onLayerToggle('threatActors', e.target.checked, currentState.threatActorsMode);
       }
+      
       // Show/hide mode selector
       const modeSelector = document.getElementById('threatActorsMode');
       if (modeSelector) {
         modeSelector.style.display = e.target.checked ? 'flex' : 'none';
+        console.log(`Mode selector display set to: ${modeSelector.style.display}`);
+      } else {
+        console.error('threatActorsMode element not found!');
       }
     });
+  } else {
+    console.error('layerThreatActors checkbox not found!');
   }
 
   // Threat Actors mode selector
