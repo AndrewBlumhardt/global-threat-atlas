@@ -1,0 +1,40 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "generated": "2026-02-14T18:19:52.265847",
+    "count": 1,
+    "source": "Sentinel Activity Maps - Threat Intelligence"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.53563690185548,
+          29.472780227661136
+        ]
+      },
+      "properties": {
+        "TimeGenerated": "2026-02-14T13:51:00.046107+00:00",
+        "UserDisplayName": "Andrew Blumhardt",
+        "UserPrincipalName": "andrew@blumhardt.net",
+        "IPAddress": "20.97.10.99",
+        "ResultSignature": "SUCCESS",
+        "RiskState": "none",
+        "RiskReason": "",
+        "ResourceDisplayName": "Azure Resource Manager",
+        "Browser": "Edge 144.0.0",
+        "OperatingSystem": "Windows10",
+        "DeviceId": "{PII Removed}",
+        "isCompliant": "False",
+        "isManaged": "False",
+        "ConditionalAccessStatus": "notApplied",
+        "RiskLevelDuringSignIn": "hidden",
+        "CountryOrRegion": "US",
+        "State": "Texas",
+        "City": "San Antonio"
+      }
+    }
+  ]
+}

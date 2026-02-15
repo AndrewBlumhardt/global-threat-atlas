@@ -1,6 +1,7 @@
 import { createMap } from "./map/map-init.js";
 import { toggleThreatActorsHeatmap } from "./overlays/threatActorsHeatmap.js";
 import { toggleThreatIntelOverlay } from "./overlays/threatIntelOverlay.js";
+import { toggleSignInActivityOverlay } from "./overlays/signInActivityOverlay.js";
 import { toggleCustomSourceOverlay } from "./overlays/customSourceOverlay.js";
 import { toggleWeatherRadar, toggleWeatherInfrared } from "./ui/weatherControl.js";
 import { initLayerControl, updateLayerAvailability } from "./ui/layerControl.js";
@@ -35,6 +36,7 @@ async function main() {
         // Get current layer states
         const threatActorsEnabled = document.getElementById('layerThreatActors')?.checked;
         const threatIntelEnabled = document.getElementById('layerThreatIntel')?.checked;
+        const signInActivityEnabled = document.getElementById('layerSignInActivity')?.checked;
         const customSourceEnabled = document.getElementById('layerCustomSource')?.checked;
         
         // Get current threat actors mode
@@ -51,6 +53,11 @@ async function main() {
         if (threatIntelEnabled) {
           await toggleThreatIntelOverlay(map, false); // Turn off
           await toggleThreatIntelOverlay(map, true); // Turn back on with new data
+        }
+        
+        if (signInActivityEnabled) {
+          await toggleSignInActivityOverlay(map, false); // Turn off
+          await toggleSignInActivityOverlay(map, true); // Turn back on with new data
         }
         
         if (customSourceEnabled) {
@@ -83,8 +90,7 @@ async function main() {
           await toggleWeatherInfrared(map, enabled);
           break;
         case 'signInActivity':
-          // Future: toggle sign-in activity layer
-          console.log('Sign-in activity layer not yet implemented');
+          await toggleSignInActivityOverlay(map, enabled);
           break;
         case 'deviceLocations':
           // Future: toggle device locations layer
