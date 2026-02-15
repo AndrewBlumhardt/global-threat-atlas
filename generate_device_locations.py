@@ -1,0 +1,156 @@
+import json
+import random
+from datetime import datetime, timedelta
+
+# Same city data as signin generator for consistency
+us_cities = [
+    {"name": "New York", "state": "NY", "coords": [-74.006, 40.7128], "country": "United States"},
+    {"name": "Los Angeles", "state": "CA", "coords": [-118.2437, 34.0522], "country": "United States"},
+    {"name": "Chicago", "state": "IL", "coords": [-87.6298, 41.8781], "country": "United States"},
+    {"name": "Houston", "state": "TX", "coords": [-95.3698, 29.7604], "country": "United States"},
+    {"name": "Phoenix", "state": "AZ", "coords": [-112.074, 33.4484], "country": "United States"},
+    {"name": "Philadelphia", "state": "PA", "coords": [-75.1652, 39.9526], "country": "United States"},
+    {"name": "San Antonio", "state": "TX", "coords": [-98.4936, 29.4241], "country": "United States"},
+    {"name": "San Diego", "state": "CA", "coords": [-117.1611, 32.7157], "country": "United States"},
+    {"name": "Dallas", "state": "TX", "coords": [-96.797, 32.7767], "country": "United States"},
+    {"name": "San Jose", "state": "CA", "coords": [-121.8863, 37.3382], "country": "United States"},
+    {"name": "Austin", "state": "TX", "coords": [-97.7431, 30.2672], "country": "United States"},
+    {"name": "Seattle", "state": "WA", "coords": [-122.3321, 47.6062], "country": "United States"},
+    {"name": "Denver", "state": "CO", "coords": [-104.9903, 39.7392], "country": "United States"},
+    {"name": "Boston", "state": "MA", "coords": [-71.0589, 42.3601], "country": "United States"},
+    {"name": "Miami", "state": "FL", "coords": [-80.1918, 25.7617], "country": "United States"},
+    {"name": "Atlanta", "state": "GA", "coords": [-84.388, 33.749], "country": "United States"},
+]
+
+europe_cities = [
+    {"name": "London", "state": "England", "coords": [-0.1278, 51.5074], "country": "United Kingdom"},
+    {"name": "Paris", "state": "Île-de-France", "coords": [2.3522, 48.8566], "country": "France"},
+    {"name": "Berlin", "state": "Berlin", "coords": [13.405, 52.52], "country": "Germany"},
+    {"name": "Madrid", "state": "Community of Madrid", "coords": [-3.7038, 40.4168], "country": "Spain"},
+    {"name": "Rome", "state": "Lazio", "coords": [12.4964, 41.9028], "country": "Italy"},
+    {"name": "Amsterdam", "state": "North Holland", "coords": [4.9041, 52.3676], "country": "Netherlands"},
+    {"name": "Brussels", "state": "Brussels", "coords": [4.3517, 50.8503], "country": "Belgium"},
+    {"name": "Vienna", "state": "Vienna", "coords": [16.3738, 48.2082], "country": "Austria"},
+    {"name": "Stockholm", "state": "Stockholm", "coords": [18.0686, 59.3293], "country": "Sweden"},
+    {"name": "Dublin", "state": "Leinster", "coords": [-6.2603, 53.3498], "country": "Ireland"},
+]
+
+other_cities = [
+    {"name": "Toronto", "state": "Ontario", "coords": [-79.3832, 43.6532], "country": "Canada"},
+    {"name": "Sydney", "state": "New South Wales", "coords": [151.2093, -33.8688], "country": "Australia"},
+    {"name": "Tokyo", "state": "Tokyo", "coords": [139.6917, 35.6895], "country": "Japan"},
+    {"name": "Singapore", "state": "Singapore", "coords": [103.8198, 1.3521], "country": "Singapore"},
+]
+
+first_names = ["John", "Jane", "Michael", "Sarah", "David", "Emily", "Robert", "Maria", "James", "Jennifer",
+               "William", "Linda", "Richard", "Patricia", "Thomas", "Susan", "Daniel", "Jessica", "Matthew", "Karen"]
+
+last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez",
+              "Hernandez", "Lopez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee"]
+
+browsers = ["Chrome 120.0", "Edge 120.0", "Firefox 121.0", "Safari 17.2"]
+operating_systems = ["Windows 11", "Windows 10", "macOS 14.2", "macOS 13.6", "iOS 17.2", "Android 14"]
+
+# Microsoft IP ranges
+ms_ip_ranges = ["20", "40", "52", "104", "13"]
+
+def generate_ip(use_ms_range=False):
+    if use_ms_range:
+        prefix = random.choice(ms_ip_ranges)
+        return f"{prefix}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}"
+    else:
+        prefixes = [8, 24, 31, 45, 64, 72, 84, 92, 100, 108, 172, 192]
+        prefix = random.choice(prefixes)
+        return f"{prefix}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}"
+
+def generate_device_id():
+    return f"{random.randint(10000000, 99999999)}-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}-{random.randint(100000000000, 999999999999)}"
+
+# Generate 50 unique device locations (last known location per device)
+features = []
+start_time = datetime.now() - timedelta(days=2)
+
+print("Generating 50 device location records...")
+
+for i in range(50):
+    # 70% US, 25% Europe, 5% other
+    rand = random.random()
+    if rand < 0.70:
+        city = random.choice(us_cities)
+    elif rand < 0.95:
+        city = random.choice(europe_cities)
+    else:
+        city = random.choice(other_cities)
+    
+    # 20% Microsoft IP ranges
+    use_ms_ip = random.random() < 0.20
+    ip_address = generate_ip(use_ms_ip)
+    
+    # Generate timestamp within last 48 hours
+    time_offset = timedelta(
+        hours=random.randint(0, 47),
+        minutes=random.randint(0, 59),
+        seconds=random.randint(0, 59)
+    )
+    timestamp = (start_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    
+    user_first = random.choice(first_names)
+    user_last = random.choice(last_names)
+    user = f"{user_first.lower()}.{user_last.lower()}@contoso.com"
+    user_display = f"{user_first} {user_last}"
+    
+    # Most devices are managed and compliant
+    is_managed = random.random() < 0.85
+    is_compliant = is_managed and random.random() < 0.90
+    
+    feature = {
+        "type": "Feature",
+        "geometry": {
+            "type": "Point",
+            "coordinates": [city["coords"][0], city["coords"][1]]
+        },
+        "properties": {
+            "TimeGenerated": timestamp,
+            "DeviceId": generate_device_id(),
+            "UserDisplayName": user_display,
+            "UserPrincipalName": user,
+            "IPAddress": ip_address,
+            "IsMicrosoftIP": use_ms_ip,
+            "Browser": random.choice(browsers),
+            "OperatingSystem": random.choice(operating_systems),
+            "isCompliant": is_compliant,
+            "isManaged": is_managed,
+            "CountryOrRegion": city["country"],
+            "State": city["state"],
+            "City": city["name"],
+            "Latitude": city["coords"][1],
+            "Longitude": city["coords"][0]
+        }
+    }
+    
+    features.append(feature)
+
+# Create GeoJSON
+geojson = {
+    "type": "FeatureCollection",
+    "features": features
+}
+
+# Write to file
+with open("device-locations-demo.geojson", "w") as f:
+    json.dump(geojson, f, indent=2)
+
+print(f"Generated {len(features)} device location records")
+print(f"File: device-locations-demo.geojson")
+
+# Print some stats
+us_count = sum(1 for f in features if f["properties"]["CountryOrRegion"] == "United States")
+europe_count = sum(1 for f in features if f["properties"]["CountryOrRegion"] in ["United Kingdom", "France", "Germany", "Spain", "Italy", "Netherlands", "Belgium", "Austria", "Sweden", "Ireland"])
+ms_ip_count = sum(1 for f in features if f["properties"]["IsMicrosoftIP"])
+managed_count = sum(1 for f in features if f["properties"]["isManaged"])
+
+print(f"\nStats:")
+print(f"  US locations: {us_count} ({us_count/len(features)*100:.1f}%)")
+print(f"  Europe locations: {europe_count} ({europe_count/len(features)*100:.1f}%)")
+print(f"  Microsoft IP ranges: {ms_ip_count} ({ms_ip_count/len(features)*100:.1f}%)")
+print(f"  Managed devices: {managed_count} ({managed_count/len(features)*100:.1f}%)")
