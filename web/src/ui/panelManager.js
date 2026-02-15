@@ -223,7 +223,7 @@ export function showCountryDetails(countryProps) {
             </div>
             <div style="display: flex; gap: 6px; margin-left: 8px;">
               <button class="actor-search-btn" data-name="${escapeHtml(name)}" data-aka="${escapeHtml(otherNames)}" style="padding: 6px 10px; background: #0078d4; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;" title="Search Bing">🔍 Search</button>
-              <button class="actor-ai-btn" data-name="${escapeHtml(name)}" data-motivation="${escapeHtml(motivation)}" data-aka="${escapeHtml(otherNames)}" style="padding: 6px 10px; background: #10b981; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;" title="Generate AI Prompt">AI Prompt</button>
+              <button class="actor-ai-btn" data-name="${escapeHtml(name)}" data-motivation="${escapeHtml(motivation)}" data-aka="${escapeHtml(otherNames)}" style="padding: 6px 10px; background: #10b981; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;" title="Copy AI prompt to clipboard">AI Prompt</button>
             </div>
           </div>
           ${otherNames ? `<div style="font-size: 12px; color: rgba(255,255,255,0.5);">aka: ${escapeHtml(otherNames)}</div>` : ""}
@@ -265,12 +265,20 @@ export function showCountryDetails(countryProps) {
 
 Please provide detailed, actionable intelligence suitable for security operations teams.`;
         
-        // Copy to clipboard and optionally open ChatGPT
+        // Copy to clipboard with subtle confirmation
         navigator.clipboard.writeText(prompt).then(() => {
-          const openChatGPT = confirm("AI prompt copied to clipboard!\n\nWould you like to open ChatGPT now?\n(You can paste the prompt there)");
-          if (openChatGPT) {
-            window.open("https://chat.openai.com/", "_blank");
-          }
+          const originalText = e.target.textContent;
+          const originalBg = e.target.style.background;
+          
+          // Show confirmation
+          e.target.textContent = "✓ Copied!";
+          e.target.style.background = "#059669";
+          
+          // Restore after 2 seconds
+          setTimeout(() => {
+            e.target.textContent = originalText;
+            e.target.style.background = originalBg;
+          }, 2000);
         }).catch(() => {
           // Fallback: show prompt in alert
           alert("Copy this prompt:\n\n" + prompt);
