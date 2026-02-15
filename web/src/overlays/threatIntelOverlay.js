@@ -115,13 +115,11 @@ async function enable(map) {
         
         // Show available properties
         if (props.ObservableValue || props.ip) {
-          content += `<strong>IP:</strong> <span style="word-break:break-all;display:inline-block;max-width:180px;">${props.ObservableValue || props.ip}</span><br/>`;
+          content += `<strong>IP:</strong> <span style="word-break:break-all;">${props.ObservableValue || props.ip}</span><br/>`;
         }
         
         if (props.Type || props.type) {
-          const typeVal = String(props.Type || props.type);
-          const truncType = typeVal.length > 30 ? typeVal.substring(0, 30) + "..." : typeVal;
-          content += `<strong>Type:</strong> <span style="word-break:break-word;">${truncType}</span><br/>`;
+          content += `<strong>Type:</strong> <span style="word-wrap:break-word;overflow-wrap:break-word;">${props.Type || props.type}</span><br/>`;
         }
         
         if (props.count || props.Count) {
@@ -129,15 +127,12 @@ async function enable(map) {
         }
         
         if (props.Confidence || props.confidence) {
-          const confVal = String(props.Confidence || props.confidence);
-          const truncConf = confVal.length > 20 ? confVal.substring(0, 20) + "..." : confVal;
-          content += `<strong>Confidence:</strong> ${truncConf}<br/>`;
+          content += `<strong>Confidence:</strong> <span style="word-wrap:break-word;">${props.Confidence || props.confidence}</span><br/>`;
         }
         
         if (props.Description || props.description) {
           const desc = String(props.Description || props.description);
-          const truncated = desc.length > 100 ? desc.substring(0, 100) + "..." : desc;
-          content += `<div style="margin-top:4px;font-size:11px;color:#666;word-wrap:break-word;overflow-wrap:break-word;">${truncated}</div>`;
+          content += `<div style="margin-top:4px;font-size:11px;color:#666;word-wrap:break-word;overflow-wrap:break-word;">${desc}</div>`;
         }
         
         content += '</div>';
