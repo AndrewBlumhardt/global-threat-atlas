@@ -66,13 +66,16 @@ def generate_ip(use_ms_range=False):
 def generate_device_id():
     return f"{random.randint(10000000, 99999999)}-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}-{random.randint(100000000000, 999999999999)}"
 
-# Generate 50 unique device locations (last known location per device)
+device_types = ["Desktop", "Laptop", "Mobile", "Tablet"]
+device_type_weights = [0.30, 0.40, 0.20, 0.10]  # 30% desktop, 40% laptop, 20% mobile, 10% tablet
+
+# Generate 500 unique device locations (last known location per device)
 features = []
 start_time = datetime.now() - timedelta(days=2)
 
-print("Generating 50 device location records...")
+print("Generating 500 device location records...")
 
-for i in range(50):
+for i in range(500):
     # 70% US, 25% Europe, 5% other
     rand = random.random()
     if rand < 0.70:
@@ -103,6 +106,20 @@ for i in range(50):
     is_managed = random.random() < 0.85
     is_compliant = is_managed and random.random() < 0.90
     
+    # Randomly select device type based on weights
+    device_type = random.choices(device_types, weights=device_type_weights)[0]
+    
+    # Generate device name based on type
+    device_suffix = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=6))
+    if device_type == "Desktop":
+        device_name = f"DESKTOP-{device_suffix}"
+    elif device_type == "Laptop":
+        device_name = f"LAPTOP-{device_suffix}"
+    elif device_type == "Mobile":
+        device_name = f"MOBILE-{device_suffix}"
+    else:  # Tablet
+        device_name = f"TABLET-{device_suffix}"
+    
     feature = {
         "type": "Feature",
         "geometry": {
@@ -112,6 +129,8 @@ for i in range(50):
         "properties": {
             "TimeGenerated": timestamp,
             "DeviceId": generate_device_id(),
+            "DeviceName": device_name,
+            "DeviceType": device_type,
             "UserDisplayName": user_display,
             "UserPrincipalName": user,
             "IPAddress": ip_address,
@@ -148,9 +167,18 @@ us_count = sum(1 for f in features if f["properties"]["CountryOrRegion"] == "Uni
 europe_count = sum(1 for f in features if f["properties"]["CountryOrRegion"] in ["United Kingdom", "France", "Germany", "Spain", "Italy", "Netherlands", "Belgium", "Austria", "Sweden", "Ireland"])
 ms_ip_count = sum(1 for f in features if f["properties"]["IsMicrosoftIP"])
 managed_count = sum(1 for f in features if f["properties"]["isManaged"])
+desktop_count = sum(1 for f in features if f["properties"]["DeviceType"] == "Desktop")
+laptop_count = sum(1 for f in features if f["properties"]["DeviceType"] == "Laptop")
+mobile_count = sum(1 for f in features if f["properties"]["DeviceType"] == "Mobile")
+tablet_count = sum(1 for f in features if f["properties"]["DeviceType"] == "Tablet")
 
 print(f"\nStats:")
 print(f"  US locations: {us_count} ({us_count/len(features)*100:.1f}%)")
 print(f"  Europe locations: {europe_count} ({europe_count/len(features)*100:.1f}%)")
 print(f"  Microsoft IP ranges: {ms_ip_count} ({ms_ip_count/len(features)*100:.1f}%)")
 print(f"  Managed devices: {managed_count} ({managed_count/len(features)*100:.1f}%)")
+print(f"\nDevice Types:")
+print(f"  Desktops: {desktop_count} ({desktop_count/len(features)*100:.1f}%) - Blue computer icon")
+print(f"  Laptops: {laptop_count} ({laptop_count/len(features)*100:.1f}%) - Blue computer icon")
+print(f"  Mobiles: {mobile_count} ({mobile_count/len(features)*100:.1f}%) - Green phone icon")
+print(f"  Tablets: {tablet_count} ({tablet_count/len(features)*100:.1f}%) - Green phone icon")

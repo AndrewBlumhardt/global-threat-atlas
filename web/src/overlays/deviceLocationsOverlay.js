@@ -53,10 +53,16 @@ async function enable(azureMap) {
     dataSource.add(geojsonData);
     console.log("GeoJSON added to data source");
 
-    // Create symbol layer for device locations (using built-in marker icon)
+    // Create symbol layer for device locations with conditional icons
+    // Blue marker (computer icon) for Desktop/Laptop, Green marker (phone icon) for Mobile/Tablet
     const symbolLayer = new atlas.layer.SymbolLayer(dataSource, DEVICE_SYMBOL_LAYER_ID, {
       iconOptions: {
-        image: 'marker-blue',
+        image: [
+          'match',
+          ['get', 'DeviceType'],
+          ['Mobile', 'Tablet'], 'marker-green',
+          'marker-blue'
+        ],
         size: 0.8,
         anchor: 'bottom'
       },
