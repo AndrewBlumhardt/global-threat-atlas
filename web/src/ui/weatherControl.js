@@ -2,80 +2,69 @@
 
 /**
  * Weather Overlay Control
- * Manages radar and infrared weather layers independently
+ * Manages weather overlay with radar/infrared mode selection
  */
 
-let radarTileLayer = null;
-let infraredTileLayer = null;
+let weatherTileLayer = null;
+let isEnabled = false;
+let currentMode = 'radar';
 
 /**
- * Toggle weather radar overlay on/off
+ * Toggle weather overlay on/off
  * @param {atlas.Map} map - Azure Maps instance
- * @param {boolean} turnOn - Enable or disable weather radar
+ * @param {boolean} turnOn - Enable or disable weather
+ * @param {string} mode - 'radar' or 'infrared'
  */
-export async function toggleWeatherRadar(map, turnOn) {
+export async function toggleWeatherOverlay(map, turnOn, mode = 'radar') {
   if (turnOn) {
-    if (radarTileLayer) return; // Already enabled
+    // If already enabled with same mode, do nothing
+    if (isEnabled && currentMode === mode) return;
     
-    // Get Azure Maps subscription key
-    const authOptions = map.authentication.getOptions();
-    const subscriptionKey = authOptions.authType === 'subscriptionKey' 
-      ? authOptions.subscriptionKey 
-      : authOptions.getToken();
-    
-    const tilesetId = 'microsoft.weather.radar.main';
-    const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2.0&tilesetId=${tilesetId}&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
-    
-    radarTileLayer = new atlas.layer.TileLayer({
-      tileUrl: tileUrl,
-      opacity: 0.6,
-      tileSize: 256
-    });
-
-    // Add layer on top of everything
-    map.layers.add(radarTileLayer);
-    console.log('Weather radar enabled');
-  } else {
-    if (radarTileLayer) {
-      map.layers.remove(radarTileLayer);
-      radarTileLayer = null;
-      console.log('Weather radar disabled');
+    // If already enabled with different mode, switch mode
+    if (isEnabled && currentMode !== mode) {
+      disableWeather(map);
     }
+    
+    currentMode = mode;
+    enableWeather(map, mode);
+    isEnabled = true;
+  } else {
+    if (!isEnabled) return;
+    disableWeather(map);
+    isEnabled = false;
   }
 }
 
-/**
- * Toggle weather infrared overlay on/off
- * @param {atlas.Map} map - Azure Maps instance
- * @param {boolean} turnOn - Enable or disable weather infrared
- */
-export async function toggleWeatherInfrared(map, turnOn) {
-  if (turnOn) {
-    if (infraredTileLayer) return; // Already enabled
-    
-    // Get Azure Maps subscription key
-    const authOptions = map.authentication.getOptions();
-    const subscriptionKey = authOptions.authType === 'subscriptionKey' 
-      ? authOptions.subscriptionKey 
-      : authOptions.getToken();
-    
-    const tilesetId = 'microsoft.weather.infrared.main';
-    const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2.0&tilesetId=${tilesetId}&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
-    
-    infraredTileLayer = new atlas.layer.TileLayer({
-      tileUrl: tileUrl,
-      opacity: 0.6,
-      tileSize: 256
-    });
+function enableWeather(map, mode) {
+  if (weatherTileLayer) return;
 
-    // Add layer on top of everything
-    map.layers.add(infraredTileLayer);
-    console.log('Weather infrared enabled');
-  } else {
-    if (infraredTileLayer) {
-      map.layers.remove(infraredTileLayer);
-      infraredTileLayer = null;
-      console.log('Weather infrared disabled');
-    }
+  // Get Azure Maps subscription key
+  const authOptions = map.authentication.getOptions();
+  const subscriptionKey = authOptions.authType === 'subscriptionKey' 
+    ? authOptions.subscriptionKey 
+    : authOptions.getToken();
+  
+  const tilesetId = mode === 'radar' 
+    ? 'microsoft.weather.radar.main' 
+    : 'microsoft.weather.infrared.main';
+  
+  const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2.0&tilesetId=${tilesetId}&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
+  
+  weatherTileLayer = new atlas.layer.TileLayer({
+    tileUrl: tileUrl,
+    opacity: 0.6,
+    tileSize: 256
+  });
+
+  // Add layer on top of everything
+  map.layers.add(weatherTileLayer);
+  console.log(`Weather overlay enabled: ${mode}`);
+}
+
+function disableWeather(map) {
+  if (weatherTileLayer) {
+    map.layers.remove(weatherTileLayer);
+    weatherTileLayer = null;
+    console.log('Weather overlay disabled');
   }
 }

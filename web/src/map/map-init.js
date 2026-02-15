@@ -57,6 +57,7 @@ export async function createMap({ containerId, initialView, style }) {
     language: "en-US",
     view: "Auto",
     style: style || "road",
+    preserveDrawingBuffer: true,
     authOptions: {
       authType: "subscriptionKey",
       subscriptionKey: cfg.subscriptionKey

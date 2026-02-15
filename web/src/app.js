@@ -1,7 +1,7 @@
 import { createMap } from "./map/map-init.js";
 import { toggleThreatActorsHeatmap } from "./overlays/threatActorsHeatmap.js";
 import { toggleThreatIntelOverlay } from "./overlays/threatIntelOverlay.js";
-import { toggleWeatherRadar, toggleWeatherInfrared } from "./ui/weatherControl.js";
+import { toggleWeatherOverlay } from "./ui/weatherControl.js";
 import { initLayerControl, updateLayerAvailability } from "./ui/layerControl.js";
 import { showCountryDetails, initPanelControls } from "./ui/panelManager.js";
 import { addAutoScrollControl } from "./ui/autoScroll.js";
@@ -35,11 +35,8 @@ async function main() {
         case 'threatIntel':
           await toggleThreatIntelOverlay(map, enabled);
           break;
-        case 'weatherRadar':
-          await toggleWeatherRadar(map, enabled);
-          break;
-        case 'weatherInfrared':
-          await toggleWeatherInfrared(map, enabled);
+        case 'weather':
+          await toggleWeatherOverlay(map, enabled, mode);
           break;
         case 'signInActivity':
           // Future: toggle sign-in activity layer
@@ -55,8 +52,7 @@ async function main() {
     // Mark available layers (all current layers are available)
     updateLayerAvailability('ThreatActors', true);
     updateLayerAvailability('ThreatIntel', true);
-    updateLayerAvailability('WeatherRadar', true);
-    updateLayerAvailability('WeatherInfrared', true);
+    updateLayerAvailability('Weather', true);
     // Future layers start disabled
     updateLayerAvailability('SignInActivity', false);
     updateLayerAvailability('DeviceLocations', false);
