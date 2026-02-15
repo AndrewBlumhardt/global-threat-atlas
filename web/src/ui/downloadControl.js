@@ -7,7 +7,7 @@ export function addDownloadControl(map) {
   const control = document.createElement("div");
   control.className = "azure-maps-control-container";
   control.style.position = "fixed";
-  control.style.bottom = "5px";
+  control.style.bottom = "13px";
   control.style.right = "10px";
   control.style.zIndex = "1000";
   control.style.pointerEvents = "auto";
@@ -18,7 +18,7 @@ export function addDownloadControl(map) {
   button.textContent = "↓";
   button.style.fontSize = "20px";
   button.style.width = "33px";
-  button.style.height = "23px";
+  button.style.height = "25px";
   button.style.padding = "0";
   button.style.border = "2px solid rgba(255, 255, 255, 0.5)";
   button.style.borderRadius = "4px";

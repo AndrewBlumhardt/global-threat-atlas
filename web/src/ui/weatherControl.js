@@ -30,8 +30,8 @@ export async function toggleWeatherRadar(map, turnOn) {
       tileSize: 256
     });
 
-    // Add layer before labels so weather appears below text labels
-    map.layers.add(radarTileLayer, 'labels');
+    // Add layer on top of everything (no second parameter means topmost)
+    map.layers.add(radarTileLayer);
     console.log('Weather radar enabled');
   } else {
     if (radarTileLayer) {
@@ -64,8 +64,8 @@ export async function toggleWeatherInfrared(map, turnOn) {
       tileSize: 256
     });
 
-    // Add layer before labels so weather appears below text labels
-    map.layers.add(infraredTileLayer, 'labels');
+    // Add layer on top of everything (no second parameter means topmost)
+    map.layers.add(infraredTileLayer);
     console.log('Weather infrared enabled');
   } else {
     if (infraredTileLayer) {
