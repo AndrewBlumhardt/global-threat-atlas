@@ -58,10 +58,10 @@ async function enable(azureMap) {
       const deviceType = props.DeviceType || '';
       const isMobile = deviceType === 'Mobile' || deviceType === 'Tablet';
       
-      // Create HTML marker with marker-thick-pin icon template
+      // Create HTML marker with marker-flat icon template
       const marker = new atlas.HtmlMarker({
         position: [coords[0], coords[1]],
-        htmlContent: atlas.getImageTemplate('marker-thick-pin', 1),
+        htmlContent: atlas.getImageTemplate('marker-flat'),
         color: isMobile ? '#10b981' : '#3b82f6', // Green for phone, Blue for computer
         secondaryColor: '#ffffff',
         text: props.DeviceName || '',
