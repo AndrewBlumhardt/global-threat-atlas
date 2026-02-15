@@ -111,11 +111,11 @@ async function enable(map) {
       if (e.shapes && e.shapes.length > 0) {
         const props = e.shapes[0].getProperties();
         
-        let content = '<div style="padding:10px;max-width:250px;">';
+        let content = '<div style="padding:10px;max-width:250px;word-wrap:break-word;overflow-wrap:break-word;">';
         
         // Show available properties
         if (props.ObservableValue || props.ip) {
-          content += `<strong>IP:</strong> ${props.ObservableValue || props.ip}<br/>`;
+          content += `<strong>IP:</strong> <span style="word-break:break-all;">${props.ObservableValue || props.ip}</span><br/>`;
         }
         
         if (props.Type || props.type) {
@@ -133,7 +133,7 @@ async function enable(map) {
         if (props.Description || props.description) {
           const desc = props.Description || props.description;
           const truncated = desc.length > 100 ? desc.substring(0, 100) + "..." : desc;
-          content += `<div style="margin-top:4px;font-size:11px;color:#666;">${truncated}</div>`;
+          content += `<div style="margin-top:4px;font-size:11px;color:#666;word-wrap:break-word;">${truncated}</div>`;
         }
         
         content += '</div>';
