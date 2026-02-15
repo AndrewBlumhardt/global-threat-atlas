@@ -100,9 +100,19 @@ class LogAnalyticsClient:
                 raise Exception(f"Query failed with status: {response.status}")
         
         except HttpResponseError as e:
+            # Check if error is due to missing table
+            error_message = str(e)
+            if "TableNotFound" in error_message or "'where' operator" in error_message or "BadArgumentError" in error_message:
+                logger.warning(f"Table not found in workspace, returning empty results: {e}")
+                return []  # Return empty results instead of raising
             logger.error(f"HTTP error executing query: {e}")
             raise
         except Exception as e:
+            error_message = str(e)
+            # Handle missing table scenarios
+            if "TableNotFound" in error_message or "not found" in error_message.lower():
+                logger.warning(f"Table not found in workspace, returning empty results: {e}")
+                return []  # Return empty results instead of raising
             logger.error(f"Unexpected error executing query: {e}")
             raise
     

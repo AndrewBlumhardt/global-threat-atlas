@@ -367,6 +367,76 @@ def _refresh_source_with_cache(source, log_analytics, blob_storage, refresh_poli
                 logger.error(f"[{correlation_id}] Geo enrichment failed: {geo_error}")
                 result['geo_error'] = str(geo_error)
         
+        # Auto-generate GeoJSON if enabled and data has coordinates (even without enrichment)
+        # This handles sources where coordinates come directly from the query (e.g., signin-activity)
+        if source.auto_generate_geojson and not source.auto_enrich_geo:
+            try:
+                logger.info(f"[{correlation_id}] Auto-generating GeoJSON for {source_id} (coordinates from query)")
+                
+                # Initialize geo client for GeoJSON creation
+                config_loader = ConfigLoader()
+                geo_client = GeoEnrichmentClient(
+                    provider=config_loader.geo_provider,
+                    key_vault_client=kv_client
+                )
+                
+                # Read TSV from temp file
+                tsv_content = blob_storage.read_tsv(temp_filename)
+                headers, rows_data = geo_client.parse_tsv_with_geo(tsv_content)
+                
+                # Create GeoJSON features (only for rows with coordinates)
+                features = []
+                skipped = 0
+                for row in rows_data:
+                    feature = geo_client.create_geojson_feature(row)
+                    if feature:
+                        features.append(feature)
+                    else:
+                        skipped += 1
+                
+                if len(features) > 0:
+                    # Create and save GeoJSON to temp file
+                    geojson = geo_client.create_geojson_collection(features)
+                    geojson_filename = source.output_filename.replace('.tsv', '.geojson')
+                    temp_geojson_filename = f"{geojson_filename}.tmp"
+                    
+                    blob_client = blob_storage.service_client.get_blob_client(
+                        container="datasets",
+                        blob=temp_geojson_filename
+                    )
+                    
+                    from azure.storage.blob import ContentSettings
+                    content_settings = ContentSettings(content_type='application/geo+json')
+                    
+                    blob_client.upload_blob(
+                        json.dumps(geojson, indent=2),
+                        overwrite=True,
+                        content_settings=content_settings
+                    )
+                    
+                    result['geojson_file'] = geojson_filename
+                    result['geojson_features'] = len(features)
+                    result['geojson_skipped'] = skipped
+                    logger.info(f"[{correlation_id}] GeoJSON generated: {len(features)} features ({skipped} skipped - no coordinates)")
+                    
+                    # Atomic rename: .tmp.geojson → .geojson
+                    source_blob = blob_storage.service_client.get_blob_client(
+                        container="datasets",
+                        blob=temp_geojson_filename
+                    )
+                    target_blob = blob_storage.service_client.get_blob_client(
+                        container="datasets",
+                        blob=geojson_filename
+                    )
+                    target_blob.start_copy_from_url(source_blob.url)
+                    source_blob.delete_blob()
+                else:
+                    logger.info(f"[{correlation_id}] No features with coordinates found, skipping GeoJSON generation")
+            
+            except Exception as geo_json_error:
+                logger.error(f"[{correlation_id}] GeoJSON generation failed: {geo_json_error}")
+                result['geojson_error'] = str(geo_json_error)
+        
         # Atomic rename: .tmp → production file
         logger.info(f"[{correlation_id}] Atomic file replacement for {source_id}")
         source_blob = blob_storage.service_client.get_blob_client(

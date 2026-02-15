@@ -10,31 +10,138 @@ geo_provider: "maxmind"  # Options: "maxmind", "azure_maps"
 key_vault_name: ""  # e.g., "kv-sentinel-maps" - leave empty to use env vars
 
 sources:
-  - id: signin_failures
-    name: "Sign-in Failures"
-    enabled: false  # Disabled - template example only
-    refresh_interval_seconds: 300  # 5 minutes
-    query_time_window_hours: 24
-    incremental: true
+  - id: signin_activity
+    name: "Sign-in Activity"
+    enabled: true
+    refresh_threshold_hours: 4  # Refresh every 4 hours
+    query_time_window_hours: 48  # 2 days lookback
+    incremental: false
     incremental_overlap_minutes: 10
-    output_filename: "signin-failures.tsv"
+    output_filename: "signin-activity.tsv"
+    auto_enrich_geo: false  # Already has geo coordinates
+    auto_generate_geojson: true  # Generate GeoJSON from results
     kql_query: |
       SigninLogs
-      | where TimeGenerated >= ago({time_window}h)
-      | where ResultType != "0"  // Failed sign-ins
-      | extend Country = tostring(LocationDetails.countryOrRegion)
-      | extend City = tostring(LocationDetails.city)
-      | extend IPAddress = tostring(IPAddress)
-      | project TimeGenerated, UserPrincipalName, IPAddress, Country, City, ResultType, ResultDescription
+      | where TimeGenerated > ago({time_window}h)
+      | where IPAddress contains "."
+      | extend IsMicrosoftIP = toint(split(IPAddress, ".")[0]) in (13,20,40,52,104)
+      | extend Browser = DeviceDetail.browser
+      | extend DeviceId = DeviceDetail.deviceId
+      | extend isCompliant = DeviceDetail.isCompliant
+      | extend isManaged = DeviceDetail.isManaged
+      | extend OperatingSystem = DeviceDetail.operatingSystem
+      | extend City = LocationDetails.city
+      | extend CountryOrRegion = LocationDetails.countryOrRegion
+      | extend State = LocationDetails.state
+      | extend Latitude = parse_json(tostring(LocationDetails.geoCoordinates)).latitude
+      | extend Longitude = parse_json(tostring(LocationDetails.geoCoordinates)).longitude
+      | extend RiskReason = parse_json(RiskEventTypes)[0]
+      | extend ResourceDisplayName = iif(isempty(ResourceDisplayName), "Unknown", ResourceDisplayName)
+      | extend Browser = iif(isempty(Browser), "Unknown", Browser)
+      | extend DeviceId = iif(isempty(DeviceId), "Unknown", DeviceId)
+      | project
+          TimeGenerated,
+          UserDisplayName,
+          UserPrincipalName,
+          IPAddress,
+          IsMicrosoftIP,
+          ResultSignature,
+          ResourceDisplayName,
+          Browser,
+          OperatingSystem,
+          DeviceId,
+          isCompliant,
+          isManaged,
+          ConditionalAccessStatus,
+          RiskState,
+          RiskReason,
+          CountryOrRegion,
+          State,
+          City,
+          Latitude,
+          Longitude
       | order by TimeGenerated desc
     columns:
       - TimeGenerated
+      - UserDisplayName
       - UserPrincipalName
       - IPAddress
-      - Country
+      - IsMicrosoftIP
+      - ResultSignature
+      - ResourceDisplayName
+      - Browser
+      - OperatingSystem
+      - DeviceId
+      - isCompliant
+      - isManaged
+      - ConditionalAccessStatus
+      - RiskState
+      - RiskReason
+      - CountryOrRegion
+      - State
       - City
-      - ResultType
-      - ResultDescription
+      - Latitude
+      - Longitude
+
+  - id: device_locations
+    name: "Device Locations"
+    enabled: true
+    refresh_threshold_hours: 6  # Refresh every 6 hours
+    query_time_window_hours: 48  # 2 days lookback
+    incremental: false
+    incremental_overlap_minutes: 10
+    output_filename: "device-locations.tsv"
+    auto_enrich_geo: false  # Already has geo coordinates
+    auto_generate_geojson: true  # Generate GeoJSON from results
+    kql_query: |
+      SigninLogs
+      | where TimeGenerated > ago({time_window}h)
+      | summarize arg_max(TimeGenerated, *) by DeviceId
+      | where isnotempty(DeviceId)
+      | extend IsMicrosoftIP = toint(split(IPAddress, ".")[0]) in (13,20,40,52,104)
+      | extend Browser = DeviceDetail.browser
+      | extend isCompliant = DeviceDetail.isCompliant
+      | extend isManaged = DeviceDetail.isManaged
+      | extend OperatingSystem = DeviceDetail.operatingSystem
+      | extend City = LocationDetails.city
+      | extend CountryOrRegion = LocationDetails.countryOrRegion
+      | extend State = LocationDetails.state
+      | extend Latitude = parse_json(tostring(LocationDetails.geoCoordinates)).latitude
+      | extend Longitude = parse_json(tostring(LocationDetails.geoCoordinates)).longitude
+      | extend Browser = iif(isempty(Browser), "Unknown", Browser)
+      | project
+          TimeGenerated,
+          DeviceId,
+          UserDisplayName,
+          UserPrincipalName,
+          IPAddress,
+          IsMicrosoftIP,
+          Browser,
+          OperatingSystem,
+          isCompliant,
+          isManaged,
+          CountryOrRegion,
+          State,
+          City,
+          Latitude,
+          Longitude
+      | order by TimeGenerated desc
+    columns:
+      - TimeGenerated
+      - DeviceId
+      - UserDisplayName
+      - UserPrincipalName
+      - IPAddress
+      - IsMicrosoftIP
+      - Browser
+      - OperatingSystem
+      - isCompliant
+      - isManaged
+      - CountryOrRegion
+      - State
+      - City
+      - Latitude
+      - Longitude
 
   - id: threat_intel_indicators
     name: "Threat Intelligence Indicators"
