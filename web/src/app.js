@@ -1,6 +1,7 @@
 import { createMap } from "./map/map-init.js";
 import { toggleThreatActorsHeatmap } from "./overlays/threatActorsHeatmap.js";
 import { toggleThreatIntelOverlay } from "./overlays/threatIntelOverlay.js";
+import { toggleCustomSourceOverlay } from "./overlays/customSourceOverlay.js";
 import { toggleWeatherRadar, toggleWeatherInfrared } from "./ui/weatherControl.js";
 import { initLayerControl, updateLayerAvailability } from "./ui/layerControl.js";
 import { showCountryDetails, initPanelControls } from "./ui/panelManager.js";
@@ -49,6 +50,9 @@ async function main() {
           // Future: toggle device locations layer
           console.log('Device locations layer not yet implemented');
           break;
+        case 'customSource':
+          await toggleCustomSourceOverlay(map, enabled);
+          break;
       }
     });
     
@@ -57,9 +61,10 @@ async function main() {
     updateLayerAvailability('ThreatIntel', true);
     updateLayerAvailability('WeatherRadar', true);
     updateLayerAvailability('WeatherInfrared', true);
-    // Future layers start disabled
+    // Future layers start disabled (enabled when data is available)
     updateLayerAvailability('SignInActivity', false);
     updateLayerAvailability('DeviceLocations', false);
+    updateLayerAvailability('CustomSource', false);
     
     // Add map controls
     addAutoScrollControl(map);

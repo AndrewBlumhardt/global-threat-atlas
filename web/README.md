@@ -4,9 +4,14 @@ Azure Static Web App displaying threat intelligence data on an interactive map u
 
 ## Features
 
-- **Interactive Azure Maps**: Visualize threat intelligence indicators with clustering
+- **Interactive Azure Maps**: Visualize threat intelligence indicators with 3D markers and clustering
+- **Layer Control**: Toggle multiple data layers including threat actors, threat intel IPs, weather, and custom sources
+- **Threat Actor Intelligence**: Heatmap or country-based views of known threat actor locations
+- **Threat Intel IPs**: 3D elevated markers for IP-based threat indicators with detailed popups
+- **Weather Overlays**: Real-time weather radar and infrared satellite imagery
+- **Custom Source Layer**: Upload and visualize custom GeoJSON data (see [Custom Source Guide](../docs/CUSTOM_SOURCE.md))
+- **Map Controls**: Download map as PNG, auto-scroll threat feed, drag-and-drop GeoJSON files
 - **Real-time Data**: Loads GeoJSON data from Azure Blob Storage
-- **Threat Actor Intelligence**: Display known threat actor locations
 - **Responsive Design**: Works on desktop and mobile devices
 
 ## Architecture

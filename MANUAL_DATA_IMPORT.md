@@ -2,6 +2,8 @@
 
 When you don't have sufficient live data in Log Analytics for demos or testing, you can manually create or export TSV files and convert them to GeoJSON.
 
+> **📌 Custom Source Layer**: You can also display arbitrary GeoJSON files using the **Custom Source** layer. See [Custom Source Documentation](docs/CUSTOM_SOURCE.md) for details on uploading and displaying custom GeoJSON data.
+
 ## Quick Start
 
 ### 1. Prepare Your TSV File

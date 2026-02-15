@@ -111,15 +111,15 @@ async function enable(map) {
       if (e.shapes && e.shapes.length > 0) {
         const props = e.shapes[0].getProperties();
         
-        let content = '<div style="padding:10px;width:250px;box-sizing:border-box;word-wrap:break-word;overflow-wrap:break-word;overflow:hidden;">';
+        let content = '<div style="padding:10px;width:250px;box-sizing:border-box;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">';
         
         // Show available properties
         if (props.ObservableValue || props.ip) {
-          content += `<strong>IP:</strong> <span style="word-break:break-all;">${props.ObservableValue || props.ip}</span><br/>`;
+          content += `<strong>IP:</strong> <span style="display:inline;word-break:break-all;white-space:normal;">${props.ObservableValue || props.ip}</span><br/>`;
         }
         
         if (props.Type || props.type) {
-          content += `<strong>Type:</strong> <span style="word-wrap:break-word;overflow-wrap:break-word;">${props.Type || props.type}</span><br/>`;
+          content += `<strong>Type:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">${props.Type || props.type}</span><br/>`;
         }
         
         if (props.count || props.Count) {
@@ -127,12 +127,12 @@ async function enable(map) {
         }
         
         if (props.Confidence || props.confidence) {
-          content += `<strong>Confidence:</strong> <span style="word-wrap:break-word;">${props.Confidence || props.confidence}</span><br/>`;
+          content += `<strong>Confidence:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${props.Confidence || props.confidence}</span><br/>`;
         }
         
         if (props.Description || props.description) {
           const desc = String(props.Description || props.description);
-          content += `<div style="margin-top:4px;font-size:11px;color:#666;word-wrap:break-word;overflow-wrap:break-word;">${desc}</div>`;
+          content += `<div style="margin-top:4px;font-size:11px;color:#666;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">${desc}</div>`;
         }
         
         content += '</div>';

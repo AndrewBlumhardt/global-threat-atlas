@@ -11,7 +11,8 @@ let currentState = {
   weatherRadar: false,
   weatherInfrared: false,
   signInActivity: false,
-  deviceLocations: false
+  deviceLocations: false,
+  customSource: false
 };
 
 let onLayerToggle = null;
@@ -126,6 +127,17 @@ export function initLayerControl(toggleCallback) {
       
       if (onLayerToggle) {
         await onLayerToggle('weatherInfrared', e.target.checked);
+      }
+    });
+  }
+
+  // Custom Source toggle
+  const customSourceCheckbox = document.getElementById('layerCustomSource');
+  if (customSourceCheckbox) {
+    customSourceCheckbox.addEventListener('change', async (e) => {
+      currentState.customSource = e.target.checked;
+      if (onLayerToggle) {
+        await onLayerToggle('customSource', e.target.checked);
       }
     });
   }
