@@ -106,14 +106,7 @@ async function enable(map) {
         Math.ceil(maxCount / 2), "#ff0000",
         maxCount, "#8b0000"
       ] : "#ff0000",
-      strokeColor: [
-        "interpolate",
-        ["linear"],
-        ["coalesce", ["get", "count"], ["get", "Count"], 1],
-        1, "rgba(255, 255, 255, 0.9)",
-        Math.ceil(maxCount / 2), "rgba(255, 200, 200, 0.8)",
-        maxCount, "rgba(139, 0, 0, 0.9)"
-      ],
+      strokeColor: "#ffffff",
       strokeWidth: 2,
       opacity: 0.85,
       blur: 0.2,

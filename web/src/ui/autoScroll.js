@@ -11,7 +11,7 @@ export function addAutoScrollControl(map) {
   const control = document.createElement("div");
   control.className = "azure-maps-control-container";
   control.style.position = "fixed";
-  control.style.bottom = "135px";
+  control.style.bottom = "143px";
   control.style.right = "10px";
   control.style.zIndex = "1000";
   control.style.pointerEvents = "auto";
