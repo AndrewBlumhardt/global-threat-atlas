@@ -1,6 +1,92 @@
 /* global */
 
 /**
+ * Populate the left panel with custom source item details
+ */
+export function showCustomSourceDetails(customData) {
+  const panel = document.getElementById("leftPanel");
+  const titleEl = document.getElementById("panelTitle");
+  const metaEl = document.getElementById("panelMeta");
+  const listEl = document.getElementById("panelList");
+
+  if (!panel || !titleEl || !metaEl || !listEl) {
+    console.warn("Panel elements not found");
+    return;
+  }
+
+  const { location, count, radius, items } = customData;
+
+  // Update panel content section
+  titleEl.textContent = location || "Custom Source Area";
+  
+  metaEl.innerHTML = `
+    <div style="margin-bottom: 16px;">
+      <strong>${count}</strong> custom item${count !== 1 ? "s" : ""} within <strong>${radius} km</strong>
+    </div>
+  `;
+
+  // Build item list
+  if (items && items.length > 0) {
+    const itemHtml = items.map(item => {
+      const name = item.name || "Unnamed";
+      const city = item.city || "";
+      const country = item.country || "";
+      const locationStr = [city, country].filter(Boolean).join(", ");
+      const type = item.type || "";
+      const distance = item.distance || 0;
+      
+      // Get additional properties to display
+      const additionalProps = [];
+      if (item.properties) {
+        Object.keys(item.properties).forEach(key => {
+          if (key !== 'name' && key !== 'Name' && key !== 'title' && key !== 'Title' &&
+              key !== 'City' && key !== 'city' && key !== 'Country' && key !== 'country' &&
+              key !== 'type' && key !== 'Type' && key !== 'Shape' && key !== 'geometry' && key !== 'location') {
+            additionalProps.push({ key, value: item.properties[key] });
+          }
+        });
+      }
+
+      return `
+        <div style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+            <div style="flex: 1;">
+              <div style="font-weight: 600; margin-bottom: 4px;">${escapeHtml(name)}</div>
+              ${locationStr ? `<div style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">${escapeHtml(locationStr)}</div>` : ""}
+              ${type ? `<div style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">
+                <span style="display: inline-block; padding: 2px 8px; background: rgba(147, 51, 234, 0.2); border-radius: 4px; font-size: 11px;">
+                  ${escapeHtml(type)}
+                </span>
+              </div>` : ""}
+            </div>
+            <div style="margin-left: 8px; font-size: 11px; color: rgba(255,255,255,0.5); white-space: nowrap;">
+              ${distance.toFixed(1)} km
+            </div>
+          </div>
+          ${additionalProps.length > 0 ? additionalProps.map(prop => 
+            `<div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 2px;"><strong>${escapeHtml(prop.key)}:</strong> ${escapeHtml(String(prop.value))}</div>`
+          ).join('') : ''}
+        </div>
+      `;
+    }).join("");
+
+    listEl.innerHTML = itemHtml;
+  } else {
+    listEl.innerHTML = `<div style="padding: 12px; color: rgba(255,255,255,0.5);">No custom items found in this area</div>`;
+  }
+
+  // Show panel
+  panel.classList.remove("hidden");
+  panel.setAttribute("aria-hidden", "false");
+  
+  // Hide floating threat map button since panel has its own button
+  const floatingThreatBtn = document.getElementById("showControlPanel");
+  if (floatingThreatBtn) {
+    floatingThreatBtn.style.display = "none";
+  }
+}
+
+/**
  * Populate the left panel with nearby IP details
  */
 export function showIPDetails(ipData) {
@@ -41,7 +127,7 @@ export function showIPDetails(ipData) {
         <div style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);">
           <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
             <div style="flex: 1;">
-              <div style="font-weight: 600; margin-bottom: 4px; word-break: break-all;">${escapeHtml(ipAddress)}</div>
+              <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; word-break: break-all;"><strong>IP:</strong> ${escapeHtml(ipAddress)}</div>
               ${locationStr ? `<div style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">${escapeHtml(locationStr)}</div>` : ""}
               ${type ? `<div style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">
                 <span style="display: inline-block; padding: 2px 8px; background: rgba(239, 68, 68, 0.2); border-radius: 4px; font-size: 11px;">

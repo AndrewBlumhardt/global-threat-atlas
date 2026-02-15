@@ -6,6 +6,8 @@
  * Expected file naming format: custom-source.geojson
  */
 
+import { showCustomSourceDetails } from "../ui/panelManager.js";
+
 const CUSTOM_SOURCE_ID = "custom-source";
 const CUSTOM_BUBBLE_LAYER_ID = "custom-bubble-layer";
 const CUSTOM_LINE_LAYER_ID = "custom-line-layer";
@@ -104,12 +106,25 @@ async function enable(map) {
           const props = e.shapes[0].getProperties();
           
           let content = '<div style="padding:10px;width:250px;box-sizing:border-box;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">';
-          content += '<strong>Custom Source</strong><br/>';
           
-          // Show all properties
+          // Prominent title from name property or "Custom Source"
+          const title = props.name || props.Name || props.title || props.Title || 'Custom Source';
+          content += `<div style="font-weight:600;font-size:14px;margin-bottom:8px;">${escapeHtml(title)}</div>`;
+          
+          // Location if available
+          const city = props.City || props.city || props.location || '';
+          const country = props.Country || props.country || '';
+          if (city || country) {
+            const location = [city, country].filter(Boolean).join(', ');
+            content += `<div style="margin-bottom:8px;"><strong>Location:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${escapeHtml(location)}</span></div>`;
+          }
+          
+          // Show remaining properties
           Object.keys(props).forEach(key => {
-            if (key !== 'Shape' && key !== 'geometry') {
-              content += `<strong>${key}:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${props[key]}</span><br/>`;
+            if (key !== 'Shape' && key !== 'geometry' && 
+                key !== 'name' && key !== 'Name' && key !== 'title' && key !== 'Title' &&
+                key !== 'City' && key !== 'city' && key !== 'Country' && key !== 'country' && key !== 'location') {
+              content += `<div style="font-size:12px;margin-bottom:4px;"><strong>${key}:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${escapeHtml(String(props[key]))}</span></div>`;
             }
           });
           
@@ -125,6 +140,20 @@ async function enable(map) {
 
       map.events.add("mouseleave", bubbleLayer, () => {
         popup.close();
+        map.getCanvasContainer().style.cursor = "grab";
+      });
+      
+      // Change cursor on hover
+      map.events.add("mousemove", bubbleLayer, () => {
+        map.getCanvasContainer().style.cursor = "pointer";
+      });
+      
+      // Add click event to show nearby items in panel
+      map.events.add("click", bubbleLayer, (e) => {
+        if (e.shapes && e.shapes.length > 0) {
+          const clickedPosition = e.shapes[0].getCoordinates();
+          showNearbyCustomItemsPanel(map, clickedPosition, dataSource);
+        }
       });
     }
 
@@ -178,4 +207,86 @@ function disable(map) {
 
   isEnabled = false;
   console.log("Custom source overlay disabled");
+}
+
+/**
+ * Show nearby custom source items in the left panel when user clicks
+ * @param {atlas.Map} map - The map instance
+ * @param {atlas.data.Position} position - Click position [lng, lat]
+ * @param {atlas.source.DataSource} dataSource - The custom source data source
+ */
+function showNearbyCustomItemsPanel(map, position, dataSource) {
+  const radiusKm = 100; // 100 km radius
+  const clickLng = position[0];
+  const clickLat = position[1];
+  
+  // Get all features from data source
+  const allFeatures = dataSource.toJson().features;
+  
+  // Calculate distance and filter nearby items
+  const nearbyItems = allFeatures
+    .filter(f => f.geometry.type === 'Point' || f.geometry.type === 'MultiPoint')
+    .map(feature => {
+      const coords = feature.geometry.coordinates;
+      const distance = calculateDistance(clickLat, clickLng, coords[1], coords[0]);
+      return {
+        feature: feature,
+        distance: distance,
+        properties: feature.properties
+      };
+    })
+    .filter(item => item.distance <= radiusKm)
+    .sort((a, b) => a.distance - b.distance);
+  
+  // Create location name from click position
+  let locationName = "Selected Area";
+  if (nearbyItems.length > 0) {
+    const firstItem = nearbyItems[0].properties;
+    const city = firstItem.City || firstItem.city || firstItem.location || '';
+    const country = firstItem.Country || firstItem.country || '';
+    locationName = [city, country].filter(Boolean).join(', ') || "Custom Source Area";
+  }
+  
+  // Show in panel
+  showCustomSourceDetails({
+    location: locationName,
+    count: nearbyItems.length,
+    radius: radiusKm,
+    items: nearbyItems.map(item => ({
+      name: item.properties.name || item.properties.Name || item.properties.title || item.properties.Title || 'Unnamed',
+      city: item.properties.City || item.properties.city || item.properties.location || '',
+      country: item.properties.Country || item.properties.country || '',
+      type: item.properties.type || item.properties.Type || '',
+      properties: item.properties,
+      distance: Math.round(item.distance * 10) / 10 // Round to 1 decimal
+    }))
+  });
+}
+
+/**
+ * Calculate distance between two lat/lng points using Haversine formula
+ */
+function calculateDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function toRad(degrees) {
+  return degrees * (Math.PI / 180);
+}
+
+/**
+ * Simple HTML escape
+ */
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
