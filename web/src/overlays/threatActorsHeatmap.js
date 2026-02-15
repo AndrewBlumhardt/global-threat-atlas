@@ -219,9 +219,14 @@ async function enable(map, mode, onCountryClick) {
     map.sources.add(dataSource);
   }
 
-  // Load threat actor data from TSV file
-  const resp = await fetch("/data/threat-actors.tsv", { cache: "no-store" });
-  if (!resp.ok) throw new Error("Could not load /data/threat-actors.tsv");
+  // Load threat actor data from blob storage via API
+  console.log("Loading threat actors from API...");
+  const resp = await fetch("/api/data/threat-actors.tsv", { cache: "no-store" });
+  if (!resp.ok) {
+    const errorText = await resp.text();
+    console.error("Failed to load threat actors:", errorText);
+    throw new Error(`Could not load threat actors: ${resp.status} ${resp.statusText}`);
+  }
 
   const rows = parseTSV(await resp.text());
 

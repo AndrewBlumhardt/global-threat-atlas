@@ -38,11 +38,17 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             mimetype='application/json'
         )
     
-    # Add .geojson extension if not present
-    if not filename.endswith('.geojson'):
-        blob_name = f'{filename}.geojson'
-    else:
+    # Determine blob name and content type based on file extension
+    if filename.endswith('.tsv'):
         blob_name = filename
+        content_type = 'text/tab-separated-values'
+    elif filename.endswith('.geojson'):
+        blob_name = filename
+        content_type = 'application/json'
+    else:
+        # Default: add .geojson extension
+        blob_name = f'{filename}.geojson'
+        content_type = 'application/json'
     
     logger.info(f'Requesting blob: {blob_name}')
     
@@ -123,11 +129,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         
         return func.HttpResponse(
             body=content,
-            mimetype='application/json',
+            mimetype=content_type,
             headers={
                 'Access-Control-Allow-Origin': '*',
                 'Cache-Control': 'public, max-age=300',  # Cache for 5 minutes
-                'Content-Type': 'application/json'
+                'Content-Type': content_type
             }
         )
         
