@@ -111,15 +111,17 @@ async function enable(map) {
       if (e.shapes && e.shapes.length > 0) {
         const props = e.shapes[0].getProperties();
         
-        let content = '<div style="padding:10px;max-width:250px;word-wrap:break-word;overflow-wrap:break-word;">';
+        let content = '<div style="padding:10px;width:250px;box-sizing:border-box;word-wrap:break-word;overflow-wrap:break-word;overflow:hidden;">';
         
         // Show available properties
         if (props.ObservableValue || props.ip) {
-          content += `<strong>IP:</strong> <span style="word-break:break-all;">${props.ObservableValue || props.ip}</span><br/>`;
+          content += `<strong>IP:</strong> <span style="word-break:break-all;display:inline-block;max-width:180px;">${props.ObservableValue || props.ip}</span><br/>`;
         }
         
         if (props.Type || props.type) {
-          content += `<strong>Type:</strong> ${props.Type || props.type}<br/>`;
+          const typeVal = String(props.Type || props.type);
+          const truncType = typeVal.length > 30 ? typeVal.substring(0, 30) + "..." : typeVal;
+          content += `<strong>Type:</strong> <span style="word-break:break-word;">${truncType}</span><br/>`;
         }
         
         if (props.count || props.Count) {
@@ -127,13 +129,15 @@ async function enable(map) {
         }
         
         if (props.Confidence || props.confidence) {
-          content += `<strong>Confidence:</strong> ${props.Confidence || props.confidence}<br/>`;
+          const confVal = String(props.Confidence || props.confidence);
+          const truncConf = confVal.length > 20 ? confVal.substring(0, 20) + "..." : confVal;
+          content += `<strong>Confidence:</strong> ${truncConf}<br/>`;
         }
         
         if (props.Description || props.description) {
-          const desc = props.Description || props.description;
+          const desc = String(props.Description || props.description);
           const truncated = desc.length > 100 ? desc.substring(0, 100) + "..." : desc;
-          content += `<div style="margin-top:4px;font-size:11px;color:#666;word-wrap:break-word;">${truncated}</div>`;
+          content += `<div style="margin-top:4px;font-size:11px;color:#666;word-wrap:break-word;overflow-wrap:break-word;">${truncated}</div>`;
         }
         
         content += '</div>';
