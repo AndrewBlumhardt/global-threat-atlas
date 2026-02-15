@@ -1,6 +1,81 @@
 /* global */
 
 /**
+ * Populate the left panel with nearby IP details
+ */
+export function showIPDetails(ipData) {
+  const panel = document.getElementById("leftPanel");
+  const titleEl = document.getElementById("panelTitle");
+  const metaEl = document.getElementById("panelMeta");
+  const listEl = document.getElementById("panelList");
+
+  if (!panel || !titleEl || !metaEl || !listEl) {
+    console.warn("Panel elements not found");
+    return;
+  }
+
+  const { location, count, radius, ips } = ipData;
+
+  // Update panel content section
+  titleEl.textContent = location || "Selected Area";
+  
+  metaEl.innerHTML = `
+    <div style="margin-bottom: 16px;">
+      <strong>${count}</strong> threat intel IP${count !== 1 ? "s" : ""} within <strong>${radius} km</strong>
+    </div>
+  `;
+
+  // Build IP list
+  if (ips && ips.length > 0) {
+    const ipItems = ips.map(ip => {
+      const ipAddress = ip.ip || "Unknown";
+      const city = ip.city || "";
+      const country = ip.country || "";
+      const locationStr = [city, country].filter(Boolean).join(", ");
+      const type = ip.type || "";
+      const confidence = ip.confidence || "";
+      const description = ip.description || "";
+      const distance = ip.distance || 0;
+
+      return `
+        <div style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+            <div style="flex: 1;">
+              <div style="font-weight: 600; margin-bottom: 4px; word-break: break-all;">${escapeHtml(ipAddress)}</div>
+              ${locationStr ? `<div style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">${escapeHtml(locationStr)}</div>` : ""}
+              ${type ? `<div style="font-size: 13px; color: rgba(255,255,255,0.7); margin-bottom: 4px;">
+                <span style="display: inline-block; padding: 2px 8px; background: rgba(239, 68, 68, 0.2); border-radius: 4px; font-size: 11px;">
+                  ${escapeHtml(type)}
+                </span>
+              </div>` : ""}
+            </div>
+            <div style="margin-left: 8px; font-size: 11px; color: rgba(255,255,255,0.5); white-space: nowrap;">
+              ${distance.toFixed(1)} km
+            </div>
+          </div>
+          ${confidence ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px;"><strong>Confidence:</strong> ${escapeHtml(confidence)}</div>` : ""}
+          ${description ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px;">${escapeHtml(description)}</div>` : ""}
+        </div>
+      `;
+    }).join("");
+
+    listEl.innerHTML = ipItems;
+  } else {
+    listEl.innerHTML = `<div style="padding: 12px; color: rgba(255,255,255,0.5);">No threat intel IPs found in this area</div>`;
+  }
+
+  // Show panel
+  panel.classList.remove("hidden");
+  panel.setAttribute("aria-hidden", "false");
+  
+  // Hide floating threat map button since panel has its own button
+  const floatingThreatBtn = document.getElementById("showControlPanel");
+  if (floatingThreatBtn) {
+    floatingThreatBtn.style.display = "none";
+  }
+}
+
+/**
  * Populate the left panel with country threat actor details
  */
 export function showCountryDetails(countryProps) {

@@ -5,6 +5,8 @@
  * Displays threat intelligence indicators from pre-generated GeoJSON
  */
 
+import { showIPDetails } from "../ui/panelManager.js";
+
 const THREAT_INTEL_SOURCE_ID = "threat-intel-source";
 const THREAT_INTEL_LAYER_ID = "threat-intel-layer";
 
@@ -113,9 +115,17 @@ async function enable(map) {
         
         let content = '<div style="padding:10px;width:250px;box-sizing:border-box;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">';
         
-        // Show available properties
+        // IP Address (prominent)
         if (props.ObservableValue || props.ip) {
-          content += `<strong>IP:</strong> <span style="display:inline;word-break:break-all;white-space:normal;">${props.ObservableValue || props.ip}</span><br/>`;
+          content += `<div style="font-weight:600;font-size:14px;margin-bottom:8px;"><strong>IP:</strong> <span style="display:inline;word-break:break-all;white-space:normal;">${props.ObservableValue || props.ip}</span></div>`;
+        }
+        
+        // Location (City, Country)
+        const city = props.City || props.city || '';
+        const country = props.Country || props.country || '';
+        if (city || country) {
+          const location = [city, country].filter(Boolean).join(', ');
+          content += `<div style="margin-bottom:8px;"><strong>Location:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${location}</span></div>`;
         }
         
         if (props.Type || props.type) {
@@ -158,6 +168,14 @@ async function enable(map) {
       map.getCanvasContainer().style.cursor = "grab";
     });
 
+    // Add click event to show nearby IPs in panel
+    map.events.add("click", bubbleLayer, (e) => {
+      if (e.shapes && e.shapes.length > 0) {
+        const clickedPosition = e.shapes[0].getCoordinates();
+        showNearbyIPsPanel(map, clickedPosition, dataSource);
+      }
+    });
+
     isEnabled = true;
     console.log("Threat intel overlay enabled");
 
@@ -196,4 +214,85 @@ function disable(map) {
   map.getCanvasContainer().style.cursor = "grab";
   isEnabled = false;
   console.log("Threat intel overlay disabled");
+}
+
+/**
+ * Show nearby IPs in the left panel when user clicks on the map
+ * @param {atlas.Map} map - The map instance
+ * @param {atlas.data.Position} position - Click position [lng, lat]
+ * @param {atlas.source.DataSource} dataSource - The threat intel data source
+ */
+function showNearbyIPsPanel(map, position, dataSource) {
+  const radiusKm = 100; // 100 km radius
+  const clickLng = position[0];
+  const clickLat = position[1];
+  
+  // Get all features from data source
+  const allFeatures = dataSource.toJson().features;
+  
+  // Calculate distance and filter nearby IPs
+  const nearbyIPs = allFeatures
+    .map(feature => {
+      const coords = feature.geometry.coordinates;
+      const distance = calculateDistance(clickLat, clickLng, coords[1], coords[0]);
+      return {
+        feature: feature,
+        distance: distance,
+        properties: feature.properties
+      };
+    })
+    .filter(item => item.distance <= radiusKm)
+    .sort((a, b) => a.distance - b.distance);
+  
+  // Create location name from click position (use first nearby IP's location if available)
+  let locationName = "Selected Area";
+  if (nearbyIPs.length > 0) {
+    const firstIP = nearbyIPs[0].properties;
+    const city = firstIP.City || firstIP.city || '';
+    const country = firstIP.Country || firstIP.country || '';
+    locationName = [city, country].filter(Boolean).join(', ') || "Unknown Location";
+  }
+  
+  // Show in panel
+  showIPDetails({
+    location: locationName,
+    count: nearbyIPs.length,
+    radius: radiusKm,
+    ips: nearbyIPs.map(item => ({
+      ip: item.properties.ObservableValue || item.properties.ip || 'Unknown',
+      city: item.properties.City || item.properties.city || '',
+      country: item.properties.Country || item.properties.country || '',
+      type: item.properties.Type || item.properties.type || '',
+      confidence: item.properties.Confidence || item.properties.confidence || '',
+      description: item.properties.Description || item.properties.description || '',
+      distance: Math.round(item.distance * 10) / 10 // Round to 1 decimal
+    }))
+  });
+}
+
+/**
+ * Calculate distance between two lat/lng points using Haversine formula
+ * @param {number} lat1 - Latitude of point 1
+ * @param {number} lng1 - Longitude of point 1
+ * @param {number} lat2 - Latitude of point 2
+ * @param {number} lng2 - Longitude of point 2
+ * @returns {number} Distance in kilometers
+ */
+function calculateDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
+ * Convert degrees to radians
+ */
+function toRad(degrees) {
+  return degrees * (Math.PI / 180);
 }
