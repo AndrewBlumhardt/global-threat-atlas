@@ -108,12 +108,14 @@ for i in range(500):
     timestamp = (start_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     
     user = f"{random.choice(first_names).lower()}.{random.choice(last_names).lower()}@contoso.com"
+    user_display = f"{random.choice(first_names)} {random.choice(last_names)}"
     
     # Success logins more likely to be compliant
     is_compliant = is_success and random.random() < 0.9
     is_managed = is_success and random.random() < 0.85
     
     risk_state = "none" if is_success else random.choice(risk_states)
+    risk_reason = "" if is_success else random.choice(["unfamiliarFeatures", "anonymizedIPAddress", "maliciousIPAddress", "suspiciousInbox", ""])
     
     feature = {
         "type": "Feature",
@@ -123,19 +125,23 @@ for i in range(500):
         },
         "properties": {
             "TimeGenerated": timestamp,
+            "UserDisplayName": user_display,
             "UserPrincipalName": user,
             "IPAddress": ip_address,
+            "IsMicrosoftIP": use_ms_ip,
             "ResultSignature": result_signature,
-            "RiskState": risk_state,
+            "ResourceDisplayName": random.choice(["Microsoft 365", "Azure Portal", "Teams", "SharePoint", "Exchange Online", "OneDrive"]),
             "Browser": random.choice(browsers),
             "OperatingSystem": random.choice(operating_systems),
             "DeviceId": generate_device_id(),
             "isCompliant": is_compliant,
             "isManaged": is_managed,
             "ConditionalAccessStatus": "success" if is_success else random.choice(ca_status),
-            "City": city["name"],
-            "State": city["state"],
+            "RiskState": risk_state,
+            "RiskReason": risk_reason,
             "CountryOrRegion": city["country"],
+            "State": city["state"],
+            "City": city["name"],
             "Latitude": city["coords"][1],
             "Longitude": city["coords"][0]
         }

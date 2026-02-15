@@ -252,11 +252,25 @@ def _refresh_source_with_cache(source, log_analytics, blob_storage, refresh_poli
                 tsv_content = blob_storage.read_tsv(temp_filename)
                 headers, rows_data = geo_client.parse_tsv_with_geo(tsv_content)
                 
-                # Find IPs needing lookup
-                ips_to_lookup = [row.get('ObservableValue', '') for row in rows_data 
-                               if geo_client.needs_geo_lookup(row) and row.get('ObservableValue')]
+                # Find IPs needing lookup - support multiple IP field names
+                ips_to_lookup = []
+                ip_field_name = None
                 
-                if ips_to_lookup:
+                # Detect which IP field is present (ObservableValue, PublicIP, or IPAddress)
+                if rows_data and len(rows_data) > 0:
+                    first_row = rows_data[0]
+                    if 'ObservableValue' in first_row:
+                        ip_field_name = 'ObservableValue'
+                    elif 'PublicIP' in first_row:
+                        ip_field_name = 'PublicIP'
+                    elif 'IPAddress' in first_row:
+                        ip_field_name = 'IPAddress'
+                
+                if ip_field_name:
+                    ips_to_lookup = [row.get(ip_field_name, '') for row in rows_data 
+                                   if geo_client.needs_geo_lookup(row) and row.get(ip_field_name)]
+                
+                if ips_to_lookup and ip_field_name:
                     # Batch lookup
                     geo_results = geo_client.batch_lookup(ips_to_lookup, max_workers=10)
                     
@@ -266,7 +280,7 @@ def _refresh_source_with_cache(source, log_analytics, blob_storage, refresh_poli
                     country_only_count = 0  # IPs with country but no coordinates
                     
                     for row in rows_data:
-                        ip = row.get('ObservableValue', '')
+                        ip = row.get(ip_field_name, '')
                         if ip in geo_results:
                             geo_data = geo_results[ip]
                             # Store geo data (lat/lon will be empty string if None)
