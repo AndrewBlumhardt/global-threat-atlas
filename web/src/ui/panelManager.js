@@ -16,6 +16,10 @@ export function showCustomSourceDetails(customData) {
 
   const { location, count, radius, items } = customData;
 
+  // Clear any existing content and event listeners
+  listEl.innerHTML = "";
+  metaEl.innerHTML = "";
+
   // Update panel content section
   titleEl.textContent = location || "Custom Source Area";
   
@@ -102,6 +106,10 @@ export function showIPDetails(ipData) {
 
   const { location, count, radius, ips } = ipData;
 
+  // Clear any existing content and event listeners
+  listEl.innerHTML = "";
+  metaEl.innerHTML = "";
+
   // Update panel content section
   titleEl.textContent = location || "Selected Area";
   
@@ -150,7 +158,7 @@ export function showIPDetails(ipData) {
               ${label ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 2px;"><strong>Label:</strong> ${escapeHtml(label)}</div>` : ""}
             </div>
             <div style="display: flex; gap: 6px; margin-left: 8px; align-items: start;">
-              <button class="ip-vt-btn" data-ip="${escapeHtml(ipAddress)}" style="padding: 6px 10px; background: #0078d4; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;" title="Search VirusTotal">🔍 VT Search</button>
+              <button class="ip-vt-btn" data-ip="${escapeHtml(ipAddress)}" style="padding: 6px 10px; background: #0078d4; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;" title="Search VirusTotal">VT Search</button>
               <button class="ip-ai-btn" data-ip="${escapeHtml(ipAddress)}" data-location="${escapeHtml(locationStr)}" data-type="${escapeHtml(type)}" data-label="${escapeHtml(label)}" data-description="${escapeHtml(description)}" style="padding: 6px 10px; background: #10b981; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;" title="Copy AI prompt to clipboard">AI Prompt</button>
             </div>
           </div>
@@ -250,6 +258,10 @@ export function showCountryDetails(countryProps) {
 
   const { country, count, actors } = countryProps;
 
+  // Clear any existing content and event listeners
+  listEl.innerHTML = "";
+  metaEl.innerHTML = "";
+
   // Update panel content section
   titleEl.textContent = country || "Unknown Country";
   
@@ -279,7 +291,7 @@ export function showCountryDetails(countryProps) {
               </div>
             </div>
             <div style="display: flex; gap: 6px; margin-left: 8px;">
-              <button class="actor-search-btn" data-name="${escapeHtml(name)}" data-aka="${escapeHtml(otherNames)}" style="padding: 6px 10px; background: #0078d4; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;" title="Search Bing">🔍 Search</button>
+              <button class="actor-search-btn" data-name="${escapeHtml(name)}" data-aka="${escapeHtml(otherNames)}" style="padding: 6px 10px; background: #0078d4; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;" title="Search Bing">Search</button>
               <button class="actor-ai-btn" data-name="${escapeHtml(name)}" data-motivation="${escapeHtml(motivation)}" data-aka="${escapeHtml(otherNames)}" style="padding: 6px 10px; background: #10b981; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;" title="Copy AI prompt to clipboard">AI Prompt</button>
             </div>
           </div>
