@@ -2,71 +2,80 @@
 
 /**
  * Weather Overlay Control
- * Allows users to toggle weather layers (radar, infrared)
+ * Manages radar and infrared weather layers independently
  */
 
-let weatherTileLayer = null;
-let isEnabled = false;
-let currentType = 'radar'; // 'radar' or 'infrared'
+let radarTileLayer = null;
+let infraredTileLayer = null;
 
 /**
- * Toggle weather overlay on/off
+ * Toggle weather radar overlay on/off
  * @param {atlas.Map} map - Azure Maps instance
- * @param {boolean} turnOn - Enable or disable weather
- * @param {string} mode - 'radar' or 'infrared'
+ * @param {boolean} turnOn - Enable or disable weather radar
  */
-export async function toggleWeatherOverlay(map, turnOn, mode = 'radar') {
+export async function toggleWeatherRadar(map, turnOn) {
   if (turnOn) {
-    if (isEnabled && currentType === mode) return;
+    if (radarTileLayer) return; // Already enabled
     
-    // If already enabled with different mode, disable first
-    if (isEnabled) {
-      disableWeather(map);
-    }
+    // Get Azure Maps subscription key
+    const authOptions = map.authentication.getOptions();
+    const subscriptionKey = authOptions.authType === 'subscriptionKey' 
+      ? authOptions.subscriptionKey 
+      : authOptions.getToken();
     
-    currentType = mode;
-    enableWeather(map, mode);
-    isEnabled = true;
+    const tilesetId = 'microsoft.weather.radar.main';
+    const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2.0&tilesetId=${tilesetId}&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
+    
+    radarTileLayer = new atlas.layer.TileLayer({
+      tileUrl: tileUrl,
+      opacity: 0.6,
+      tileSize: 256
+    });
+
+    // Add layer on top of everything
+    map.layers.add(radarTileLayer);
+    console.log('Weather radar enabled');
   } else {
-    if (!isEnabled) return;
-    disableWeather(map);
-    isEnabled = false;
+    if (radarTileLayer) {
+      map.layers.remove(radarTileLayer);
+      radarTileLayer = null;
+      console.log('Weather radar disabled');
+    }
   }
 }
 
-function enableWeather(map, mode) {
-  if (weatherTileLayer) return;
+/**
+ * Toggle weather infrared overlay on/off
+ * @param {atlas.Map} map - Azure Maps instance
+ * @param {boolean} turnOn - Enable or disable weather infrared
+ */
+export async function toggleWeatherInfrared(map, turnOn) {
+  if (turnOn) {
+    if (infraredTileLayer) return; // Already enabled
+    
+    // Get Azure Maps subscription key
+    const authOptions = map.authentication.getOptions();
+    const subscriptionKey = authOptions.authType === 'subscriptionKey' 
+      ? authOptions.subscriptionKey 
+      : authOptions.getToken();
+    
+    const tilesetId = 'microsoft.weather.infrared.main';
+    const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2.0&tilesetId=${tilesetId}&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
+    
+    infraredTileLayer = new atlas.layer.TileLayer({
+      tileUrl: tileUrl,
+      opacity: 0.6,
+      tileSize: 256
+    });
 
-  // Get Azure Maps subscription key
-  const authOptions = map.authentication.getOptions();
-  const subscriptionKey = authOptions.authType === 'subscriptionKey' 
-    ? authOptions.subscriptionKey 
-    : authOptions.getToken();
-  
-  // Azure Maps Weather tile service
-  let tilesetId;
-  if (mode === 'radar') {
-    tilesetId = 'microsoft.weather.radar.main';
-  } else if (mode === 'infrared') {
-    tilesetId = 'microsoft.weather.infrared.main';
-  }
-  
-  const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2.0&tilesetId=${tilesetId}&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
-  
-  weatherTileLayer = new atlas.layer.TileLayer({
-    tileUrl: tileUrl,
-    opacity: 0.6,
-    tileSize: 256
-  });
-
-  map.layers.add(weatherTileLayer);
-  console.log(`Weather overlay enabled: ${mode}`);
-}
-
-function disableWeather(map) {
-  if (weatherTileLayer) {
-    map.layers.remove(weatherTileLayer);
-    weatherTileLayer = null;
-    console.log('Weather overlay disabled');
+    // Add layer on top of everything
+    map.layers.add(infraredTileLayer);
+    console.log('Weather infrared enabled');
+  } else {
+    if (infraredTileLayer) {
+      map.layers.remove(infraredTileLayer);
+      infraredTileLayer = null;
+      console.log('Weather infrared disabled');
+    }
   }
 }

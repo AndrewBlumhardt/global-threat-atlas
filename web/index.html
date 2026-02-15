@@ -99,16 +99,20 @@
               </label>
             </div>
             
-            <!-- Weather Overlay Layer -->
+            <!-- Weather Radar Layer -->
             <div class="layer-item">
               <label>
-                <input type="checkbox" id="layerWeather">
-                <span class="layer-name">Weather Overlay</span>
+                <input type="checkbox" id="layerWeatherRadar">
+                <span class="layer-name">Weather Radar</span>
               </label>
-              <div id="weatherMode" class="layer-mode" style="display: none;">
-                <button class="ta-mode-btn active" data-mode="radar" title="Weather radar">Radar</button>
-                <button class="ta-mode-btn" data-mode="infrared" title="Infrared satellite">Infrared</button>
-              </div>
+            </div>
+            
+            <!-- Weather Infrared Layer -->
+            <div class="layer-item">
+              <label>
+                <input type="checkbox" id="layerWeatherInfrared">
+                <span class="layer-name">Weather Infrared</span>
+              </label>
             </div>
             
             <!-- Sign-In Activity Layer (future) -->
@@ -125,6 +129,11 @@
                 <input type="checkbox" id="layerDeviceLocations" disabled>
                 <span class="layer-name">Device Locations</span>
               </label>
+            </div>
+            
+            <!-- Drag & Drop Instruction -->
+            <div class="layer-note">
+              Drag & Drop GeoJSON files onto the map to visualize
             </div>
           </div>
         </div>
