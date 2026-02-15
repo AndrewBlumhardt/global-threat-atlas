@@ -446,7 +446,10 @@ export function showSignInDetails(signInData) {
             </div>
           </div>
           ${resource ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px;"><strong>App:</strong> ${escapeHtml(resource)}</div>` : ""}
-          ${ip ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>IP:</strong> ${escapeHtml(ip)}</div>` : ""}
+          ${ip ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+            <span><strong>IP:</strong> ${escapeHtml(ip)}</span>
+            <button class="signin-ip-vt-btn" data-ip="${escapeHtml(ip)}" style="padding: 4px 8px; background: #0078d4; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 10px; font-weight: 600; white-space: nowrap;" title="Search VirusTotal">VT Search</button>
+          </div>` : ""}
           ${riskReason ? `<div style="font-size: 11px; color: #ef4444; margin-bottom: 4px;"><strong>Risk:</strong> ${escapeHtml(riskReason)}</div>` : ""}
           ${caStatus ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>CA Status:</strong> ${escapeHtml(caStatus)}</div>` : ""}
           ${os ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>OS:</strong> ${escapeHtml(os)}</div>` : ""}
@@ -458,6 +461,14 @@ export function showSignInDetails(signInData) {
     }).join("");
 
     listEl.innerHTML = signInItems;
+    
+    // Wire up VT Search buttons for sign-in IPs
+    document.querySelectorAll(".signin-ip-vt-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const ip = e.target.getAttribute("data-ip");
+        window.open(`https://www.virustotal.com/gui/ip-address/${encodeURIComponent(ip)}`, "_blank");
+      });
+    });
     
     // Add threat intel IP section if any related IPs found
     if (threatIntelIPs && threatIntelIPs.length > 0) {
@@ -588,7 +599,10 @@ export function showDeviceDetails(deviceData) {
           ${cloudPlatform ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>Platform:</strong> ${escapeHtml(cloudPlatform)}</div>` : ""}
           ${os ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>OS:</strong> ${escapeHtml(os)}</div>` : ""}
           ${browser ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>Browser:</strong> ${escapeHtml(browser)}</div>` : ""}
-          ${ip ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px;"><strong>IP:</strong> ${escapeHtml(ip)}</div>` : ""}
+          ${ip ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+            <span><strong>IP:</strong> ${escapeHtml(ip)}</span>
+            <button class="device-ip-vt-btn" data-ip="${escapeHtml(ip)}" style="padding: 4px 8px; background: #0078d4; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 10px; font-weight: 600; white-space: nowrap;" title="Search VirusTotal">VT Search</button>
+          </div>` : ""}
           ${deviceId ? `<div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 4px; font-family: monospace;">${escapeHtml(deviceId.substring(0, 16))}...</div>` : ""}
           ${time ? `<div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px;">Last seen: ${escapeHtml(time)}</div>` : ""}
         </div>
@@ -596,6 +610,14 @@ export function showDeviceDetails(deviceData) {
     }).join("");
 
     listEl.innerHTML = deviceItems;
+    
+    // Wire up VT Search buttons for device IPs
+    document.querySelectorAll(".device-ip-vt-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const ip = e.target.getAttribute("data-ip");
+        window.open(`https://www.virustotal.com/gui/ip-address/${encodeURIComponent(ip)}`, "_blank");
+      });
+    });
     
     // Add threat intel IP section if any related IPs found
     if (threatIntelIPs && threatIntelIPs.length > 0) {

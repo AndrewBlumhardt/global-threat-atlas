@@ -166,9 +166,10 @@ async function enable(azureMap) {
       map.getCanvasContainer().style.cursor = "grab";
     });
 
-    // Add click handler for proximity search (500km radius)
+    // Add click handler for proximity search (300km radius)
     map.events.add("click", symbolLayer, (e) => {
       if (e.shapes && e.shapes.length > 0) {
+        e.preventDefault();
         const clickedPosition = e.shapes[0].getCoordinates();
         showNearbyDevicesPanel(map, clickedPosition, dataSource);
       }
@@ -214,7 +215,7 @@ function disable() {
  * Show nearby devices in the left panel when user clicks on the map
  */
 function showNearbyDevicesPanel(map, position, dataSource) {
-  const radiusKm = 500; // 500 km radius
+  const radiusKm = 300; // 300 km radius
   const clickLng = position[0];
   const clickLat = position[1];
   

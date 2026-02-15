@@ -9,7 +9,7 @@ import { getDataUrl } from "../shared/demoMode.js";
 import { showSignInDetails } from "../ui/panelManager.js";
 
 const SIGNIN_SOURCE_ID = "signin-activity-source";
-const SIGNIN_BUBBLE_LAYER_ID = "signin-activity-bubbles";
+const SIGNIN_SYMBOL_LAYER_ID = "signin-activity-symbols";
 
 let isEnabled = false;
 let map = null;
@@ -54,30 +54,30 @@ async function enable(azureMap) {
     dataSource.add(geojsonData);
     console.log("GeoJSON added to data source");
 
-    // Create bubble layer for sign-in locations
-    const bubbleLayer = new atlas.layer.BubbleLayer(dataSource, SIGNIN_BUBBLE_LAYER_ID, {
-      radius: 8,
-      color: [
-        'case',
-        ['==', ['get', 'ResultSignature'], 'SUCCESS'], '#10b981', // Green for success
-        '#ef4444' // Red for failures
-      ],
-      strokeColor: '#fff',
-      strokeWidth: 2,
-      opacity: 0.8,
-      blur: 0.4
+    // Create symbol layer for sign-in locations with pin markers
+    // Green pin for successful sign-ins, red pin for failures
+    const symbolLayer = new atlas.layer.SymbolLayer(dataSource, SIGNIN_SYMBOL_LAYER_ID, {
+      iconOptions: {
+        image: [
+          'case',
+          ['==', ['get', 'ResultSignature'], 'SUCCESS'], 'marker-green',
+          'marker-red'
+        ],
+        size: 0.8,
+        anchor: 'bottom'
+      }
     });
     
-    map.layers.add(bubbleLayer);
-    console.log("Bubble layer added:", SIGNIN_BUBBLE_LAYER_ID);
+    map.layers.add(symbolLayer);
+    console.log("Symbol layer added:", SIGNIN_SYMBOL_LAYER_ID);
 
     // Add hover popup
     const popup = new atlas.Popup({
-      pixelOffset: [0, -10],
+      pixelOffset: [0, -30],
       closeButton: false
     });
 
-    map.events.add("mouseover", bubbleLayer, (e) => {
+    map.events.add("mouseover", symbolLayer, (e) => {
       if (e.shapes && e.shapes.length > 0) {
         const props = e.shapes[0].getProperties();
         const coords = e.shapes[0].getCoordinates();
@@ -139,22 +139,23 @@ async function enable(azureMap) {
       }
     });
 
-    map.events.add("mouseleave", bubbleLayer, () => {
+    map.events.add("mouseleave", symbolLayer, () => {
       popup.close();
     });
 
     // Change cursor on hover
-    map.events.add("mousemove", bubbleLayer, () => {
+    map.events.add("mousemove", symbolLayer, () => {
       map.getCanvasContainer().style.cursor = "pointer";
     });
 
-    map.events.add("mouseleave", bubbleLayer, () => {
+    map.events.add("mouseleave", symbolLayer, () => {
       map.getCanvasContainer().style.cursor = "grab";
     });
 
-    // Add click handler for proximity search (500km radius)
-    map.events.add("click", bubbleLayer, (e) => {
+    // Add click handler for proximity search (300km radius)
+    map.events.add("click", symbolLayer, (e) => {
       if (e.shapes && e.shapes.length > 0) {
+        e.preventDefault();
         const clickedPosition = e.shapes[0].getCoordinates();
         showNearbySignInsPanel(map, clickedPosition, dataSource);
       }
@@ -178,9 +179,9 @@ function disable() {
 
   try {
     // Remove layers
-    if (map.layers.getLayerById(SIGNIN_BUBBLE_LAYER_ID)) {
-      map.layers.remove(SIGNIN_BUBBLE_LAYER_ID);
-      console.log("Bubble layer removed");
+    if (map.layers.getLayerById(SIGNIN_SYMBOL_LAYER_ID)) {
+      map.layers.remove(SIGNIN_SYMBOL_LAYER_ID);
+      console.log("Symbol layer removed");
     }
 
     // Remove data source
@@ -200,7 +201,7 @@ function disable() {
  * Show nearby sign-ins in the left panel when user clicks on the map
  */
 function showNearbySignInsPanel(map, position, dataSource) {
-  const radiusKm = 500; // 500 km radius
+  const radiusKm = 300; // 300 km radius
   const clickLng = position[0];
   const clickLat = position[1];
   
