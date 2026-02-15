@@ -9,70 +9,49 @@ let weatherTileLayer = null;
 let isEnabled = false;
 let currentType = 'radar'; // 'radar' or 'infrared'
 
-export function addWeatherControl(map) {
-  const control = document.createElement("div");
-  control.className = "azure-maps-control-container";
-  control.style.position = "fixed";
-  control.style.bottom = "215px";
-  control.style.right = "10px";
-  control.style.zIndex = "1000";
-  control.style.pointerEvents = "auto";
-
-  const button = document.createElement("button");
-  button.className = "azure-maps-control-button";
-  button.title = "Toggle Weather Overlay";
-  button.textContent = "🌦️";
-  button.style.fontSize = "20px";
-  button.style.width = "32px";
-  button.style.height = "32px";
-  button.style.padding = "0";
-  button.style.border = "2px solid rgba(255, 255, 255, 0.5)";
-  button.style.borderRadius = "4px";
-  button.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
-  button.style.color = "#333";
-  button.style.cursor = "pointer";
-  button.style.transition = "all 0.2s";
-
-  button.addEventListener("mouseenter", () => {
-    button.style.backgroundColor = "rgba(255, 255, 255, 1)";
-    button.style.borderColor = "rgba(0, 123, 255, 0.8)";
-  });
-
-  button.addEventListener("mouseleave", () => {
-    if (!isEnabled) {
-      button.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
-      button.style.borderColor = "rgba(255, 255, 255, 0.5)";
-    }
-  });
-
-  button.addEventListener("click", () => {
-    isEnabled = !isEnabled;
+/**
+ * Toggle weather overlay on/off
+ * @param {atlas.Map} map - Azure Maps instance
+ * @param {boolean} turnOn - Enable or disable weather
+ * @param {string} mode - 'radar' or 'infrared'
+ */
+export async function toggleWeatherOverlay(map, turnOn, mode = 'radar') {
+  if (turnOn) {
+    if (isEnabled && currentType === mode) return;
     
+    // If already enabled with different mode, disable first
     if (isEnabled) {
-      button.style.backgroundColor = "rgba(0, 123, 255, 0.9)";
-      button.style.color = "#fff";
-      button.style.borderColor = "rgba(0, 123, 255, 1)";
-      enableWeather(map);
-    } else {
-      button.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
-      button.style.color = "#333";
-      button.style.borderColor = "rgba(255, 255, 255, 0.5)";
       disableWeather(map);
     }
-  });
-
-  control.appendChild(button);
-  document.body.appendChild(control);
+    
+    currentType = mode;
+    enableWeather(map, mode);
+    isEnabled = true;
+  } else {
+    if (!isEnabled) return;
+    disableWeather(map);
+    isEnabled = false;
+  }
 }
 
-function enableWeather(map) {
+function enableWeather(map, mode) {
   if (weatherTileLayer) return;
 
-  // Get Azure Maps subscription key from map's auth options
-  const subscriptionKey = map.authentication.getToken();
+  // Get Azure Maps subscription key
+  const authOptions = map.authentication.getOptions();
+  const subscriptionKey = authOptions.authType === 'subscriptionKey' 
+    ? authOptions.subscriptionKey 
+    : authOptions.getToken();
   
-  // Azure Maps Weather Radar tile service
-  const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2.0&tilesetId=microsoft.weather.radar.main&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
+  // Azure Maps Weather tile service
+  let tilesetId;
+  if (mode === 'radar') {
+    tilesetId = 'microsoft.weather.radar.main';
+  } else if (mode === 'infrared') {
+    tilesetId = 'microsoft.weather.infrared.main';
+  }
+  
+  const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2.0&tilesetId=${tilesetId}&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
   
   weatherTileLayer = new atlas.layer.TileLayer({
     tileUrl: tileUrl,
@@ -81,7 +60,7 @@ function enableWeather(map) {
   });
 
   map.layers.add(weatherTileLayer);
-  console.log('Weather overlay enabled');
+  console.log(`Weather overlay enabled: ${mode}`);
 }
 
 function disableWeather(map) {

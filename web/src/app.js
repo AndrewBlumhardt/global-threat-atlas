@@ -1,11 +1,11 @@
 import { createMap } from "./map/map-init.js";
 import { toggleThreatActorsHeatmap } from "./overlays/threatActorsHeatmap.js";
 import { toggleThreatIntelOverlay } from "./overlays/threatIntelOverlay.js";
+import { toggleWeatherOverlay } from "./ui/weatherControl.js";
 import { initLayerControl, updateLayerAvailability } from "./ui/layerControl.js";
 import { showCountryDetails, initPanelControls } from "./ui/panelManager.js";
 import { addAutoScrollControl } from "./ui/autoScroll.js";
 import { addDownloadControl } from "./ui/downloadControl.js";
-import { addWeatherControl } from "./ui/weatherControl.js";
 import { enableDragAndDrop } from "./ui/dragDropGeoJSON.js";
 
 async function main() {
@@ -35,6 +35,9 @@ async function main() {
         case 'threatIntel':
           await toggleThreatIntelOverlay(map, enabled);
           break;
+        case 'weather':
+          await toggleWeatherOverlay(map, enabled, mode);
+          break;
         case 'signInActivity':
           // Future: toggle sign-in activity layer
           console.log('Sign-in activity layer not yet implemented');
@@ -49,6 +52,7 @@ async function main() {
     // Mark available layers (all current layers are available)
     updateLayerAvailability('ThreatActors', true);
     updateLayerAvailability('ThreatIntel', true);
+    updateLayerAvailability('Weather', true);
     // Future layers start disabled
     updateLayerAvailability('SignInActivity', false);
     updateLayerAvailability('DeviceLocations', false);
@@ -56,12 +60,11 @@ async function main() {
     // Add map controls
     addAutoScrollControl(map);
     addDownloadControl(map);
-    addWeatherControl(map);
     
     // Enable drag and drop for GeoJSON files
     enableDragAndDrop(map);
     
-    console.log('All features initialized: auto-scroll, download, weather, drag-and-drop');
+    console.log('All features initialized: auto-scroll, download, weather (in layers), drag-and-drop');
   });
 
   map.events.add("error", (e) => {

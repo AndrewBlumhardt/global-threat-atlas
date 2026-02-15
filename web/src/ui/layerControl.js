@@ -8,6 +8,8 @@ let currentState = {
   threatActors: false,
   threatActorsMode: 'heatmap', // 'heatmap' or 'country'
   threatIntel: false,
+  weather: false,
+  weatherMode: 'radar', // 'radar' or 'infrared'
   signInActivity: false,
   deviceLocations: false
 };
@@ -79,6 +81,39 @@ export function initLayerControl(toggleCallback) {
       }
     });
   }
+
+  // Weather toggle
+  const weatherCheckbox = document.getElementById('layerWeather');
+  if (weatherCheckbox) {
+    weatherCheckbox.addEventListener('change', async (e) => {
+      currentState.weather = e.target.checked;
+      if (onLayerToggle) {
+        await onLayerToggle('weather', e.target.checked, currentState.weatherMode);
+      }
+      // Show/hide mode selector
+      const modeSelector = document.getElementById('weatherMode');
+      if (modeSelector) {
+        modeSelector.style.display = e.target.checked ? 'flex' : 'none';
+      }
+    });
+  }
+
+  // Weather mode selector
+  const weatherModeButtons = document.querySelectorAll('#weatherMode .ta-mode-btn');
+  weatherModeButtons.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const mode = btn.dataset.mode;
+      if (mode === currentState.weatherMode) return;
+      
+      currentState.weatherMode = mode;
+      weatherModeButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      if (currentState.weather && onLayerToggle) {
+        await onLayerToggle('weather', true, mode);
+      }
+    });
+  });
 
   // Sign-In Activity toggle (disabled for now)
   const saCheckbox = document.getElementById('layerSignInActivity');
