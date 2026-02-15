@@ -113,11 +113,12 @@ async function enable(map) {
       if (e.shapes && e.shapes.length > 0) {
         const props = e.shapes[0].getProperties();
         
-        let content = '<div style="padding:10px;width:250px;box-sizing:border-box;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">';
+        let content = '<div style="padding:10px;width:280px;box-sizing:border-box;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">';
         
         // IP Address (prominent)
-        if (props.ObservableValue || props.ip) {
-          content += `<div style="font-weight:600;font-size:14px;margin-bottom:8px;"><strong>IP:</strong> <span style="display:inline;word-break:break-all;white-space:normal;">${props.ObservableValue || props.ip}</span></div>`;
+        if (props.ObservableValue || props.observableValue || props.ip) {
+          const ip = props.ObservableValue || props.observableValue || props.ip;
+          content += `<div style="font-weight:600;font-size:14px;margin-bottom:8px;"><strong>IP:</strong> <span style="display:inline;word-break:break-all;white-space:normal;">${ip}</span></div>`;
         }
         
         // Location (City, Country)
@@ -125,24 +126,40 @@ async function enable(map) {
         const country = props.Country || props.country || '';
         if (city || country) {
           const location = [city, country].filter(Boolean).join(', ');
-          content += `<div style="margin-bottom:8px;"><strong>Location:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${location}</span></div>`;
+          content += `<div style="margin-bottom:6px;"><strong>Location:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${location}</span></div>`;
         }
         
+        // Type
         if (props.Type || props.type) {
-          content += `<strong>Type:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">${props.Type || props.type}</span><br/>`;
+          content += `<div style="margin-bottom:4px;"><strong>Type:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">${props.Type || props.type}</span></div>`;
         }
         
-        if (props.count || props.Count) {
-          content += `<strong>Count:</strong> ${props.count || props.Count}<br/>`;
+        // Label
+        if (props.Label || props.label) {
+          content += `<div style="margin-bottom:4px;"><strong>Label:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${props.Label || props.label}</span></div>`;
         }
         
+        // Confidence
         if (props.Confidence || props.confidence) {
-          content += `<strong>Confidence:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${props.Confidence || props.confidence}</span><br/>`;
+          content += `<div style="margin-bottom:4px;"><strong>Confidence:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${props.Confidence || props.confidence}</span></div>`;
         }
         
+        // Description
         if (props.Description || props.description) {
           const desc = String(props.Description || props.description);
-          content += `<div style="margin-top:4px;font-size:11px;color:#666;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">${desc}</div>`;
+          content += `<div style="margin-top:6px;margin-bottom:6px;font-size:12px;color:#666;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">${desc}</div>`;
+        }
+        
+        // Source System
+        if (props.SourceSystem || props.sourceSystem) {
+          content += `<div style="font-size:11px;color:#888;margin-bottom:4px;"><strong>Source:</strong> <span style="display:inline;white-space:normal;">${props.SourceSystem || props.sourceSystem}</span></div>`;
+        }
+        
+        // Created date
+        if (props.Created || props.created) {
+          const created = props.Created || props.created;
+          const dateStr = new Date(created).toLocaleString();
+          content += `<div style="font-size:11px;color:#888;"><strong>Created:</strong> <span style="display:inline;white-space:normal;">${dateStr}</span></div>`;
         }
         
         content += '</div>';
@@ -259,12 +276,15 @@ function showNearbyIPsPanel(map, position, dataSource) {
     count: nearbyIPs.length,
     radius: radiusKm,
     ips: nearbyIPs.map(item => ({
-      ip: item.properties.ObservableValue || item.properties.ip || 'Unknown',
+      ip: item.properties.ObservableValue || item.properties.observableValue || item.properties.ip || 'Unknown',
       city: item.properties.City || item.properties.city || '',
       country: item.properties.Country || item.properties.country || '',
       type: item.properties.Type || item.properties.type || '',
+      label: item.properties.Label || item.properties.label || '',
       confidence: item.properties.Confidence || item.properties.confidence || '',
       description: item.properties.Description || item.properties.description || '',
+      sourceSystem: item.properties.SourceSystem || item.properties.sourceSystem || '',
+      created: item.properties.Created || item.properties.created || '',
       distance: Math.round(item.distance * 10) / 10 // Round to 1 decimal
     }))
   });

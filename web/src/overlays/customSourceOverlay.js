@@ -104,19 +104,22 @@ async function enable(map) {
       map.events.add("mousemove", bubbleLayer, (e) => {
         if (e.shapes && e.shapes.length > 0) {
           const props = e.shapes[0].getProperties();
+          console.log("Custom source hover - properties:", props);
           
           let content = '<div style="padding:10px;width:250px;box-sizing:border-box;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">';
           
           // Prominent title from name property or "Custom Source"
           const title = props.name || props.Name || props.title || props.Title || 'Custom Source';
-          content += `<div style="font-weight:600;font-size:14px;margin-bottom:8px;">${escapeHtml(title)}</div>`;
+          const safeTitle = String(title).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          content += `<div style="font-weight:600;font-size:14px;margin-bottom:8px;">${safeTitle}</div>`;
           
           // Location if available
           const city = props.City || props.city || props.location || '';
           const country = props.Country || props.country || '';
           if (city || country) {
             const location = [city, country].filter(Boolean).join(', ');
-            content += `<div style="margin-bottom:8px;"><strong>Location:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${escapeHtml(location)}</span></div>`;
+            const safeLocation = String(location).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            content += `<div style="margin-bottom:8px;"><strong>Location:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${safeLocation}</span></div>`;
           }
           
           // Show remaining properties
@@ -124,7 +127,9 @@ async function enable(map) {
             if (key !== 'Shape' && key !== 'geometry' && 
                 key !== 'name' && key !== 'Name' && key !== 'title' && key !== 'Title' &&
                 key !== 'City' && key !== 'city' && key !== 'Country' && key !== 'country' && key !== 'location') {
-              content += `<div style="font-size:12px;margin-bottom:4px;"><strong>${key}:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${escapeHtml(String(props[key]))}</span></div>`;
+              const safeKey = String(key).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              const safeValue = String(props[key]).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              content += `<div style="font-size:12px;margin-bottom:4px;"><strong>${safeKey}:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${safeValue}</span></div>`;
             }
           });
           

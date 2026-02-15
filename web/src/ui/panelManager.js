@@ -119,9 +119,22 @@ export function showIPDetails(ipData) {
       const country = ip.country || "";
       const locationStr = [city, country].filter(Boolean).join(", ");
       const type = ip.type || "";
+      const label = ip.label || "";
       const confidence = ip.confidence || "";
       const description = ip.description || "";
+      const sourceSystem = ip.sourceSystem || "";
+      const created = ip.created || "";
       const distance = ip.distance || 0;
+      
+      // Format created date
+      let createdStr = "";
+      if (created) {
+        try {
+          createdStr = new Date(created).toLocaleString();
+        } catch (e) {
+          createdStr = created;
+        }
+      }
 
       return `
         <div style="padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.1);">
@@ -134,13 +147,16 @@ export function showIPDetails(ipData) {
                   ${escapeHtml(type)}
                 </span>
               </div>` : ""}
+              ${label ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 2px;"><strong>Label:</strong> ${escapeHtml(label)}</div>` : ""}
             </div>
             <div style="margin-left: 8px; font-size: 11px; color: rgba(255,255,255,0.5); white-space: nowrap;">
               ${distance.toFixed(1)} km
             </div>
           </div>
           ${confidence ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px;"><strong>Confidence:</strong> ${escapeHtml(confidence)}</div>` : ""}
-          ${description ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px;">${escapeHtml(description)}</div>` : ""}
+          ${description ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px; margin-bottom: 6px;">${escapeHtml(description)}</div>` : ""}
+          ${sourceSystem ? `<div style="font-size: 10px; color: rgba(255,255,255,0.4); margin-bottom: 2px;"><strong>Source:</strong> ${escapeHtml(sourceSystem)}</div>` : ""}
+          ${createdStr ? `<div style="font-size: 10px; color: rgba(255,255,255,0.4);"><strong>Created:</strong> ${escapeHtml(createdStr)}</div>` : ""}
         </div>
       `;
     }).join("");
