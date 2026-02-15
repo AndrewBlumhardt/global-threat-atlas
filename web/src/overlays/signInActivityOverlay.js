@@ -57,10 +57,10 @@ async function enable(azureMap) {
       const coords = feature.geometry.coordinates;
       const isSuccess = props.ResultSignature === 'SUCCESS';
       
-      // Create HTML marker with pin-round-thick icon template (lollipop style)
+      // Create HTML marker with pin-round icon template (lollipop style)
       const marker = new atlas.HtmlMarker({
         position: [coords[0], coords[1]],
-        htmlContent: atlas.getImageTemplate('pin-round-thick'),
+        htmlContent: atlas.getImageTemplate('pin-round'),
         color: isSuccess ? '#10b981' : '#ef4444', // Green for success, bright red for failure
         secondaryColor: '#ffffff',
         properties: props
