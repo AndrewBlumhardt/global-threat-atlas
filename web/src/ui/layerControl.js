@@ -8,8 +8,8 @@ let currentState = {
   threatActors: false,
   threatActorsMode: 'heatmap', // 'heatmap' or 'country'
   threatIntel: false,
-  weather: false,
-  weatherMode: 'radar', // 'radar' or 'infrared'
+  weatherRadar: false,
+  weatherInfrared: false,
   signInActivity: false,
   deviceLocations: false
 };
@@ -82,38 +82,53 @@ export function initLayerControl(toggleCallback) {
     });
   }
 
-  // Weather toggle
-  const weatherCheckbox = document.getElementById('layerWeather');
-  if (weatherCheckbox) {
-    weatherCheckbox.addEventListener('change', async (e) => {
-      currentState.weather = e.target.checked;
-      if (onLayerToggle) {
-        await onLayerToggle('weather', e.target.checked, currentState.weatherMode);
+  // Weather Radar toggle
+  const weatherRadarCheckbox = document.getElementById('layerWeatherRadar');
+  if (weatherRadarCheckbox) {
+    weatherRadarCheckbox.addEventListener('change', async (e) => {
+      currentState.weatherRadar = e.target.checked;
+      
+      // Uncheck infrared if radar is being checked (mutually exclusive)
+      if (e.target.checked) {
+        const infraredCheckbox = document.getElementById('layerWeatherInfrared');
+        if (infraredCheckbox && infraredCheckbox.checked) {
+          infraredCheckbox.checked = false;
+          currentState.weatherInfrared = false;
+          if (onLayerToggle) {
+            await onLayerToggle('weatherInfrared', false);
+          }
+        }
       }
-      // Show/hide mode selector
-      const modeSelector = document.getElementById('weatherMode');
-      if (modeSelector) {
-        modeSelector.style.display = e.target.checked ? 'flex' : 'none';
+      
+      if (onLayerToggle) {
+        await onLayerToggle('weatherRadar', e.target.checked);
       }
     });
   }
 
-  // Weather mode selector
-  const weatherModeButtons = document.querySelectorAll('#weatherMode .ta-mode-btn');
-  weatherModeButtons.forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const mode = btn.dataset.mode;
-      if (mode === currentState.weatherMode) return;
+  // Weather Infrared toggle
+  const weatherInfraredCheckbox = document.getElementById('layerWeatherInfrared');
+  if (weatherInfraredCheckbox) {
+    weatherInfraredCheckbox.addEventListener('change', async (e) => {
+      currentState.weatherInfrared = e.target.checked;
       
-      currentState.weatherMode = mode;
-      weatherModeButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      // Uncheck radar if infrared is being checked (mutually exclusive)
+      if (e.target.checked) {
+        const radarCheckbox = document.getElementById('layerWeatherRadar');
+        if (radarCheckbox && radarCheckbox.checked) {
+          radarCheckbox.checked = false;
+          currentState.weatherRadar = false;
+          if (onLayerToggle) {
+            await onLayerToggle('weatherRadar', false);
+          }
+        }
+      }
       
-      if (currentState.weather && onLayerToggle) {
-        await onLayerToggle('weather', true, mode);
+      if (onLayerToggle) {
+        await onLayerToggle('weatherInfrared', e.target.checked);
       }
     });
-  });
+  }
 
   // Sign-In Activity toggle (disabled for now)
   const saCheckbox = document.getElementById('layerSignInActivity');

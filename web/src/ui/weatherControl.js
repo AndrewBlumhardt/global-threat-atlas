@@ -2,69 +2,76 @@
 
 /**
  * Weather Overlay Control
- * Manages weather overlay with radar/infrared mode selection
+ * Manages radar and infrared weather layers (mutually exclusive)
  */
 
-let weatherTileLayer = null;
-let isEnabled = false;
-let currentMode = 'radar';
+let radarTileLayer = null;
+let infraredTileLayer = null;
 
 /**
- * Toggle weather overlay on/off
+ * Toggle weather radar overlay on/off
  * @param {atlas.Map} map - Azure Maps instance
- * @param {boolean} turnOn - Enable or disable weather
- * @param {string} mode - 'radar' or 'infrared'
+ * @param {boolean} turnOn - Enable or disable weather radar
  */
-export async function toggleWeatherOverlay(map, turnOn, mode = 'radar') {
+export async function toggleWeatherRadar(map, turnOn) {
   if (turnOn) {
-    // If already enabled with same mode, do nothing
-    if (isEnabled && currentMode === mode) return;
+    if (radarTileLayer) return; // Already enabled
     
-    // If already enabled with different mode, switch mode
-    if (isEnabled && currentMode !== mode) {
-      disableWeather(map);
+    // Turn off infrared if it's on (mutually exclusive)
+    if (infraredTileLayer) {
+      await toggleWeatherInfrared(map, false);
     }
     
-    currentMode = mode;
-    enableWeather(map, mode);
-    isEnabled = true;
+    const tileUrl = 'https://atlas.microsoft.com/map/tile?api-version=2022-08-01&tilesetId=microsoft.weather.radar.main&zoom={z}&x={x}&y={y}';
+    
+    radarTileLayer = new atlas.layer.TileLayer({
+      tileUrl: tileUrl,
+      opacity: 0.9,
+      tileSize: 256
+    });
+
+    // Add layer before labels so weather appears below text labels
+    map.layers.add(radarTileLayer, 'labels');
+    console.log('Weather radar enabled');
   } else {
-    if (!isEnabled) return;
-    disableWeather(map);
-    isEnabled = false;
+    if (radarTileLayer) {
+      map.layers.remove(radarTileLayer);
+      radarTileLayer = null;
+      console.log('Weather radar disabled');
+    }
   }
 }
 
-function enableWeather(map, mode) {
-  if (weatherTileLayer) return;
+/**
+ * Toggle weather infrared overlay on/off
+ * @param {atlas.Map} map - Azure Maps instance
+ * @param {boolean} turnOn - Enable or disable weather infrared
+ */
+export async function toggleWeatherInfrared(map, turnOn) {
+  if (turnOn) {
+    if (infraredTileLayer) return; // Already enabled
+    
+    // Turn off radar if it's on (mutually exclusive)
+    if (radarTileLayer) {
+      await toggleWeatherRadar(map, false);
+    }
+    
+    const tileUrl = 'https://atlas.microsoft.com/map/tile?api-version=2022-08-01&tilesetId=microsoft.weather.infrared.main&zoom={z}&x={x}&y={y}';
+    
+    infraredTileLayer = new atlas.layer.TileLayer({
+      tileUrl: tileUrl,
+      opacity: 0.9,
+      tileSize: 256
+    });
 
-  // Get Azure Maps subscription key
-  const authOptions = map.authentication.getOptions();
-  const subscriptionKey = authOptions.authType === 'subscriptionKey' 
-    ? authOptions.subscriptionKey 
-    : authOptions.getToken();
-  
-  const tilesetId = mode === 'radar' 
-    ? 'microsoft.weather.radar.main' 
-    : 'microsoft.weather.infrared.main';
-  
-  const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2022-08-01&tilesetId=${tilesetId}&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
-  
-  weatherTileLayer = new atlas.layer.TileLayer({
-    tileUrl: tileUrl,
-    opacity: 0.9,
-    tileSize: 256
-  });
-
-  // Add layer before labels so weather appears below text labels
-  map.layers.add(weatherTileLayer, 'labels');
-  console.log(`Weather overlay enabled: ${mode}`);
-}
-
-function disableWeather(map) {
-  if (weatherTileLayer) {
-    map.layers.remove(weatherTileLayer);
-    weatherTileLayer = null;
-    console.log('Weather overlay disabled');
+    // Add layer before labels so weather appears below text labels
+    map.layers.add(infraredTileLayer, 'labels');
+    console.log('Weather infrared enabled');
+  } else {
+    if (infraredTileLayer) {
+      map.layers.remove(infraredTileLayer);
+      infraredTileLayer = null;
+      console.log('Weather infrared disabled');
+    }
   }
 }
