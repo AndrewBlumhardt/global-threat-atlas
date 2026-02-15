@@ -8,14 +8,13 @@
 import { getDataUrl } from "../shared/demoMode.js";
 import { showDeviceDetails } from "../ui/panelManager.js";
 
-const DEVICE_SOURCE_ID = "device-locations-source";
-const DEVICE_SYMBOL_LAYER_ID = "device-locations-symbols";
-
 let isEnabled = false;
 let map = null;
+let htmlMarkers = [];
+let popup = null;
 
 /**
- * Enable the overlay - fetch and display GeoJSON from blob storage
+ * Enable the overlay - fetch and display GeoJSON as HTML markers with device icons
  */
 async function enable(azureMap) {
   console.log("Device locations enable() called, isEnabled =", isEnabled);
@@ -45,136 +44,53 @@ async function enable(azureMap) {
       return;
     }
 
-    // Create data source
-    const dataSource = new atlas.source.DataSource(DEVICE_SOURCE_ID);
-    map.sources.add(dataSource);
-    console.log("Data source created:", DEVICE_SOURCE_ID);
-
-    // Add GeoJSON data to source
-    dataSource.add(geojsonData);
-    console.log("GeoJSON added to data source");
-
-    // Create symbol layer for device locations with conditional icons
-    // Blue marker (computer icon) for Desktop/Laptop, Green marker (phone icon) for Mobile/Tablet
-    const symbolLayer = new atlas.layer.SymbolLayer(dataSource, DEVICE_SYMBOL_LAYER_ID, {
-      iconOptions: {
-        image: [
-          'match',
-          ['get', 'DeviceType'],
-          ['Mobile', 'Tablet'], 'marker-green',
-          'marker-blue'
-        ],
-        size: 0.8,
-        anchor: 'bottom'
-      },
-      textOptions: {
-        textField: ['get', 'DeviceName'],
-        offset: [0, -2.5],
-        size: 10,
-        color: '#1f2937',
-        haloColor: '#ffffff',
-        haloWidth: 2
-      }
-    });
-    
-    map.layers.add(symbolLayer);
-    console.log("Symbol layer added:", DEVICE_SYMBOL_LAYER_ID);
-
-    // Add hover popup
-    const popup = new atlas.Popup({
+    // Create popup for hover events
+    popup = new atlas.Popup({
       pixelOffset: [0, -30],
       closeButton: false
     });
 
-    map.events.add("mouseover", symbolLayer, (e) => {
-      if (e.shapes && e.shapes.length > 0) {
-        const props = e.shapes[0].getProperties();
-        const coords = e.shapes[0].getCoordinates();
-        
-        const deviceName = props.DeviceName || "Unknown Device";
-        const deviceId = props.DeviceId || "";
-        const user = props.UserDisplayName || props.UserPrincipalName || "";
-        const city = props.City || "";
-        const state = props.State || "";
-        const country = props.CountryOrRegion || "";
-        const location = [city, state, country].filter(Boolean).join(", ");
-        const ip = props.IPAddress || props.PublicIP || "";
-        const isMsIP = props.IsMicrosoftIP === true || props.IsMicrosoftIP === "True" || props.IsMicrosoftIP === "true";
-        const os = props.OperatingSystem || props.OSPlatform || "";
-        const browser = props.Browser || "";
-        const isManaged = props.isManaged === "True" || props.isManaged === true;
-        const isCompliant = props.isCompliant === "True" || props.isCompliant === true;
-        const deviceType = props.DeviceType || "";
-        const cloudPlatform = props.CloudPlatform || "";
-        const sensorHealth = props.SensorHealthState || "";
-        const exposureLevel = props.ExposureLevel || "None";
-        const time = props.TimeGenerated ? new Date(props.TimeGenerated).toLocaleString() : "";
-        
-        // Color coding for exposure level
-        const exposureColor = 
-          exposureLevel === "High" ? "#ef4444" :
-          exposureLevel === "Medium" ? "#f59e0b" :
-          exposureLevel === "Low" ? "#10b981" : "#6b7280";
-        
-        const healthColor = sensorHealth === "Active" ? "#10b981" : "#f59e0b";
-
-        popup.setOptions({
-          content: `
-            <div style="padding: 12px; min-width: 300px; max-width: 380px; word-wrap: break-word; white-space: normal;">
-              <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #1f2937;">
-                ${deviceName.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
-              </div>
-              ${user ? `<div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">👤 ${user.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
-              ${location ? `<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">📍 ${location.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
-              <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
-                ${exposureLevel !== "None" ? `<span style="display: inline-block; padding: 3px 8px; background: ${exposureColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">
-                  ${exposureLevel} Risk
-                </span>` : ""}
-                ${sensorHealth ? `<span style="display: inline-block; padding: 3px 8px; background: ${healthColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">
-                  ${sensorHealth}
-                </span>` : ""}
-                ${isManaged ? `<span style="display: inline-block; padding: 3px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">Managed</span>` : ""}
-                ${isCompliant ? `<span style="display: inline-block; padding: 3px 8px; background: #10b981; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">Compliant</span>` : ""}
-                ${isMsIP ? `<span style="display: inline-block; padding: 3px 8px; background: #059669; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">MS IP</span>` : ""}
-              </div>
-              ${deviceType ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>Type:</strong> ${deviceType.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
-              ${cloudPlatform ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>Platform:</strong> ${cloudPlatform.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
-              ${os ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>OS:</strong> ${os.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
-              ${browser ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>Browser:</strong> ${browser.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
-              ${ip ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>IP:</strong> ${ip.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
-              ${deviceId ? `<div style="font-size: 10px; color: #9ca3af; margin-top: 4px; font-family: monospace;">${deviceId.substring(0, 16).replace(/</g, "&lt;").replace(/>/g, "&gt;")}...</div>` : ""}
-              ${time ? `<div style="font-size: 10px; color: #9ca3af; margin-top: 4px;">Last seen: ${time.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
-            </div>
-          `,
-          position: coords
-        });
-
-        popup.open(map);
-      }
+    // Create HTML markers with device icons
+    // Blue icon for Desktop/Laptop, Green icon for Mobile/Tablet
+    geojsonData.features.forEach(feature => {
+      const props = feature.properties;
+      const coords = feature.geometry.coordinates;
+      const deviceType = props.DeviceType || '';
+      const isMobile = deviceType === 'Mobile' || deviceType === 'Tablet';
+      
+      // Create HTML marker with marker-thick-pin icon template
+      const marker = new atlas.HtmlMarker({
+        position: [coords[0], coords[1]],
+        htmlContent: atlas.getImageTemplate('marker-thick-pin', 1),
+        color: isMobile ? '#10b981' : '#3b82f6', // Green for phone, Blue for computer
+        secondaryColor: '#ffffff',
+        text: props.DeviceName || '',
+        properties: props
+      });
+      
+      // Add hover popup
+      map.events.add('mouseover', marker, (e) => {
+        const markerProps = e.target.getOptions().properties;
+        showDevicePopup(markerProps, e.target.getOptions().position);
+      });
+      
+      map.events.add('mouseleave', marker, () => {
+        popup.close();
+      });
+      
+      // Add click handler for proximity search (300km radius)
+      map.events.add('click', marker, (e) => {
+        e.originalEvent.preventDefault();
+        e.originalEvent.stopPropagation();
+        const position = e.target.getOptions().position;
+        showNearbyDevicesPanel(map, position, geojsonData.features);
+      });
+      
+      map.markers.add(marker);
+      htmlMarkers.push(marker);
     });
 
-    map.events.add("mouseleave", symbolLayer, () => {
-      popup.close();
-    });
-
-    // Change cursor on hover
-    map.events.add("mousemove", symbolLayer, () => {
-      map.getCanvasContainer().style.cursor = "pointer";
-    });
-
-    map.events.add("mouseleave", symbolLayer, () => {
-      map.getCanvasContainer().style.cursor = "grab";
-    });
-
-    // Add click handler for proximity search (300km radius)
-    map.events.add("click", symbolLayer, (e) => {
-      if (e.shapes && e.shapes.length > 0) {
-        e.preventDefault();
-        const clickedPosition = e.shapes[0].getCoordinates();
-        showNearbyDevicesPanel(map, clickedPosition, dataSource);
-      }
-    });
-
+    console.log(`Added ${htmlMarkers.length} device markers to map`);
     isEnabled = true;
     console.log("Device locations overlay enabled successfully");
 
@@ -185,6 +101,71 @@ async function enable(azureMap) {
 }
 
 /**
+ * Show popup for device marker
+ */
+function showDevicePopup(props, coords) {
+  const deviceName = props.DeviceName || "Unknown Device";
+  const deviceId = props.DeviceId || "";
+  const user = props.UserDisplayName || props.UserPrincipalName || "";
+  const city = props.City || "";
+  const state = props.State || "";
+  const country = props.CountryOrRegion || "";
+  const location = [city, state, country].filter(Boolean).join(", ");
+  const ip = props.IPAddress || props.PublicIP || "";
+  const isMsIP = props.IsMicrosoftIP === true || props.IsMicrosoftIP === "True" || props.IsMicrosoftIP === "true";
+  const os = props.OperatingSystem || props.OSPlatform || "";
+  const browser = props.Browser || "";
+  const isManaged = props.isManaged === "True" || props.isManaged === true;
+  const isCompliant = props.isCompliant === "True" || props.isCompliant === true;
+  const deviceType = props.DeviceType || "";
+  const cloudPlatform = props.CloudPlatform || "";
+  const sensorHealth = props.SensorHealthState || "";
+  const exposureLevel = props.ExposureLevel || "None";
+  const time = props.TimeGenerated ? new Date(props.TimeGenerated).toLocaleString() : "";
+  
+  // Color coding for exposure level
+  const exposureColor = 
+    exposureLevel === "High" ? "#ef4444" :
+    exposureLevel === "Medium" ? "#f59e0b" :
+    exposureLevel === "Low" ? "#10b981" : "#6b7280";
+  
+  const healthColor = sensorHealth === "Active" ? "#10b981" : "#f59e0b";
+
+  popup.setOptions({
+    content: `
+      <div style="padding: 12px; min-width: 300px; max-width: 380px; word-wrap: break-word; white-space: normal;">
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #1f2937;">
+          ${deviceName.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+        </div>
+        ${user ? `<div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">👤 ${user.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+        ${location ? `<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">📍 ${location.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
+          ${exposureLevel !== "None" ? `<span style="display: inline-block; padding: 3px 8px; background: ${exposureColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">
+            ${exposureLevel} Risk
+          </span>` : ""}
+          ${sensorHealth ? `<span style="display: inline-block; padding: 3px 8px; background: ${healthColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">
+            ${sensorHealth}
+          </span>` : ""}
+          ${isManaged ? `<span style="display: inline-block; padding: 3px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">Managed</span>` : ""}
+          ${isCompliant ? `<span style="display: inline-block; padding: 3px 8px; background: #10b981; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">Compliant</span>` : ""}
+          ${isMsIP ? `<span style="display: inline-block; padding: 3px 8px; background: #059669; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">MS IP</span>` : ""}
+        </div>
+        ${deviceType ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>Type:</strong> ${deviceType.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+        ${cloudPlatform ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>Platform:</strong> ${cloudPlatform.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+        ${os ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>OS:</strong> ${os.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+        ${browser ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>Browser:</strong> ${browser.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+        ${ip ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>IP:</strong> ${ip.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+        ${deviceId ? `<div style="font-size: 10px; color: #9ca3af; margin-top: 4px; font-family: monospace;">${deviceId.substring(0, 16).replace(/</g, "&lt;").replace(/>/g, "&gt;")}...</div>` : ""}
+        ${time ? `<div style="font-size: 10px; color: #9ca3af; margin-top: 4px;">Last seen: ${time.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+      </div>
+    `,
+    position: coords
+  });
+
+  popup.open(map);
+}
+
+/**
  * Disable the overlay
  */
 function disable() {
@@ -192,16 +173,14 @@ function disable() {
   if (!isEnabled || !map) return;
 
   try {
-    // Remove layers
-    if (map.layers.getLayerById(DEVICE_SYMBOL_LAYER_ID)) {
-      map.layers.remove(DEVICE_SYMBOL_LAYER_ID);
-      console.log("Symbol layer removed");
-    }
+    // Remove all HTML markers
+    htmlMarkers.forEach(marker => {
+      map.markers.remove(marker);
+    });
+    htmlMarkers = [];
 
-    // Remove data source
-    if (map.sources.getById(DEVICE_SOURCE_ID)) {
-      map.sources.remove(DEVICE_SOURCE_ID);
-      console.log("Data source removed");
+    if (popup) {
+      popup.close();
     }
 
     isEnabled = false;
@@ -214,13 +193,10 @@ function disable() {
 /**
  * Show nearby devices in the left panel when user clicks on the map
  */
-function showNearbyDevicesPanel(map, position, dataSource) {
+function showNearbyDevicesPanel(map, position, allFeatures) {
   const radiusKm = 300; // 300 km radius
   const clickLng = position[0];
   const clickLat = position[1];
-  
-  // Get all features from data source
-  const allFeatures = dataSource.toJson().features;
   
   // Calculate distances and filter by radius
   const nearbyDevices = allFeatures
