@@ -149,9 +149,13 @@ export function showIPDetails(ipData) {
               </div>` : ""}
               ${label ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 2px;"><strong>Label:</strong> ${escapeHtml(label)}</div>` : ""}
             </div>
-            <div style="margin-left: 8px; font-size: 11px; color: rgba(255,255,255,0.5); white-space: nowrap;">
-              ${distance.toFixed(1)} km
+            <div style="display: flex; gap: 6px; margin-left: 8px; align-items: start;">
+              <button class="ip-vt-btn" data-ip="${escapeHtml(ipAddress)}" style="padding: 6px 10px; background: #0078d4; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;" title="Search VirusTotal">🔍 VT Search</button>
+              <button class="ip-ai-btn" data-ip="${escapeHtml(ipAddress)}" data-location="${escapeHtml(locationStr)}" data-type="${escapeHtml(type)}" data-label="${escapeHtml(label)}" data-description="${escapeHtml(description)}" style="padding: 6px 10px; background: #10b981; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; white-space: nowrap;" title="Copy AI prompt to clipboard">AI Prompt</button>
             </div>
+          </div>
+          <div style="margin-left: 0; font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 8px;">
+            ${distance.toFixed(1)} km away
           </div>
           ${confidence ? `<div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 4px;"><strong>Confidence:</strong> ${escapeHtml(confidence)}</div>` : ""}
           ${description ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px; margin-bottom: 6px;">${escapeHtml(description)}</div>` : ""}
@@ -162,6 +166,59 @@ export function showIPDetails(ipData) {
     }).join("");
 
     listEl.innerHTML = ipItems;
+    
+    // Wire up VirusTotal search buttons
+    document.querySelectorAll(".ip-vt-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const ip = e.target.getAttribute("data-ip");
+        window.open(`https://www.virustotal.com/gui/ip-address/${encodeURIComponent(ip)}`, "_blank");
+      });
+    });
+    
+    // Wire up AI prompt buttons
+    document.querySelectorAll(".ip-ai-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const ip = e.target.getAttribute("data-ip");
+        const location = e.target.getAttribute("data-location");
+        const type = e.target.getAttribute("data-type");
+        const label = e.target.getAttribute("data-label");
+        const description = e.target.getAttribute("data-description");
+        
+        const prompt = `Provide a comprehensive threat intelligence analysis for IP address ${ip}. Include:
+
+1. Current threat classification and reputation
+2. ${location ? `Geographic location: ${location}` : "Geographic attribution"}
+3. ${type ? `Threat type: ${type}` : "Identified threat types and behaviors"}
+4. ${label ? `Known associations: ${label}` : "Known malicious associations or campaigns"}
+5. MITRE ATT&CK techniques observed from this IP
+6. Historical activity and timeline
+7. Infrastructure analysis (ASN, hosting provider, related IPs)
+8. Recommended blocking/monitoring strategies
+9. IOCs and detection signatures
+${description ? `\nAdditional context: ${description}` : ""}
+
+Please provide detailed, actionable intelligence suitable for security operations and incident response teams.`;
+        
+        // Copy to clipboard with subtle confirmation
+        navigator.clipboard.writeText(prompt).then(() => {
+          const originalText = e.target.textContent;
+          const originalBg = e.target.style.background;
+          
+          // Show confirmation
+          e.target.textContent = "✓ Copied!";
+          e.target.style.background = "#059669";
+          
+          // Restore after 2 seconds
+          setTimeout(() => {
+            e.target.textContent = originalText;
+            e.target.style.background = originalBg;
+          }, 2000);
+        }).catch(() => {
+          // Fallback: show prompt in alert
+          alert("Copy this prompt:\n\n" + prompt);
+        });
+      });
+    });
   } else {
     listEl.innerHTML = `<div style="padding: 12px; color: rgba(255,255,255,0.5);">No threat intel IPs found in this area</div>`;
   }
