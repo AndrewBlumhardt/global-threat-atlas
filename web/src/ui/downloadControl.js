@@ -17,8 +17,8 @@ export function addDownloadControl(map) {
   button.title = "Download Map Image";
   button.textContent = "↓";
   button.style.fontSize = "20px";
-  button.style.width = "32px";
-  button.style.height = "32px";
+  button.style.width = "49px";
+  button.style.height = "33px";
   button.style.padding = "0";
   button.style.border = "2px solid rgba(255, 255, 255, 0.5)";
   button.style.borderRadius = "4px";

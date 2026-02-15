@@ -48,16 +48,16 @@ function enableWeather(map, mode) {
     ? 'microsoft.weather.radar.main' 
     : 'microsoft.weather.infrared.main';
   
-  const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2.0&tilesetId=${tilesetId}&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
+  const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2022-08-01&tilesetId=${tilesetId}&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
   
   weatherTileLayer = new atlas.layer.TileLayer({
     tileUrl: tileUrl,
-    opacity: 0.6,
+    opacity: 0.9,
     tileSize: 256
   });
 
-  // Add layer on top of everything
-  map.layers.add(weatherTileLayer);
+  // Add layer before labels so weather appears below text labels
+  map.layers.add(weatherTileLayer, 'labels');
   console.log(`Weather overlay enabled: ${mode}`);
 }
 
