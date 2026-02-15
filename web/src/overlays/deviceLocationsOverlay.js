@@ -43,6 +43,21 @@ async function enable(azureMap) {
       console.warn("No device location features found in GeoJSON");
       return;
     }
+    
+    // Check for duplicate coordinates
+    const coordSet = new Set();
+    const duplicates = [];
+    geojsonData.features.forEach(f => {
+      const key = `${f.geometry.coordinates[0]},${f.geometry.coordinates[1]}`;
+      if (coordSet.has(key)) {
+        duplicates.push(key);
+      }
+      coordSet.add(key);
+    });
+    console.log(`Found ${coordSet.size} unique locations out of ${geojsonData.features.length} devices`);
+    if (duplicates.length > 0) {
+      console.warn(`${duplicates.length} duplicate coordinates detected`);
+    }
 
     // Create popup for hover events
     popup = new atlas.Popup({
@@ -58,13 +73,13 @@ async function enable(azureMap) {
       const deviceType = props.DeviceType || '';
       const isMobile = deviceType === 'Mobile' || deviceType === 'Tablet';
       
-      // Create HTML marker with marker-flat icon template
+      // Create HTML marker with marker-ball icon template
       const marker = new atlas.HtmlMarker({
         position: [coords[0], coords[1]],
-        htmlContent: atlas.getImageTemplate('marker-flat'),
+        htmlContent: atlas.getImageTemplate('marker-ball'),
         color: isMobile ? '#10b981' : '#3b82f6', // Green for phone, Blue for computer
         secondaryColor: '#ffffff',
-        text: props.DeviceName || '',
+        text: deviceType.substring(0, 1), // D, L, M, T
         properties: props
       });
       
