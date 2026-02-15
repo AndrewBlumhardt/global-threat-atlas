@@ -64,7 +64,9 @@ async function main() {
     // Future layers start disabled (enabled when data is available)
     updateLayerAvailability('SignInActivity', false);
     updateLayerAvailability('DeviceLocations', false);
-    updateLayerAvailability('CustomSource', false);
+    
+    // Check if custom source file exists and enable if available
+    checkCustomSourceAvailability();
     
     // Add map controls
     addAutoScrollControl(map);
@@ -79,6 +81,21 @@ async function main() {
   map.events.add("error", (e) => {
     console.error("Map error:", e);
   });
+}
+
+/**
+ * Check if custom source file exists in blob storage
+ */
+async function checkCustomSourceAvailability() {
+  try {
+    const response = await fetch("/api/data/custom-source", { method: 'HEAD' });
+    const isAvailable = response.ok;
+    console.log(`Custom source file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
+    updateLayerAvailability('CustomSource', isAvailable);
+  } catch (error) {
+    console.log('Custom source not available:', error);
+    updateLayerAvailability('CustomSource', false);
+  }
 }
 
 main().catch((e) => {

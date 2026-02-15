@@ -24,7 +24,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             status_code=200,
             headers={
                 'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type'
             }
         )
@@ -75,6 +75,22 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         logger.info('Checking if blob exists...')
         exists = blob_client.exists()
         logger.info(f'✅ Blob exists: {exists}')
+        
+        # For HEAD requests, just return existence status
+        if req.method == 'HEAD':
+            if exists:
+                return func.HttpResponse(
+                    status_code=200,
+                    headers={
+                        'Access-Control-Allow-Origin': '*',
+                        'Content-Type': 'application/json'
+                    }
+                )
+            else:
+                return func.HttpResponse(
+                    status_code=404,
+                    headers={'Access-Control-Allow-Origin': '*'}
+                )
             
         if not exists:
             # List available blobs to help with debugging
