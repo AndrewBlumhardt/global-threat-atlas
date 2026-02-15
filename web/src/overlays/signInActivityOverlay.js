@@ -82,16 +82,21 @@ async function enable(azureMap) {
         const coords = e.shapes[0].getCoordinates();
         
         const user = props.UserDisplayName || props.UserPrincipalName || "Unknown User";
+        const upn = props.UserPrincipalName || "";
         const city = props.City || "";
         const state = props.State || "";
         const country = props.CountryOrRegion || "";
         const location = [city, state, country].filter(Boolean).join(", ");
         const status = props.ResultSignature || "Unknown";
+        const resource = props.ResourceDisplayName || "Unknown App";
         const ip = props.IPAddress || "";
+        const isMsIP = props.IsMicrosoftIP === true || props.IsMicrosoftIP === "True" || props.IsMicrosoftIP === "true";
         const browser = props.Browser || "";
         const os = props.OperatingSystem || "";
-        const device = props.isManaged === "True" ? "Managed" : (props.isCompliant === "True" ? "Compliant" : "Unmanaged");
+        const device = props.isManaged === "True" || props.isManaged === true ? "Managed" : (props.isCompliant === "True" || props.isCompliant === true ? "Compliant" : "Unmanaged");
         const risk = props.RiskState || "none";
+        const riskReason = props.RiskReason || "";
+        const caStatus = props.ConditionalAccessStatus || "";
         const time = props.TimeGenerated ? new Date(props.TimeGenerated).toLocaleString() : "";
         
         const statusColor = status === 'SUCCESS' ? '#10b981' : '#ef4444';
@@ -99,23 +104,28 @@ async function enable(azureMap) {
 
         popup.setOptions({
           content: `
-            <div style="padding: 12px; min-width: 280px; max-width: 350px; word-wrap: break-word; white-space: normal;">
-              <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; color: #1f2937;">
+            <div style="padding: 12px; min-width: 300px; max-width: 380px; word-wrap: break-word; white-space: normal;">
+              <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #1f2937;">
                 ${user.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
               </div>
-              ${location ? `<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">${location.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+              ${upn && upn !== user ? `<div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">${upn.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+              ${location ? `<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">📍 ${location.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
               <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
                 <span style="display: inline-block; padding: 3px 8px; background: ${statusColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">
                   ${status.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
                 </span>
-                <span style="display: inline-block; padding: 3px 8px; background: ${riskColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">
+                ${risk !== "none" ? `<span style="display: inline-block; padding: 3px 8px; background: ${riskColor}; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">
                   ${risk.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
-                </span>
+                </span>` : ""}
                 <span style="display: inline-block; padding: 3px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">
                   ${device}
                 </span>
+                ${isMsIP ? `<span style="display: inline-block; padding: 3px 8px; background: #059669; color: white; border-radius: 4px; font-size: 11px; font-weight: 600;">MS IP</span>` : ""}
               </div>
+              ${resource !== "Unknown App" ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>App:</strong> ${resource.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
               ${ip ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>IP:</strong> ${ip.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+              ${riskReason ? `<div style="font-size: 11px; color: #dc2626; margin-bottom: 4px;"><strong>Risk:</strong> ${riskReason.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
+              ${caStatus ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>CA Status:</strong> ${caStatus.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
               ${browser ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>Browser:</strong> ${browser.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
               ${os ? `<div style="font-size: 11px; color: #374151; margin-bottom: 4px;"><strong>OS:</strong> ${os.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}
               ${time ? `<div style="font-size: 10px; color: #9ca3af; margin-top: 8px;">${time.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>` : ""}

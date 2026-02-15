@@ -2,6 +2,7 @@ import { createMap } from "./map/map-init.js";
 import { toggleThreatActorsHeatmap } from "./overlays/threatActorsHeatmap.js";
 import { toggleThreatIntelOverlay } from "./overlays/threatIntelOverlay.js";
 import { toggleSignInActivityOverlay } from "./overlays/signInActivityOverlay.js";
+import { toggleDeviceLocationsOverlay } from "./overlays/deviceLocationsOverlay.js";
 import { toggleCustomSourceOverlay } from "./overlays/customSourceOverlay.js";
 import { toggleWeatherRadar, toggleWeatherInfrared } from "./ui/weatherControl.js";
 import { initLayerControl, updateLayerAvailability } from "./ui/layerControl.js";
@@ -37,6 +38,7 @@ async function main() {
         const threatActorsEnabled = document.getElementById('layerThreatActors')?.checked;
         const threatIntelEnabled = document.getElementById('layerThreatIntel')?.checked;
         const signInActivityEnabled = document.getElementById('layerSignInActivity')?.checked;
+        const deviceLocationsEnabled = document.getElementById('layerDeviceLocations')?.checked;
         const customSourceEnabled = document.getElementById('layerCustomSource')?.checked;
         
         // Get current threat actors mode
@@ -60,6 +62,11 @@ async function main() {
           await toggleSignInActivityOverlay(map, true); // Turn back on with new data
         }
         
+        if (deviceLocationsEnabled) {
+          await toggleDeviceLocationsOverlay(map, false); // Turn off
+          await toggleDeviceLocationsOverlay(map, true); // Turn back on with new data
+        }
+        
         if (customSourceEnabled) {
           await toggleCustomSourceOverlay(map, false); // Turn off
           await toggleCustomSourceOverlay(map, true); // Turn back on with new data
@@ -67,6 +74,7 @@ async function main() {
         
         // Recheck custom source availability
         await checkCustomSourceAvailability();
+        await checkDeviceLocationsAvailability();
       });
     }
     
@@ -93,8 +101,7 @@ async function main() {
           await toggleSignInActivityOverlay(map, enabled);
           break;
         case 'deviceLocations':
-          // Future: toggle device locations layer
-          console.log('Device locations layer not yet implemented');
+          await toggleDeviceLocationsOverlay(map, enabled);
           break;
         case 'customSource':
           await toggleCustomSourceOverlay(map, enabled);
@@ -110,9 +117,10 @@ async function main() {
     // Future layers start disabled (enabled when data is available)
     updateLayerAvailability('DeviceLocations', false);
     
-    // Check if custom source and sign-in activity files exist
+    // Check if custom source, sign-in activity, and device locations files exist
     checkCustomSourceAvailability();
     checkSignInActivityAvailability();
+    checkDeviceLocationsAvailability();
     
     // Add map controls
     addAutoScrollControl(map);
@@ -156,6 +164,21 @@ async function checkSignInActivityAvailability() {
   } catch (error) {
     console.log('Sign-in activity not available:', error);
     updateLayerAvailability('SignInActivity', false);
+  }
+}
+
+/**
+ * Check if device locations file exists in blob storage
+ */
+async function checkDeviceLocationsAvailability() {
+  try {
+    const response = await fetch(getDataUrl("device-locations"), { method: 'HEAD' });
+    const isAvailable = response.ok;
+    console.log(`Device locations file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
+    updateLayerAvailability('DeviceLocations', isAvailable);
+  } catch (error) {
+    console.log('Device locations not available:', error);
+    updateLayerAvailability('DeviceLocations', false);
   }
 }
 
