@@ -335,21 +335,10 @@ export function hidePanel() {
  */
 export function initPanelControls() {
   const hideBtn = document.getElementById("panelHideBtn");
-  const showThreatBtn = document.getElementById("showThreatMapBtn");
   
   // Close button in panel header
   if (hideBtn) {
     hideBtn.addEventListener("click", hidePanel);
-  }
-  
-  // Show threat map control button
-  if (showThreatBtn) {
-    showThreatBtn.addEventListener("click", () => {
-      const threatControl = document.getElementById("showControlPanel");
-      if (threatControl) {
-        threatControl.click();
-      }
-    });
   }
 }
 

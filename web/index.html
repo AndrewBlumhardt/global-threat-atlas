@@ -21,11 +21,10 @@
     <!-- Left threat details panel (hidden by default) -->
     <aside id="leftPanel" class="left-panel hidden" aria-hidden="true">
       <div class="panel-header">
-        <div style="display: flex; gap: 8px; justify-content: space-between; width: 100%;">
-          <button id="showThreatMapBtn" type="button" title="Show threat map" style="background: #10b981; flex: 1;">☰ Threat Map</button>
-          <button id="panelHideBtn" type="button" title="Close panel" style="background: #ef4444; flex: 1;">✕ Close Menu</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <h2 id="panelTitle" style="margin: 0;">Threat Details</h2>
+          <button id="panelHideBtn" type="button" title="Close panel" style="background: transparent; border: none; color: rgba(255,255,255,0.6); font-size: 20px; padding: 4px 8px; cursor: pointer; line-height: 1; transition: color 0.2s;" onmouseover="this.style.color='rgba(255,255,255,1)'" onmouseout="this.style.color='rgba(255,255,255,0.6)'">✕</button>
         </div>
-        <h2 id="panelTitle">Threat Details</h2>
       </div>
 
       <!-- Context about the selected region  -->
