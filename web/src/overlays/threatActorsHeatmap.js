@@ -221,7 +221,7 @@ async function enable(map, mode, onCountryClick) {
 
   // Load threat actor data from blob storage via API
   console.log("Loading threat actors from API...");
-  const resp = await fetch("/api/data/threat-actors.tsv", { cache: "no-store" });
+  const resp = await fetch(getDataUrl("threat-actors.tsv"), { cache: "no-store" });
   if (!resp.ok) {
     const errorText = await resp.text();
     console.error("Failed to load threat actors:", errorText);

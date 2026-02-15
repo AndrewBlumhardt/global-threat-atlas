@@ -75,7 +75,13 @@
         </button>
         <div class="layer-control-panel">
           <div class="layer-control-header">
-            <h3>Map Layers</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3>Map Layers</h3>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: rgba(255,255,255,0.4); cursor: pointer;" title="Use demo data instead of live data">
+                <input type="checkbox" id="demoModeToggle" style="margin: 0;">
+                <span>Demo</span>
+              </label>
+            </div>
           </div>
           <div class="layer-control-content">
             <!-- Threat Actors Layer -->
@@ -132,7 +138,7 @@
             
             <!-- Custom Source Layer -->
             <div class="layer-item">
-              <label>
+              <label title="Add custom-source.geojson to blob container">
                 <input type="checkbox" id="layerCustomSource">
                 <span class="layer-name">Custom Source</span>
               </label>

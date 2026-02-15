@@ -8,6 +8,7 @@ import { showCountryDetails, initPanelControls } from "./ui/panelManager.js";
 import { addAutoScrollControl } from "./ui/autoScroll.js";
 import { addDownloadControl } from "./ui/downloadControl.js";
 import { enableDragAndDrop } from "./ui/dragDropGeoJSON.js";
+import { setDemoMode, getDataUrl } from "./shared/demoMode.js";
 
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
@@ -22,6 +23,42 @@ async function main() {
     console.log("Map ready.");
     
     initPanelControls();
+    
+    // Initialize demo mode toggle
+    const demoToggle = document.getElementById('demoModeToggle');
+    if (demoToggle) {
+      demoToggle.addEventListener('change', async (e) => {
+        const isDemoEnabled = e.target.checked;
+        setDemoMode(isDemoEnabled);
+        console.log(`Demo mode ${isDemoEnabled ? 'enabled' : 'disabled'} - reloading layers...`);
+        
+        // Get current layer states
+        const threatActorsEnabled = document.getElementById('layerThreatActors')?.checked;
+        const threatIntelEnabled = document.getElementById('layerThreatIntel')?.checked;
+        const customSourceEnabled = document.getElementById('layerCustomSource')?.checked;
+        
+        // Reload enabled layers with new data source
+        if (threatActorsEnabled) {
+          await toggleThreatActorsHeatmap(map, false); // Turn off
+          await toggleThreatActorsHeatmap(map, true, 'heatmap', (countryProps) => {
+            showCountryDetails(countryProps);
+          }); // Turn back on with new data
+        }
+        
+        if (threatIntelEnabled) {
+          await toggleThreatIntelOverlay(map, false); // Turn off
+          await toggleThreatIntelOverlay(map, true); // Turn back on with new data
+        }
+        
+        if (customSourceEnabled) {
+          await toggleCustomSourceOverlay(map, false); // Turn off
+          await toggleCustomSourceOverlay(map, true); // Turn back on with new data
+        }
+        
+        // Recheck custom source availability
+        await checkCustomSourceAvailability();
+      });
+    }
     
     // Initialize layer control with toggle callback
     initLayerControl(async (layerType, enabled, mode) => {
@@ -88,7 +125,7 @@ async function main() {
  */
 async function checkCustomSourceAvailability() {
   try {
-    const response = await fetch("/api/data/custom-source", { method: 'HEAD' });
+    const response = await fetch(getDataUrl("custom-source"), { method: 'HEAD' });
     const isAvailable = response.ok;
     console.log(`Custom source file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
     updateLayerAvailability('CustomSource', isAvailable);

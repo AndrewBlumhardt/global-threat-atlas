@@ -38,6 +38,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             mimetype='application/json'
         )
     
+    # Check if demo mode is enabled via query parameter
+    demo_mode = req.params.get('demo', '').lower() == 'true'
+    
     # Determine blob name and content type based on file extension
     if filename.endswith('.tsv'):
         blob_name = filename
@@ -49,6 +52,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         # Default: add .geojson extension
         blob_name = f'{filename}.geojson'
         content_type = 'application/json'
+    
+    # Prepend demo_data/ folder if demo mode is enabled
+    if demo_mode:
+        blob_name = f'demo_data/{blob_name}'
+        logger.info(f'Demo mode enabled - using demo data')
     
     logger.info(f'Requesting blob: {blob_name}')
     

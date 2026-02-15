@@ -6,6 +6,7 @@
  */
 
 import { showIPDetails } from "../ui/panelManager.js";
+import { getDataUrl } from "../shared/demoMode.js";
 
 const THREAT_INTEL_SOURCE_ID = "threat-intel-source";
 const THREAT_INTEL_LAYER_ID = "threat-intel-layer";
@@ -36,7 +37,7 @@ async function enable(map) {
 
     // Fetch GeoJSON from blob storage via API proxy
     console.log("Fetching from /api/data/threat-intel-indicators...");
-    const response = await fetch("/api/data/threat-intel-indicators");
+    const response = await fetch(getDataUrl("threat-intel-indicators"));
     console.log("API response status:", response.status, response.statusText);
     
     if (!response.ok) {

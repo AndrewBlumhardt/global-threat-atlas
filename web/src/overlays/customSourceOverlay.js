@@ -7,6 +7,7 @@
  */
 
 import { showCustomSourceDetails } from "../ui/panelManager.js";
+import { getDataUrl } from "../shared/demoMode.js";
 
 const CUSTOM_SOURCE_ID = "custom-source";
 const CUSTOM_BUBBLE_LAYER_ID = "custom-bubble-layer";
@@ -40,7 +41,7 @@ async function enable(map) {
     // Fetch GeoJSON from blob storage via API proxy
     // Expected naming format: custom-source.geojson
     console.log("Fetching from /api/data/custom-source...");
-    const response = await fetch("/api/data/custom-source");
+    const response = await fetch(getDataUrl("custom-source"));
     console.log("API response status:", response.status, response.statusText);
     
     if (!response.ok) {
