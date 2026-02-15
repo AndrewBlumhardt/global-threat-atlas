@@ -76,14 +76,14 @@
         <div class="layer-control-panel">
           <div class="layer-control-header">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <h3 style="margin: 0;">Map Layers</h3>
-                <label style="display: flex; align-items: center; gap: 3px; font-size: 10px; color: rgba(131, 136, 141, 0.6); cursor: pointer; white-space: nowrap;" title="Use demo data">
+              <h3 style="margin: 0;">Map Layers</h3>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <label style="display: flex; align-items: center; gap: 3px; font-size: 10px; color: rgba(131, 136, 141, 0.6); cursor: pointer; white-space: nowrap; margin-top: 2px;" title="Use demo data">
                   <input type="checkbox" id="demoModeToggle" style="margin: 0;">
                   <span>Demo</span>
                 </label>
+                <button id="layerControlClose" type="button" title="Close layers panel" style="background: transparent; border: none; color: rgba(131, 136, 141, 0.6); font-size: 18px; padding: 0; cursor: pointer; line-height: 1; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.color='rgba(131,136,141,1)'" onmouseout="this.style.color='rgba(131,136,141,0.6)'">×</button>
               </div>
-              <button id="layerControlClose" type="button" title="Close layers panel" style="background: transparent; border: none; color: rgba(131, 136, 141, 0.6); font-size: 18px; padding: 0; cursor: pointer; line-height: 1; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.color='rgba(131,136,141,1)'" onmouseout="this.style.color='rgba(131,136,141,0.6)'">×</button>
             </div>
           </div>
           <div class="layer-control-content">
