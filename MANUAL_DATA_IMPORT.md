@@ -1,8 +1,91 @@
 # Manual Data Import for Demos and Testing
 
-When you don't have sufficient live data in Log Analytics for demos or testing, you can manually create or export TSV files and convert them to GeoJSON.
+When you don't have sufficient live data in Log Analytics for demos or testing, you can manually create or export TSV files and convert them to GeoJSON, or use drag-and-drop for quick visualization.
 
 > **📌 Custom Source Layer**: You can also display arbitrary GeoJSON files using the **Custom Source** layer. See [Custom Source Documentation](docs/CUSTOM_SOURCE.md) for details on uploading and displaying custom GeoJSON data.
+
+## Drag and Drop GeoJSON Files
+
+The fastest way to visualize GeoJSON data is to drag and drop files directly onto the map.
+
+### How to Use Drag and Drop
+
+1. Open the Sentinel Activity Maps application
+2. Drag a `.geojson` or `.json` file from your desktop/file explorer
+3. Drop it anywhere on the map
+4. The data will be instantly displayed with the Custom Source layer
+
+This feature is based on [Azure Maps Drag and Drop GeoJSON Sample](https://samples.azuremaps.com/geospatial-files/drag-and-drop-geojson-file-onto-map).
+
+### Perfect For:
+- **Quick visualization** of external datasets
+- **Office locations** - Mark your organization's physical sites
+- **Custom boundaries** - Display service areas, territories, or zones
+- **Testing data formats** - Preview before uploading to blob storage
+- **Public datasets** - Explore data from external sources
+
+### GeoJSON Data Sources
+
+**Government Open Data:**
+- [Data.gov](https://data.gov/) - US government datasets with geographic data
+  - Search for "GeoJSON" or filter by format
+  - Examples: facility locations, service areas, demographic data
+
+**Regional APIs:**
+- [Mapping L.A. Boundaries API](http://boundaries.latimes.com/sets/) - Los Angeles neighborhoods and regions
+  - Returns GeoJSON for neighborhoods, council districts, etc.
+  - Example: `http://boundaries.latimes.com/1.0/boundary/neighborhoodsla/`
+
+**GitHub:**
+- Search GitHub for `geojson` + your topic (cities, countries, regions)
+- Many developers share curated geographic datasets
+- Example searches: "world cities geojson", "us states geojson"
+
+**Create Your Own:**
+- [geojson.io](https://geojson.io/) - Draw points, lines, and polygons on a map
+  - Mark office locations, service areas, or custom regions
+  - Export as GeoJSON and drag onto the map
+  - Perfect for creating location markers for your organization
+
+### Example: Office Locations GeoJSON
+
+```json
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-122.3321, 47.6062]
+      },
+      "properties": {
+        "name": "Seattle Office",
+        "address": "123 Main St",
+        "employees": 250,
+        "type": "Headquarters"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-74.0060, 40.7128]
+      },
+      "properties": {
+        "name": "New York Office",
+        "address": "456 Broadway",
+        "employees": 180,
+        "type": "Regional"
+      }
+    }
+  ]
+}
+```
+
+Save this as `offices.geojson` and drag it onto the map to see your locations!
+
+---
 
 ## Quick Start
 
@@ -195,9 +278,12 @@ Or use the built-in replace method:
 
 After conversion, test your GeoJSON file:
 
+### Quick Visual Test (Recommended)
+**Drag and drop** your GeoJSON file onto the Sentinel Activity Maps to instantly see if it displays correctly. This is the fastest way to validate your data.
+
 ### Online Validators
-- http://geojson.io - Visualize and validate
-- https://geojsonlint.com - Validate syntax
+- **[geojson.io](https://geojson.io/)** - Visualize, validate, and edit GeoJSON
+- **[geojsonlint.com](https://geojsonlint.com/)** - Validate GeoJSON syntax
 
 ### Local Test
 ```powershell
@@ -213,13 +299,19 @@ $geojson.features[0] | ConvertTo-Json
 ## Best Practices
 
 1. **Start Small**: Test with 10-100 records before processing thousands
-2. **Validate Coordinates**: Ensure lat/lon are in correct decimal degree format
-3. **Keep Source Files**: Always keep original TSV for re-processing
-4. **Consistent Schema**: Use same column names across datasets for easier management
-5. **Version Control**: Name files with dates: `signins-2026-02-14.tsv`
+2. **Use Drag-and-Drop First**: Validate your GeoJSON format by dragging onto the map before uploading to blob storage
+3. **Validate Coordinates**: Ensure lat/lon are in correct decimal degree format
+4. **Keep Source Files**: Always keep original TSV for re-processing
+5. **Consistent Schema**: Use same column names across datasets for easier management
+6. **Version Control**: Name files with dates: `signins-2026-02-14.tsv`
+7. **Test External Sources**: Download sample GeoJSON from Data.gov or GitHub to explore format examples
 
 ## Integration with Static Web App
 
+### Drag and Drop (Temporary Display)
+For quick visualization and testing, drag GeoJSON files directly onto the map. This displays data immediately but doesn't persist after page reload.
+
+### Blob Storage (Permanent Display)
 Once your GeoJSON is in blob storage, update your SWA to point to it:
 
 ```javascript
@@ -227,7 +319,7 @@ Once your GeoJSON is in blob storage, update your SWA to point to it:
 const manualDataUrl = "https://sentinelmapsstore.blob.core.windows.net/datasets/manual-signins.geojson";
 ```
 
-The SWA will load and display the manual data just like automated function output.
+The SWA will load and display the manual data just like automated function output. Data persists across sessions and can be shared with others.
 
 ## Automation Example
 
@@ -252,10 +344,37 @@ Write-Host "Demo data updated: demo-signins.geojson"
 
 ## Getting More Sample Data
 
-### Public Datasets with Geo Coordinates
+### Public GeoJSON Datasets (Drag and Drop Ready)
+
+**Government Open Data:**
+- [Data.gov](https://data.gov/) - US government geographic datasets
+  - Search for "GeoJSON" format filter
+  - Examples: federal facilities, national parks, service boundaries
+  - Direct download, ready for drag-and-drop
+
+**Regional Boundary APIs:**
+- [Mapping L.A. Boundaries](http://boundaries.latimes.com/sets/) - Los Angeles geographic boundaries
+  - Neighborhoods: `http://boundaries.latimes.com/1.0/boundary/neighborhoodsla/`
+  - City council districts, school districts, etc.
+  - Returns GeoJSON - save and drag onto map
+
+**GitHub GeoJSON Collections:**
+- Search: `geojson` + keyword (cities, countries, airports, etc.)
+- Popular repos: world countries, US states, major cities
+- Example: [johan/world.geo.json](https://github.com/johan/world.geo.json)
+
+**Create Custom GeoJSON:**
+- [geojson.io](https://geojson.io/) - Interactive GeoJSON editor
+  - Draw points, lines, polygons on the map
+  - Add properties for each feature
+  - Export and drag onto Sentinel Activity Maps
+  - **Perfect for marking office locations, data centers, or service areas**
+
+### Public Datasets with Coordinates (TSV/CSV - Needs Conversion)
+
 - [IP Geolocation APIs](https://ipgeolocation.io/) - Free tier for testing
-- [GeoNames](https://www.geonames.org/) - City coordinates
-- [Natural Earth Data](https://www.naturalearthdata.com/) - Geographic data
+- [GeoNames](https://www.geonames.org/) - City coordinates database
+- [Natural Earth Data](https://www.naturalearthdata.com/) - Geographic features
 
 ### Generate Random Coordinates
 ```powershell
