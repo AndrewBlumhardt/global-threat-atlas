@@ -39,6 +39,15 @@ export function initLayerControl(toggleCallback) {
     });
   }
 
+  // Close button in header
+  const closeBtn = document.getElementById('layerControlClose');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      isExpanded = false;
+      container.classList.remove('expanded');
+    });
+  }
+
   // Threat Actors toggle
   const taCheckbox = document.getElementById('layerThreatActors');
   if (taCheckbox) {

@@ -75,12 +75,15 @@
         </button>
         <div class="layer-control-panel">
           <div class="layer-control-header">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <h3>Map Layers</h3>
-              <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: rgba(131, 136, 141, 0.6); cursor: pointer;" title="Use demo data">
-                <input type="checkbox" id="demoModeToggle" style="margin: 0;">
-                <span>Demo</span>
-              </label>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h3>Map Layers</h3>
+                <label style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: rgba(131, 136, 141, 0.6); cursor: pointer;" title="Use demo data">
+                  <input type="checkbox" id="demoModeToggle" style="margin: 0;">
+                  <span>Demo</span>
+                </label>
+              </div>
+              <button id="layerControlClose" type="button" title="Close layers panel" style="background: transparent; border: none; color: rgba(131, 136, 141, 0.6); font-size: 18px; padding: 0; cursor: pointer; line-height: 1; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.color='rgba(131,136,141,1)'" onmouseout="this.style.color='rgba(131,136,141,0.6)'">×</button>
             </div>
           </div>
           <div class="layer-control-content">
