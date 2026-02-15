@@ -1,6 +1,6 @@
-import { parseTSV } from "../data/tsv.js";
-
 /* global atlas */
+import { parseTSV } from "../data/tsv.js";
+import { getDataUrl } from "../shared/demoMode.js";
 
 /*
 Threat Actor Heatmap Overlay (Country-level)
