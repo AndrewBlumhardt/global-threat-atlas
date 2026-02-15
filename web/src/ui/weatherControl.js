@@ -1,25 +1,27 @@
-// Constants for auto-scroll behavior
-const AUTO_SCROLL_SPEED = 0.1; // Degrees per frame
-const AUTO_SCROLL_DIRECTION = "right"; // "left" or "right"
-const MAX_LONGITUDE = 180;
-const MIN_LONGITUDE = -180;
+/* global atlas */
 
-export function addAutoScrollControl(map) {
-  let scrolling = false;
-  let animationFrameId = null;
+/**
+ * Weather Overlay Control
+ * Allows users to toggle weather layers (radar, infrared)
+ */
 
+let weatherTileLayer = null;
+let isEnabled = false;
+let currentType = 'radar'; // 'radar' or 'infrared'
+
+export function addWeatherControl(map) {
   const control = document.createElement("div");
   control.className = "azure-maps-control-container";
   control.style.position = "fixed";
-  control.style.bottom = "145px";
+  control.style.bottom = "215px";
   control.style.right = "10px";
   control.style.zIndex = "1000";
   control.style.pointerEvents = "auto";
 
   const button = document.createElement("button");
   button.className = "azure-maps-control-button";
-  button.title = "Toggle Auto Scroll";
-  button.textContent = "→";
+  button.title = "Toggle Weather Overlay";
+  button.textContent = "🌦️";
   button.style.fontSize = "20px";
   button.style.width = "32px";
   button.style.height = "32px";
@@ -37,60 +39,55 @@ export function addAutoScrollControl(map) {
   });
 
   button.addEventListener("mouseleave", () => {
-    if (!scrolling) {
+    if (!isEnabled) {
       button.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
       button.style.borderColor = "rgba(255, 255, 255, 0.5)";
     }
   });
 
-  function scroll() {
-    if (!scrolling) return;
-
-    const camera = map.getCamera();
-    let newCenter = [...camera.center];
-
-    if (AUTO_SCROLL_DIRECTION === "right") {
-      newCenter[0] += AUTO_SCROLL_SPEED;
-      if (newCenter[0] > MAX_LONGITUDE) {
-        newCenter[0] = MIN_LONGITUDE;
-      }
-    } else {
-      newCenter[0] -= AUTO_SCROLL_SPEED;
-      if (newCenter[0] < MIN_LONGITUDE) {
-        newCenter[0] = MAX_LONGITUDE;
-      }
-    }
-
-    map.setCamera({
-      center: newCenter,
-      type: "ease",
-      duration: 50,
-    });
-
-    animationFrameId = requestAnimationFrame(scroll);
-  }
-
   button.addEventListener("click", () => {
-    scrolling = !scrolling;
-
-    if (scrolling) {
+    isEnabled = !isEnabled;
+    
+    if (isEnabled) {
       button.style.backgroundColor = "rgba(0, 123, 255, 0.9)";
       button.style.color = "#fff";
       button.style.borderColor = "rgba(0, 123, 255, 1)";
-      scroll();
+      enableWeather(map);
     } else {
       button.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
       button.style.color = "#333";
       button.style.borderColor = "rgba(255, 255, 255, 0.5)";
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-      }
+      disableWeather(map);
     }
   });
 
   control.appendChild(button);
   document.body.appendChild(control);
+}
 
-  return control;
+function enableWeather(map) {
+  if (weatherTileLayer) return;
+
+  // Get Azure Maps subscription key from map's auth options
+  const subscriptionKey = map.authentication.getToken();
+  
+  // Azure Maps Weather Radar tile service
+  const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2.0&tilesetId=microsoft.weather.radar.main&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
+  
+  weatherTileLayer = new atlas.layer.TileLayer({
+    tileUrl: tileUrl,
+    opacity: 0.6,
+    tileSize: 256
+  });
+
+  map.layers.add(weatherTileLayer);
+  console.log('Weather overlay enabled');
+}
+
+function disableWeather(map) {
+  if (weatherTileLayer) {
+    map.layers.remove(weatherTileLayer);
+    weatherTileLayer = null;
+    console.log('Weather overlay disabled');
+  }
 }

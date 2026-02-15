@@ -4,6 +4,9 @@ import { toggleThreatIntelOverlay } from "./overlays/threatIntelOverlay.js";
 import { initLayerControl, updateLayerAvailability } from "./ui/layerControl.js";
 import { showCountryDetails, initPanelControls } from "./ui/panelManager.js";
 import { addAutoScrollControl } from "./ui/autoScroll.js";
+import { addDownloadControl } from "./ui/downloadControl.js";
+import { addWeatherControl } from "./ui/weatherControl.js";
+import { enableDragAndDrop } from "./ui/dragDropGeoJSON.js";
 
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
@@ -50,7 +53,15 @@ async function main() {
     updateLayerAvailability('SignInActivity', false);
     updateLayerAvailability('DeviceLocations', false);
     
+    // Add map controls
     addAutoScrollControl(map);
+    addDownloadControl(map);
+    addWeatherControl(map);
+    
+    // Enable drag and drop for GeoJSON files
+    enableDragAndDrop(map);
+    
+    console.log('All features initialized: auto-scroll, download, weather, drag-and-drop');
   });
 
   map.events.add("error", (e) => {

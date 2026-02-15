@@ -461,21 +461,10 @@ async function enable(map, mode, onCountryClick) {
 
     // Create heatmap layer with intensity based on threat actor count
     const heat = new atlas.layer.HeatMapLayer(dataSource, IDS.heatLayer, {
-      weight: [
-        "interpolate",
-        ["linear"],
-        ["get", "weight"],
-        1,   0.25,
-        5,   0.45,
-        10,  0.65,
-        25,  0.95,
-        50,  1.25,
-        100, 1.60,
-        200, 2.00
-      ],
-      radius: 45,
-      intensity: 2,
-      opacity: 0.85
+      weight: 1,
+      radius: 5,
+      intensity: 2.6,
+      opacity: 0.8
     });
 
     // Add heatmap layer below threat intel layer if it exists (proper z-order)

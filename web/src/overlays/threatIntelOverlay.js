@@ -90,27 +90,11 @@ async function enable(map) {
     // Add symbol layer for indicators (peg-like markers with 3D effect)
     // Use smaller, more dimensional visualization
     const bubbleLayer = new atlas.layer.BubbleLayer(dataSource, THREAT_INTEL_LAYER_ID, {
-      radius: maxCount > 1 ? [
-        "interpolate",
-        ["linear"],
-        ["coalesce", ["get", "count"], ["get", "Count"], 1],
-        1, 4,
-        Math.ceil(maxCount / 2), 7,
-        maxCount, 10
-      ] : 6,
-      color: maxCount > 1 ? [
-        "interpolate",
-        ["linear"],
-        ["coalesce", ["get", "count"], ["get", "Count"], 1],
-        1, "#ff6b6b",
-        Math.ceil(maxCount / 2), "#ff0000",
-        maxCount, "#8b0000"
-      ] : "#ff0000",
-      strokeColor: "#ffffff",
-      strokeWidth: 2,
-      opacity: 0.85,
-      blur: 0.2,
-      // Elevation gives 3D effect when map is pitched
+      radius: 4,
+      color: "#e51010",
+      strokeColor: "#eb6060",
+      strokeWidth: 1,
+      opacity: 0.7,
       pitchAlignment: "map"
     });
 
