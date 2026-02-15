@@ -37,10 +37,13 @@ async function main() {
         const threatIntelEnabled = document.getElementById('layerThreatIntel')?.checked;
         const customSourceEnabled = document.getElementById('layerCustomSource')?.checked;
         
+        // Get current threat actors mode
+        const activeMode = document.querySelector('.ta-mode-btn.active')?.getAttribute('data-mode') || 'heatmap';
+        
         // Reload enabled layers with new data source
         if (threatActorsEnabled) {
           await toggleThreatActorsHeatmap(map, false); // Turn off
-          await toggleThreatActorsHeatmap(map, true, 'heatmap', (countryProps) => {
+          await toggleThreatActorsHeatmap(map, true, activeMode, (countryProps) => {
             showCountryDetails(countryProps);
           }); // Turn back on with new data
         }
@@ -99,11 +102,11 @@ async function main() {
     updateLayerAvailability('WeatherRadar', true);
     updateLayerAvailability('WeatherInfrared', true);
     // Future layers start disabled (enabled when data is available)
-    updateLayerAvailability('SignInActivity', false);
     updateLayerAvailability('DeviceLocations', false);
     
-    // Check if custom source file exists and enable if available
+    // Check if custom source and sign-in activity files exist
     checkCustomSourceAvailability();
+    checkSignInActivityAvailability();
     
     // Add map controls
     addAutoScrollControl(map);
@@ -132,6 +135,21 @@ async function checkCustomSourceAvailability() {
   } catch (error) {
     console.log('Custom source not available:', error);
     updateLayerAvailability('CustomSource', false);
+  }
+}
+
+/**
+ * Check if sign-in activity file exists in blob storage
+ */
+async function checkSignInActivityAvailability() {
+  try {
+    const response = await fetch(getDataUrl("signin-activity"), { method: 'HEAD' });
+    const isAvailable = response.ok;
+    console.log(`Sign-in activity file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
+    updateLayerAvailability('SignInActivity', isAvailable);
+  } catch (error) {
+    console.log('Sign-in activity not available:', error);
+    updateLayerAvailability('SignInActivity', false);
   }
 }
 
