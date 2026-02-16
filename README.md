@@ -54,212 +54,49 @@ This solution uses several Azure services with associated costs. Here's a breakd
 
 | Service | Tier | Monthly Cost | Notes |
 |---------|------|--------------|-------|
-| **Azure Static Web App** | Standard | ~$9 USD | Required for Managed Identity support |
-| **Azure Functions** | Consumption | ~$0-2 USD | Pay-per-execution; typically pennies or free |
-| **Azure Storage** | Standard (LRS) | ~$1-5 USD | Depends on data volume and access frequency |
-| **Azure Key Vault** | Standard | ~$0.03 USD | Per 10,000 secret operations |
-| **Azure Maps** | Gen2 (S0/Free) | ~$0 USD | Free tier: 5,000 transactions/month |
-| **Azure Maps** | Gen2 (S1/Paid) | ~$0.50 USD | Per 1,000 transactions (optional, see below) |
-| | | **~$10-20 USD/month** | **Base infrastructure costs** |
-| **Defender for Cloud** | Optional | **+$30-40 USD/month** | **Advanced threat protection (recommended for production)** |
+| **Azure Static Web App** | Standard | ~$9 USD | Required for Managed Identity (keyless auth) |
+| **Azure Functions** | Consumption | ~$0-2 USD | Pay-per-execution; typically free under grant |
+| **Azure Storage** | Standard (LRS) | ~$1-5 USD | Stores TSV/GeoJSON data files |
+| **Azure Key Vault** | Standard | ~$0.03 USD | Secure secret storage (Maps, MaxMind keys) |
+| **Azure Maps** | Gen2 (Free/Paid) | ~$0-5 USD | Free tier sufficient; paid needed for weather |
+| | | **~$10-20 USD/month** | **Base infrastructure** |
+| **Defender for Cloud** | Recommended | **+$25-40 USD/month** | **Threat protection (recommended except personal demos)** |
 
-### Detailed Cost Breakdown
+### Key Service Details
 
-#### 🌐 Azure Static Web App - **Standard Tier Required**
+**Azure Static Web App (Standard)** - $9/month required for Managed Identity support. Free tier requires storing keys in app settings (security risk).
 
-**Cost:** $9 USD per app per month
+**Azure Maps** - Free tier (5,000 transactions/month) covers basic mapping. Paid tier (~$0.50 per 1,000 transactions) required only for weather radar/infrared overlays.
 
-**Why Standard vs Free?**
-- ✅ **Managed Identity support** - Required for secure, keyless authentication
-- ✅ **Key Vault integration** - Retrieves Azure Maps and MaxMind secrets securely
-- ✅ **Storage Account access** - Serves GeoJSON data files with MI authentication
-- ✅ **Custom domains support** - Professional deployment URLs
-- ✅ **Staging environments** - Preview deployments for testing
+**Azure Functions (Consumption)** - First 1M executions free monthly. This app typically runs hourly/daily refreshes, staying within free grant.
 
-**Free Tier Alternative:**
-You *could* use the Free tier, but it requires:
-- ❌ Storing Azure Maps keys in app settings (visible in portal - security risk)
-- ❌ Using storage connection strings instead of Managed Identity (less secure)
-- ❌ Service Principal tokens with expiration dates (maintenance overhead)
+**Storage & Key Vault** - Minimal costs for low data volumes. Key Vault operations typically <1,000/month (effectively free at $0.03 per 10k operations).
 
-**Recommendation:** Use Standard tier for production. The $9/month investment provides enterprise-grade security via Managed Identity.
+### 🛡️ Microsoft Defender for Cloud
 
-#### 🗺️ Azure Maps - **Free or Paid Tier**
+**Recommended for all Azure deployments handling security data** (except personal demo tenants). Provides threat detection, malware scanning, and compliance monitoring.
 
-**Free Tier (Gen2 S0):** 5,000 map tile transactions/month
-- ✅ Map rendering (road, satellite, grayscale styles)
-- ✅ Custom data layers (markers, lines, polygons, heatmaps)
-- ✅ Geocoding (convert addresses to coordinates)
-- ❌ **Weather layers NOT included** (radar, infrared overlays)
+| Defender Plan | Monthly Cost | Protection |
+|--------------|--------------|------------|
+| **Defender for Storage** | ~$10/account | Malware scanning, activity monitoring |
+| **Defender for App Service** | ~$15/plan | Runtime threat detection |
+| **Defender for Key Vault** | ~$0.02/10k ops | Anomalous access detection |
+| **Defender CSPM (Premium)** | ~$5/resource | Attack path analysis, governance |
 
-**Paid Tier (Gen2 S1):** ~$0.50 USD per 1,000 transactions
-- ✅ All free tier features
-- ✅ **Weather radar and infrared tile layers**
-- ✅ Higher API rate limits (production-ready)
-- ✅ Traffic data, routing, and advanced services
+**Cost Optimization:** Share Storage Accounts and Key Vaults across multiple apps to reduce per-app Defender costs (e.g., $10 for shared storage vs $10 per app).
 
-**Transaction Optimization:**
-- Frontend caches map tiles efficiently (reduces API calls)
-- GeoJSON data served from Blob Storage (not live API queries)
-- Typical usage: 2,000-10,000 transactions/month (~$1-5 USD)
-
-**Recommendation:** Start with Free tier. Upgrade to Paid only if you need weather overlays or exceed 5,000 monthly transactions.
-
-#### ⚡ Azure Functions - **Consumption Plan**
-
-**Cost:** ~$0-2 USD/month (often **free** under monthly grant)
-
-**Pricing Model:**
-- First 1 million executions: **FREE** per month
-- First 400,000 GB-seconds of execution: **FREE** per month
-- After that: $0.20 per million executions + $0.000016/GB-second
-
-**Typical Usage:**
-- Function executes only when `/api/refresh` endpoint is called
-- Execution time: 5-30 seconds per refresh
-- Frequency: Hourly to daily refreshes
-- **Real-world cost:** Usually pennies or covered by free grant
-
-**No App Service Plan Costs:** Consumption plan has no baseline infrastructure cost - you only pay when the function actively runs.
-
-#### 💾 Azure Storage Account - **Standard Tier**
-
-**Cost:** ~$1-5 USD/month for small to moderate workloads
-
-**Pricing Factors:**
-- **Data storage:** ~$0.02 per GB/month (LRS)
-- **Transactions:** $0.004 per 10,000 read operations
-- **Egress:** First 100 GB/month free, then $0.087/GB
-
-**Typical Data Volume:**
-- TSV/GeoJSON files: 1-50 MB total
-- Watermark tracking files: <1 KB
-- Lock files: <1 KB
-- **Total storage:** Usually <100 MB
-
-**Storage Containers Used:**
-- `datasets/` - GeoJSON and TSV data files
-- `watermarks/` - Incremental query tracking
-- `locks/` - Concurrent refresh prevention
-
-#### 🔐 Azure Key Vault - **Standard Tier**
-
-**Cost:** ~$0.03 USD per 10,000 secret operations
-
-**Secrets Stored:**
-- `AZURE-MAPS-SUBSCRIPTION-KEY` - Retrieved by SWA at startup
-- `MAXMIND-LICENSE-KEY` - Retrieved by Function during geo-enrichment
-
-**Typical Usage:**
-- SWA retrieves Maps key on initial load: ~1-10 requests/month
-- Function retrieves MaxMind key on refresh: ~24-720 requests/month
-- **Total operations:** <1,000/month (effectively **free**)
-
-**Why Key Vault?**
-- 🔒 Secrets encrypted at rest with hardware security modules
-- 🔐 RBAC-controlled access (no keys visible in portal)
-- 📋 Audit logging for compliance
-- 🔄 Centralized secret rotation
-
-### Cost Optimization Tips
-
-1. **Azure Maps:**
-   - Remove weather overlays if not needed (saves paid tier requirement)
-   - Use free tier for development/testing
-   - Enable frontend tile caching
-
-2. **Azure Functions:**
-   - Increase `refresh_interval_seconds` to reduce executions
-   - Use time-based triggers (e.g., hourly) instead of on-demand
-   - Leverage incremental queries with watermarks
-
-3. **Storage:**
-   - Enable blob lifecycle management (auto-delete old files)
-   - Use Archive tier for long-term historical data
-   - Configure appropriate retention policies
-
-4. **Development/Testing:**
-   - Use Azure Free Account ($200 credit for 30 days)
-   - Deploy to Dev/Test subscription (discounted rates)
-   - Delete resources when not actively developing
-
-### 🛡️ Microsoft Defender for Cloud (Optional Security Layer)
-
-**Important:** The costs above do NOT include Microsoft Defender for Cloud, which provides advanced threat protection for your Azure resources. While optional, Defender for Cloud is **recommended for production environments** handling sensitive security data.
-
-#### Defender Plans for This Solution
-
-| Defender Plan | Monthly Cost | What It Protects |
-|--------------|--------------|------------------|
-| **Defender for Storage** | ~$10 USD/account | Malware scanning, sensitive data discovery, activity monitoring |
-| **Defender for App Service** | ~$15 USD/plan | Runtime threat detection, vulnerability assessment (applies to Static Web Apps on Standard) |
-| **Defender for Key Vault** | ~$0.02 USD/10k ops | Anomalous access detection, secret access monitoring |
-| **Defender CSPM** (Premium) | ~$5 USD/resource | Attack path analysis, cloud security graph, governance |
-| | **+$30-40 USD/month** | **Additional security overhead for production** |
-
-#### Key Points
-
-**What Defender for Cloud Provides:**
-- 🔍 **Threat Detection** - Real-time alerts for suspicious activities
-- 🛡️ **Malware Scanning** - Automatic scanning of uploaded blobs
-- 📊 **Security Recommendations** - Continuous posture assessment
-- 🚨 **Attack Path Analysis** - Identify potential security risks
-- 📋 **Compliance Dashboards** - Meet regulatory requirements
-
-**Foundational CSPM (Free):**
-- Basic security recommendations and secure score are **free**
-- Covers basic misconfigurations and best practices
-- May be sufficient for non-production environments
-
-**Cost Optimization:**
-You can **share resources across multiple applications** to reduce Defender costs:
-- ✅ Use a single Storage Account for multiple projects (~$10 total instead of $10 per app)
-- ✅ Use a shared Key Vault across applications (~$0.02 per 10k operations regardless of apps)
-- ✅ Deploy multiple Static Web Apps to the same App Service Plan (charged once)
-
-**Example Multi-App Deployment:**
-If you share a Storage Account and Key Vault across 3-5 Sentinel visualization projects:
-- Shared Storage + Defender: $1 + $10 = $11 (instead of $11 × 5 = $55)
-- Shared Key Vault + Defender: $0.03 + $0.02 = $0.05 (instead of $0.05 × 5 = $0.25)
-
-**Recommendation:**
-- **Development/Testing:** Use foundational CSPM (free) - basic security hygiene
-- **Production (Internal):** Enable Defender for Storage only (~$10/month extra)
-- **Production (External-Facing):** Enable all Defender plans (~$30-40/month extra)
+**Foundational CSPM (Free):** Basic security recommendations and secure score included at no cost for all environments.
 
 ### Total Monthly Estimate
 
-**Minimum Configuration:**
-- Static Web App Standard: $9.00
-- Functions (Consumption): $0.00 (free grant)
-- Storage: $1.00
-- Key Vault: $0.03
-- Azure Maps (Free tier): $0.00
-- **Total: ~$10-12 USD/month**
+| Configuration | Monthly Cost | Use Case |
+|--------------|--------------|----------|
+| **Base Infrastructure** | ~$10-20 | Personal demos only |
+| **With Defender for Cloud** | ~$35-60 | All corporate/production environments |
 
-**With Paid Maps (Weather):**
-- Add ~$1-5 for 2,000-10,000 transactions
-- **Total: ~$11-17 USD/month**
+💡 **Recommendation:** Budget $35-60/month for secured deployments. Use base infrastructure ($10-20) only for personal learning environments.
 
-**With Defender for Cloud (Production Security):**
-- Add ~$30-40 for all Defender plans
-- **Total: ~$40-57 USD/month**
-
-**With Defender for Storage Only (Recommended Minimum):**
-- Add ~$10 for Defender for Storage
-- **Total: ~$20-27 USD/month**
-
-**Cost increases if:**
-- High traffic (>100k page views/month)
-- Frequent function executions (>1M/month)
-- Large data egress (>100 GB/month)
-
-💡 **Summary:**
-- **Development/Testing:** ~$10-20 USD/month (base infrastructure)
-- **Production (Basic):** ~$20-27 USD/month (+ Defender for Storage)
-- **Production (Full Security):** ~$40-57 USD/month (+ all Defender plans)
-
-## �🚀 Quick Deploy
+## 🚀 Quick Deploy
 
 Deploy the entire application to Azure in ~5 minutes:
 
