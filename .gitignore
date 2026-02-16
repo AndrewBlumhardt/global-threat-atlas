@@ -47,3 +47,4 @@ htmlcov/
 *.lock
 deployment.zip
 function-app.zip
+docs-backup/

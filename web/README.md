@@ -1,96 +1,148 @@
-# Sentinel Activity Maps - Web Application
+# Sentinel Activity Maps - Frontend
 
-Azure Static Web App displaying threat intelligence data on an interactive map using Azure Maps.
+Azure Maps-based frontend for visualizing Microsoft Sentinel activity data.
+
+## Overview
+
+This is an Azure Static Web App that visualizes security data from Microsoft Sentinel using Azure Maps. It displays:
+- **Sign-in activities** with success/failure indicators
+- **Device locations** with type-based coloring
+- **Threat intelligence** indicators
+- **Proximity analysis** (300km radius click feature)
+- **VirusTotal integration** for IP lookups
 
 ## Features
 
-- **Interactive Azure Maps**: Visualize threat intelligence indicators with 3D markers and clustering
-- **Layer Control**: Toggle multiple data layers including threat actors, threat intel IPs, weather, and custom sources
-- **Threat Actor Intelligence**: Heatmap or country-based views of known threat actor locations
-- **Threat Intel IPs**: 3D elevated markers for IP-based threat indicators with detailed popups
-- **Weather Overlays**: Real-time weather radar and infrared satellite imagery
-- **Custom Source Layer**: Upload and visualize custom GeoJSON data (see [Custom Source Guide](../docs/CUSTOM_SOURCE.md))
-- **Map Controls**: Download map as PNG, auto-scroll threat feed, drag-and-drop GeoJSON files
-- **Real-time Data**: Loads GeoJSON data from Azure Blob Storage
-- **Responsive Design**: Works on desktop and mobile devices
+### Data Visualization
+- **Bubble Markers**: 14px CSS circles with color coding
+  - Green = Success/Mobile devices
+  - Red = Failed sign-ins
+  - Blue = Desktop/Laptop devices
+- **Hover Popups**: Rich context on mouseover
+- **Click Actions**: Proximity search within 300km radius
+- **Layer Controls**: Toggle individual data layers
 
-## Architecture
+### Demo Mode
+Access without Azure credentials:
+```
+https://your-app.azurestaticapps.net/?demo=true
+```
 
-- **Frontend**: Vanilla JavaScript with Azure Maps SDK
-- **Data Source**: GeoJSON file (`threat-intel-indicators.geojson`) from Azure Blob Storage
-- **Hosting**: Azure Static Web Apps (Standard SKU)
-- **Map Provider**: Azure Maps
+Demo mode loads:
+- 500 pre-generated sign-in activities
+- 500 device locations across 50+ global cities
+- Public threat intelligence datasets
 
-## Files
-
-- `index.html` - Main application page
-- `src/app.js` - Application logic and Azure Maps integration
-- `styles/app.css` - Application styling
-- `config.js` - Configuration (auto-generated during deployment)
-- `config.sample.js` - Sample configuration template
-- `data/threat-actors.tsv` - Threat actor reference data
-- `staticwebapp.config.json` - SWA routing and configuration
+### Proximity Search
+Click any marker to find related activities within 300km:
+- Lists matching sign-ins or devices
+- Shows distance from click point
+- Correlates with threat intel IPs
+- Includes VirusTotal lookup buttons
 
 ## Configuration
 
-The application uses environment variables set in Azure Static Web Apps:
+### Azure Maps Key
 
-- `AZURE_MAPS_SUBSCRIPTION_KEY` - Azure Maps subscription key
-- `STORAGE_ACCOUNT_URL` - Azure Storage account URL
-- `STORAGE_CONTAINER_DATASETS` - Blob container name (default: datasets)
+Create `config.js` from template:
+```javascript
+// config.js
+const config = {
+  azureMapsKey: 'YOUR-AZURE-MAPS-KEY',
+  apiBaseUrl: '/api' // Function App endpoint
+};
+```
 
-## Deployment
+Get Azure Maps key:
+```powershell
+az maps account keys list --name YOUR-MAPS-ACCOUNT --resource-group YOUR-RG
+```
 
-The app is automatically deployed via GitHub Actions when changes are pushed to the `web/` directory.
+### API Base URL
 
-### Manual Deployment
+For local development:
+```javascript
+const config = {
+  azureMapsKey: 'YOUR-KEY',
+  apiBaseUrl: 'http://localhost:7071/api' // Local function
+};
+```
 
-1. Create Azure Static Web App (Standard SKU):
-   ```bash
-   az staticwebapp create \
-     --name swa-sentinel-activity-maps \
-     --resource-group rg-sentinel-activity-maps \
-     --location westus2 \
-     --sku Standard
+For production, use relative path `/api` (Static Web App proxies to Function App).
+
+## File Structure
+
+```
+web/
+├── index.html              # Main HTML shell
+├── config.js               # Azure Maps key (gitignored)
+├── config.sample.js        # Template for config
+├── staticwebapp.config.json # SWA routing config
+├── src/
+│   ├── app.js              # Main application logic
+│   ├── map/
+│   │   └── map-init.js     # Azure Maps initialization
+│   ├── overlays/
+│   │   ├── signInActivityOverlay.js      # Sign-in markers
+│   │   ├── deviceLocationsOverlay.js     # Device markers
+│   │   ├── threatIntelOverlay.js         # Threat intel layer
+│   │   └── threatActorsHeatmap.js        # Heatmap overlay
+│   ├── ui/
+│   │   ├── panelManager.js               # Side panel controls
+│   │   ├── autoScroll.js                 # List auto-scrolling
+│   │   ├── threatActorsToggle.js         # Heatmap toggle
+│   │   └── threatIntelToggle.js          # Threat intel toggle
+│   ├── data/
+│   │   └── tsv.js          # TSV file support
+│   └── shared/
+│       └── demoMode.js     # Demo mode data routing
+├── styles/
+│   └── app.css             # Application styles
+└── data/
+    └── threat-actors.tsv   # Threat actor heatmap data
+```
+
+## Development
+
+### Local Setup
+
+1. **Clone repository**:
+   ```powershell
+   git clone https://github.com/AndrewBlumhardt/sentinel-activity-maps.git
+   cd sentinel-activity-maps/web
    ```
 
-2. Get deployment token:
-   ```bash
-   az staticwebapp secrets list \
-     --name swa-sentinel-activity-maps \
-     --resource-group rg-sentinel-activity-maps \
-     --query properties.apiKey -o tsv
+2. **Configure Azure Maps**:
+   ```powershell
+   Copy-Item config.sample.js config.js
+   # Edit config.js with your Azure Maps key
    ```
 
-3. Add token to GitHub secrets as `AZURE_STATIC_WEB_APPS_API_TOKEN`
-
-4. Push to main branch to trigger deployment
-
-## Local Development
-
-1. Copy `config.sample.js` to `config.js` and update with your keys
-2. Serve the web directory using any HTTP server:
-   ```bash
+3. **Serve locally**:
+   ```powershell
    # Using Python
    python -m http.server 8000
    
-   # Using Node.js http-server
+   # Using Node.js
    npx http-server -p 8000
    ```
-3. Open http://localhost:8000 in your browser
 
-## Data Flow
+4. **Open browser**:
+   ```
+   http://localhost:8000
+   ```
 
-1. Azure Function pulls threat intel from Sentinel → enriches with geo data → saves GeoJSON to Blob
-2. Static Web App loads GeoJSON from Blob Storage
-3. Azure Maps displays indicators with clustering and heatmap
+### Enable Demo Mode
 
-## Browser Support
+Add `?demo=true` to URL or modify `src/shared/demoMode.js`:
+```javascript
+export function isDemoMode() {
+  return true; // Force demo mode
+}
+```
 
-- Chrome/Edge (latest)
-- Firefox (latest)
-- Safari (latest)
+---
 
-Requires JavaScript enabled and modern browser with ES6 support.
+For full documentation, see [../docs/README.md](../docs/README.md)
 
 
