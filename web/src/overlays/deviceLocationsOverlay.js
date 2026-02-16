@@ -65,21 +65,21 @@ async function enable(azureMap) {
       closeButton: false
     });
 
-    // Create HTML markers with device icons
-    // Blue icon for Desktop/Laptop, Green icon for Mobile/Tablet
+    // Create HTML markers with simple CSS bubbles
+    // Small circles: blue for computers, green for phones
     geojsonData.features.forEach(feature => {
       const props = feature.properties;
       const coords = feature.geometry.coordinates;
       const deviceType = props.DeviceType || '';
       const isMobile = deviceType === 'Mobile' || deviceType === 'Tablet';
       
-      // Create HTML marker with marker-ball-pin icon template
+      // Create simple CSS bubble marker
+      const bubbleColor = isMobile ? '#10b981' : '#3b82f6';
       const marker = new atlas.HtmlMarker({
         position: [coords[0], coords[1]],
-        htmlContent: atlas.getImageTemplate('marker-ball-pin'),
-        color: isMobile ? '#10b981' : '#3b82f6', // Green for phone, Blue for computer
-        secondaryColor: '#ffffff',
-        text: deviceType.substring(0, 1), // D, L, M, T
+        htmlContent: `<div style="width: 14px; height: 14px; border-radius: 50%; background-color: ${bubbleColor}; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); cursor: pointer;"></div>`,
+        anchor: 'center',
+        pixelOffset: [0, 0],
         properties: props
       });
       

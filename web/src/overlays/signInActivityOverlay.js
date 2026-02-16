@@ -50,19 +50,20 @@ async function enable(azureMap) {
       closeButton: false
     });
 
-    // Create HTML markers with round lollipop style pins
-    // Green for success, bright red for failure
+    // Create HTML markers with simple CSS bubbles
+    // Small circles: green for success, bright red for failure
     geojsonData.features.forEach(feature => {
       const props = feature.properties;
       const coords = feature.geometry.coordinates;
       const isSuccess = props.ResultSignature === 'SUCCESS';
       
-      // Create HTML marker with pin-round icon template (lollipop style)
+      // Create simple CSS bubble marker
+      const bubbleColor = isSuccess ? '#10b981' : '#ef4444';
       const marker = new atlas.HtmlMarker({
         position: [coords[0], coords[1]],
-        htmlContent: atlas.getImageTemplate('pin-round'),
-        color: isSuccess ? '#10b981' : '#ef4444', // Green for success, bright red for failure
-        secondaryColor: '#ffffff',
+        htmlContent: `<div style="width: 14px; height: 14px; border-radius: 50%; background-color: ${bubbleColor}; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); cursor: pointer;"></div>`,
+        anchor: 'center',
+        pixelOffset: [0, 0],
         properties: props
       });
       

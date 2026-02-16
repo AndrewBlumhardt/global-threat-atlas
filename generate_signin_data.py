@@ -39,11 +39,25 @@ europe_cities = [
 
 other_cities = [
     {"name": "Toronto", "state": "Ontario", "coords": [-79.3832, 43.6532], "country": "Canada"},
+    {"name": "Vancouver", "state": "British Columbia", "coords": [-123.1207, 49.2827], "country": "Canada"},
     {"name": "Sydney", "state": "New South Wales", "coords": [151.2093, -33.8688], "country": "Australia"},
+    {"name": "Melbourne", "state": "Victoria", "coords": [144.9631, -37.8136], "country": "Australia"},
     {"name": "Tokyo", "state": "Tokyo", "coords": [139.6917, 35.6895], "country": "Japan"},
     {"name": "Singapore", "state": "Singapore", "coords": [103.8198, 1.3521], "country": "Singapore"},
+    {"name": "Hong Kong", "state": "Hong Kong", "coords": [114.1694, 22.3193], "country": "Hong Kong"},
+    {"name": "Shanghai", "state": "Shanghai", "coords": [121.4737, 31.2304], "country": "China"},
     {"name": "Mumbai", "state": "Maharashtra", "coords": [72.8777, 19.076], "country": "India"},
     {"name": "São Paulo", "state": "São Paulo", "coords": [-46.6333, -23.5505], "country": "Brazil"},
+    {"name": "Mexico City", "state": "CDMX", "coords": [-99.1332, 19.4326], "country": "Mexico"},
+    {"name": "Buenos Aires", "state": "Buenos Aires", "coords": [-58.3816, -34.6037], "country": "Argentina"},
+    {"name": "Lagos", "state": "Lagos", "coords": [3.3792, 6.5244], "country": "Nigeria"},
+    {"name": "Cairo", "state": "Cairo", "coords": [31.2357, 30.0444], "country": "Egypt"},
+    {"name": "Dubai", "state": "Dubai", "coords": [55.2708, 25.2048], "country": "United Arab Emirates"},
+    {"name": "Istanbul", "state": "Istanbul", "coords": [28.9784, 41.0082], "country": "Turkey"},
+    {"name": "Moscow", "state": "Moscow", "coords": [37.6173, 55.7558], "country": "Russia"},
+    {"name": "Seoul", "state": "Seoul", "coords": [126.978, 37.5665], "country": "South Korea"},
+    {"name": "Bangkok", "state": "Bangkok", "coords": [100.5018, 13.7563], "country": "Thailand"},
+    {"name": "Jakarta", "state": "Jakarta", "coords": [106.8456, -6.2088], "country": "Indonesia"},
 ]
 
 first_names = ["John", "Jane", "Michael", "Sarah", "David", "Emily", "Robert", "Maria", "James", "Jennifer",
@@ -81,14 +95,19 @@ features = []
 start_time = datetime.now() - timedelta(days=7)
 
 for i in range(500):
-    # 70% US, 25% Europe, 5% other
+    # More global distribution: 45% US, 30% Europe, 25% other regions
     rand = random.random()
-    if rand < 0.70:
+    if rand < 0.45:
         city = random.choice(us_cities)
-    elif rand < 0.95:
+    elif rand < 0.75:
         city = random.choice(europe_cities)
     else:
         city = random.choice(other_cities)
+    
+    # Add coordinate variance within city (±0.1 degrees ~11km)
+    base_lng, base_lat = city["coords"]
+    lng = base_lng + random.uniform(-0.1, 0.1)
+    lat = base_lat + random.uniform(-0.1, 0.1)
     
     # 85% success, 15% failure
     is_success = random.random() < 0.85
@@ -121,7 +140,7 @@ for i in range(500):
         "type": "Feature",
         "geometry": {
             "type": "Point",
-            "coordinates": [city["coords"][0], city["coords"][1]]
+            "coordinates": [lng, lat]
         },
         "properties": {
             "TimeGenerated": timestamp,
@@ -142,8 +161,8 @@ for i in range(500):
             "CountryOrRegion": city["country"],
             "State": city["state"],
             "City": city["name"],
-            "Latitude": city["coords"][1],
-            "Longitude": city["coords"][0]
+            "Latitude": lat,
+            "Longitude": lng
         }
     }
     
