@@ -157,8 +157,8 @@ sources:
       DeviceInfo
       | where TimeGenerated > ago({time_window}h)
       | summarize arg_max(TimeGenerated, *) by DeviceId
-      | where isnotempty(PublicIP)
-      | extend IsMicrosoftIP = toint(split(PublicIP, ".")[0]) in (13,20,40,52,104)
+      | extend HasPublicIP = isnotempty(PublicIP)
+      | extend IsMicrosoftIP = iff(isnotempty(PublicIP), toint(split(PublicIP, ".")[0]) in (13,20,40,52,104), false)
       | project
           TimeGenerated,
           DeviceName,
@@ -168,6 +168,7 @@ sources:
           CloudPlatform,
           OnboardingStatus,
           PublicIP,
+          HasPublicIP,
           SensorHealthState,
           ExposureLevel,
           IsMicrosoftIP
