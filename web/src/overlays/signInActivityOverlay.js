@@ -61,16 +61,18 @@ async function enable(azureMap) {
       const bubbleColor = isSuccess ? '#10b981' : '#ef4444';
       const marker = new atlas.HtmlMarker({
         position: [coords[0], coords[1]],
-        htmlContent: `<div style="width: 14px; height: 14px; border-radius: 50%; background-color: ${bubbleColor}; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); cursor: pointer;"></div>`,
+        htmlContent: `<div class="signin-marker" style="width: 14px; height: 14px; border-radius: 50%; background-color: ${bubbleColor}; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); cursor: pointer; pointer-events: auto;"></div>`,
         anchor: 'center',
-        pixelOffset: [0, 0],
-        properties: props
+        pixelOffset: [0, 0]
       });
       
+      // Store properties on the marker element for event handlers
+      marker.properties = props;
+      marker.coordinates = coords;
+      
       // Add hover popup
-      map.events.add('mouseover', marker, (e) => {
-        const markerProps = e.target.getOptions().properties;
-        showSignInPopup(markerProps, e.target.getOptions().position);
+      map.events.add('mouseover', marker, () => {
+        showSignInPopup(marker.properties, marker.coordinates);
       });
       
       map.events.add('mouseleave', marker, () => {
@@ -79,10 +81,10 @@ async function enable(azureMap) {
       
       // Add click handler for proximity search (300km radius)
       map.events.add('click', marker, (e) => {
-        e.originalEvent.preventDefault();
-        e.originalEvent.stopPropagation();
-        const position = e.target.getOptions().position;
-        showNearbySignInsPanel(map, position, geojsonData.features);
+        if (e && e.originalEvent) {
+          e.originalEvent.stopPropagation();
+        }
+        showNearbySignInsPanel(map, marker.coordinates, geojsonData.features);
       });
       
       map.markers.add(marker);
