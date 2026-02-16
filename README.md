@@ -60,7 +60,8 @@ This solution uses several Azure services with associated costs. Here's a breakd
 | **Azure Key Vault** | Standard | ~$0.03 USD | Per 10,000 secret operations |
 | **Azure Maps** | Gen2 (S0/Free) | ~$0 USD | Free tier: 5,000 transactions/month |
 | **Azure Maps** | Gen2 (S1/Paid) | ~$0.50 USD | Per 1,000 transactions (optional, see below) |
-| | | **~$10-20 USD/month** | Typical total for low-moderate usage |
+| | | **~$10-20 USD/month** | **Base infrastructure costs** |
+| **Defender for Cloud** | Optional | **+$30-40 USD/month** | **Advanced threat protection (recommended for production)** |
 
 ### Detailed Cost Breakdown
 
@@ -182,6 +183,50 @@ You *could* use the Free tier, but it requires:
    - Deploy to Dev/Test subscription (discounted rates)
    - Delete resources when not actively developing
 
+### 🛡️ Microsoft Defender for Cloud (Optional Security Layer)
+
+**Important:** The costs above do NOT include Microsoft Defender for Cloud, which provides advanced threat protection for your Azure resources. While optional, Defender for Cloud is **recommended for production environments** handling sensitive security data.
+
+#### Defender Plans for This Solution
+
+| Defender Plan | Monthly Cost | What It Protects |
+|--------------|--------------|------------------|
+| **Defender for Storage** | ~$10 USD/account | Malware scanning, sensitive data discovery, activity monitoring |
+| **Defender for App Service** | ~$15 USD/plan | Runtime threat detection, vulnerability assessment (applies to Static Web Apps on Standard) |
+| **Defender for Key Vault** | ~$0.02 USD/10k ops | Anomalous access detection, secret access monitoring |
+| **Defender CSPM** (Premium) | ~$5 USD/resource | Attack path analysis, cloud security graph, governance |
+| | **+$30-40 USD/month** | **Additional security overhead for production** |
+
+#### Key Points
+
+**What Defender for Cloud Provides:**
+- 🔍 **Threat Detection** - Real-time alerts for suspicious activities
+- 🛡️ **Malware Scanning** - Automatic scanning of uploaded blobs
+- 📊 **Security Recommendations** - Continuous posture assessment
+- 🚨 **Attack Path Analysis** - Identify potential security risks
+- 📋 **Compliance Dashboards** - Meet regulatory requirements
+
+**Foundational CSPM (Free):**
+- Basic security recommendations and secure score are **free**
+- Covers basic misconfigurations and best practices
+- May be sufficient for non-production environments
+
+**Cost Optimization:**
+You can **share resources across multiple applications** to reduce Defender costs:
+- ✅ Use a single Storage Account for multiple projects (~$10 total instead of $10 per app)
+- ✅ Use a shared Key Vault across applications (~$0.02 per 10k operations regardless of apps)
+- ✅ Deploy multiple Static Web Apps to the same App Service Plan (charged once)
+
+**Example Multi-App Deployment:**
+If you share a Storage Account and Key Vault across 3-5 Sentinel visualization projects:
+- Shared Storage + Defender: $1 + $10 = $11 (instead of $11 × 5 = $55)
+- Shared Key Vault + Defender: $0.03 + $0.02 = $0.05 (instead of $0.05 × 5 = $0.25)
+
+**Recommendation:**
+- **Development/Testing:** Use foundational CSPM (free) - basic security hygiene
+- **Production (Internal):** Enable Defender for Storage only (~$10/month extra)
+- **Production (External-Facing):** Enable all Defender plans (~$30-40/month extra)
+
 ### Total Monthly Estimate
 
 **Minimum Configuration:**
@@ -196,12 +241,23 @@ You *could* use the Free tier, but it requires:
 - Add ~$1-5 for 2,000-10,000 transactions
 - **Total: ~$11-17 USD/month**
 
+**With Defender for Cloud (Production Security):**
+- Add ~$30-40 for all Defender plans
+- **Total: ~$40-57 USD/month**
+
+**With Defender for Storage Only (Recommended Minimum):**
+- Add ~$10 for Defender for Storage
+- **Total: ~$20-27 USD/month**
+
 **Cost increases if:**
 - High traffic (>100k page views/month)
 - Frequent function executions (>1M/month)
 - Large data egress (>100 GB/month)
 
-💡 **Most organizations running this solution spend $10-20 USD per month for production workloads.**
+💡 **Summary:**
+- **Development/Testing:** ~$10-20 USD/month (base infrastructure)
+- **Production (Basic):** ~$20-27 USD/month (+ Defender for Storage)
+- **Production (Full Security):** ~$40-57 USD/month (+ all Defender plans)
 
 ## �🚀 Quick Deploy
 
