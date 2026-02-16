@@ -85,7 +85,7 @@ Frontend receives data
 
 These API functions are needed because:
 - **CORS Support**: Blob storage doesn't support CORS for browser access
-- **Authentication**: Hides storage connection strings from frontend
+- **Authentication**: Uses Managed Identity instead of storage keys
 - **Flexibility**: Can add data transformations, caching, or filtering
 - **Demo Mode**: Supports `?demo=true` parameter to load demo data
 
@@ -107,4 +107,4 @@ curl http://localhost:7071/api/data/threat-intel-indicators
 
 - All endpoints use **anonymous authentication** (public access)
 - CORS headers included for browser access from any origin
-- Uses connection string (not managed identity) for Python SDK compatibility in SWA
+- Uses **Managed Identity** with Azure RBAC for secure blob storage access (no shared keys)

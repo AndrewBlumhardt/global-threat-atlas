@@ -1,11 +1,12 @@
 """
 Azure Static Web App API endpoint to proxy threat intelligence data from blob storage.
-Uses connection string (SWA managed identity has limitations with Python Azure SDK).
+Uses Managed Identity with DefaultAzureCredential for RBAC-only access.
 """
 import azure.functions as func
 import logging
 import json
 from azure.storage.blob import BlobServiceClient
+from azure.identity import DefaultAzureCredential
 import os
 
 logger = logging.getLogger(__name__)
@@ -61,25 +62,24 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     logger.info(f'Requesting blob: {blob_name}')
     
     # Get storage configuration
-    # Note: SWA managed identity has limitations with azure-identity Python SDK
-    # Using connection string is more reliable in SWA environment
-    connection_string = os.environ.get('STORAGE_CONNECTION_STRING', '')
+    storage_account_url = os.environ.get('STORAGE_ACCOUNT_URL', '')
     container_name = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
     
-    if not connection_string:
-        logger.error('STORAGE_CONNECTION_STRING not configured')
+    if not storage_account_url:
+        logger.error('STORAGE_ACCOUNT_URL not configured')
         return func.HttpResponse(
-            json.dumps({"error": "Storage not configured - STORAGE_CONNECTION_STRING missing"}),
+            json.dumps({"error": "Storage not configured - STORAGE_ACCOUNT_URL missing"}),
             status_code=500,
             mimetype='application/json',
             headers={'Access-Control-Allow-Origin': '*'}
         )
     
     try:
-        # Create BlobServiceClient with connection string
+        # Create BlobServiceClient with Managed Identity
         logger.info(f'Creating blob service client for container: {container_name}')
-        blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-        logger.info('✅ BlobServiceClient created')
+        credential = DefaultAzureCredential()
+        blob_service_client = BlobServiceClient(account_url=storage_account_url, credential=credential)
+        logger.info('✅ BlobServiceClient created (Managed Identity)')
         
         # Get blob client
         blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)

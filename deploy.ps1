@@ -257,19 +257,51 @@ $storageKey = az storage account keys list `
     --query '[0].value' `
     --output tsv
 
-az storage container create `
-    --name datasets `
-    --account-name $StorageAccountName `
-    --account-key $storageKey `
-    --output none
+# Use account name (no key) for container creation - requires Azure CLI authentication
+    az storage container create `
+        --name datasets `
+        --account-name $StorageAccountName `
+        --output none
 
-az storage container create `
-    --name locks `
-    --account-name $StorageAccountName `
-    --account-key $storageKey `
+    az storage container create `
+        --name locks `
+        --account-name $StorageAccountName `
     --output none
 
 Write-Success "Containers created: datasets, locks"
+
+# 3b. Secure storage account - disable shared key access, RBAC only
+Write-Info "Securing storage account (RBAC only, disabling shared key access)..."
+az storage account update `
+    --name $StorageAccountName `
+    --resource-group $ResourceGroupName `
+    --allow-shared-key-access false `
+    --output none
+Write-Success "Storage account secured: RBAC-only authentication enabled"
+
+# 3c. Grant Function App and SWA blob storage access via RBAC
+Write-Info "Getting storage account resource ID..."
+$storageId = az storage account show `
+    --name $StorageAccountName `
+    --resource-group $ResourceGroupName `
+    --query id `
+    --output tsv
+
+Write-Info "Granting Function App 'Storage Blob Data Reader' role..."
+az role assignment create `
+    --assignee $principalId `
+    --role "Storage Blob Data Reader" `
+    --scope $storageId `
+    --output none
+Write-Success "Function App granted blob storage access via RBAC"
+
+Write-Info "Granting Static Web App 'Storage Blob Data Reader' role..."
+az role assignment create `
+    --assignee $swaPrincipalId `
+    --role "Storage Blob Data Reader" `
+    --scope $storageId `
+    --output none
+Write-Success "Static Web App granted blob storage access via RBAC"
 
 # 4. Create Function App
 Write-Step "Creating Function App..."
