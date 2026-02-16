@@ -46,7 +46,164 @@ Interactive geospatial visualization of Microsoft Sentinel security data. This p
 └─────────────────────┘
 ```
 
-## 🚀 Quick Deploy
+## � Azure Costs
+
+This solution uses several Azure services with associated costs. Here's a breakdown to help you budget:
+
+### Service Cost Summary
+
+| Service | Tier | Monthly Cost | Notes |
+|---------|------|--------------|-------|
+| **Azure Static Web App** | Standard | ~$9 USD | Required for Managed Identity support |
+| **Azure Functions** | Consumption | ~$0-2 USD | Pay-per-execution; typically pennies or free |
+| **Azure Storage** | Standard (LRS) | ~$1-5 USD | Depends on data volume and access frequency |
+| **Azure Key Vault** | Standard | ~$0.03 USD | Per 10,000 secret operations |
+| **Azure Maps** | Gen2 (S0/Free) | ~$0 USD | Free tier: 5,000 transactions/month |
+| **Azure Maps** | Gen2 (S1/Paid) | ~$0.50 USD | Per 1,000 transactions (optional, see below) |
+| | | **~$10-20 USD/month** | Typical total for low-moderate usage |
+
+### Detailed Cost Breakdown
+
+#### 🌐 Azure Static Web App - **Standard Tier Required**
+
+**Cost:** $9 USD per app per month
+
+**Why Standard vs Free?**
+- ✅ **Managed Identity support** - Required for secure, keyless authentication
+- ✅ **Key Vault integration** - Retrieves Azure Maps and MaxMind secrets securely
+- ✅ **Storage Account access** - Serves GeoJSON data files with MI authentication
+- ✅ **Custom domains support** - Professional deployment URLs
+- ✅ **Staging environments** - Preview deployments for testing
+
+**Free Tier Alternative:**
+You *could* use the Free tier, but it requires:
+- ❌ Storing Azure Maps keys in app settings (visible in portal - security risk)
+- ❌ Using storage connection strings instead of Managed Identity (less secure)
+- ❌ Service Principal tokens with expiration dates (maintenance overhead)
+
+**Recommendation:** Use Standard tier for production. The $9/month investment provides enterprise-grade security via Managed Identity.
+
+#### 🗺️ Azure Maps - **Free or Paid Tier**
+
+**Free Tier (Gen2 S0):** 5,000 map tile transactions/month
+- ✅ Map rendering (road, satellite, grayscale styles)
+- ✅ Custom data layers (markers, lines, polygons, heatmaps)
+- ✅ Geocoding (convert addresses to coordinates)
+- ❌ **Weather layers NOT included** (radar, infrared overlays)
+
+**Paid Tier (Gen2 S1):** ~$0.50 USD per 1,000 transactions
+- ✅ All free tier features
+- ✅ **Weather radar and infrared tile layers**
+- ✅ Higher API rate limits (production-ready)
+- ✅ Traffic data, routing, and advanced services
+
+**Transaction Optimization:**
+- Frontend caches map tiles efficiently (reduces API calls)
+- GeoJSON data served from Blob Storage (not live API queries)
+- Typical usage: 2,000-10,000 transactions/month (~$1-5 USD)
+
+**Recommendation:** Start with Free tier. Upgrade to Paid only if you need weather overlays or exceed 5,000 monthly transactions.
+
+#### ⚡ Azure Functions - **Consumption Plan**
+
+**Cost:** ~$0-2 USD/month (often **free** under monthly grant)
+
+**Pricing Model:**
+- First 1 million executions: **FREE** per month
+- First 400,000 GB-seconds of execution: **FREE** per month
+- After that: $0.20 per million executions + $0.000016/GB-second
+
+**Typical Usage:**
+- Function executes only when `/api/refresh` endpoint is called
+- Execution time: 5-30 seconds per refresh
+- Frequency: Hourly to daily refreshes
+- **Real-world cost:** Usually pennies or covered by free grant
+
+**No App Service Plan Costs:** Consumption plan has no baseline infrastructure cost - you only pay when the function actively runs.
+
+#### 💾 Azure Storage Account - **Standard Tier**
+
+**Cost:** ~$1-5 USD/month for small to moderate workloads
+
+**Pricing Factors:**
+- **Data storage:** ~$0.02 per GB/month (LRS)
+- **Transactions:** $0.004 per 10,000 read operations
+- **Egress:** First 100 GB/month free, then $0.087/GB
+
+**Typical Data Volume:**
+- TSV/GeoJSON files: 1-50 MB total
+- Watermark tracking files: <1 KB
+- Lock files: <1 KB
+- **Total storage:** Usually <100 MB
+
+**Storage Containers Used:**
+- `datasets/` - GeoJSON and TSV data files
+- `watermarks/` - Incremental query tracking
+- `locks/` - Concurrent refresh prevention
+
+#### 🔐 Azure Key Vault - **Standard Tier**
+
+**Cost:** ~$0.03 USD per 10,000 secret operations
+
+**Secrets Stored:**
+- `AZURE-MAPS-SUBSCRIPTION-KEY` - Retrieved by SWA at startup
+- `MAXMIND-LICENSE-KEY` - Retrieved by Function during geo-enrichment
+
+**Typical Usage:**
+- SWA retrieves Maps key on initial load: ~1-10 requests/month
+- Function retrieves MaxMind key on refresh: ~24-720 requests/month
+- **Total operations:** <1,000/month (effectively **free**)
+
+**Why Key Vault?**
+- 🔒 Secrets encrypted at rest with hardware security modules
+- 🔐 RBAC-controlled access (no keys visible in portal)
+- 📋 Audit logging for compliance
+- 🔄 Centralized secret rotation
+
+### Cost Optimization Tips
+
+1. **Azure Maps:**
+   - Remove weather overlays if not needed (saves paid tier requirement)
+   - Use free tier for development/testing
+   - Enable frontend tile caching
+
+2. **Azure Functions:**
+   - Increase `refresh_interval_seconds` to reduce executions
+   - Use time-based triggers (e.g., hourly) instead of on-demand
+   - Leverage incremental queries with watermarks
+
+3. **Storage:**
+   - Enable blob lifecycle management (auto-delete old files)
+   - Use Archive tier for long-term historical data
+   - Configure appropriate retention policies
+
+4. **Development/Testing:**
+   - Use Azure Free Account ($200 credit for 30 days)
+   - Deploy to Dev/Test subscription (discounted rates)
+   - Delete resources when not actively developing
+
+### Total Monthly Estimate
+
+**Minimum Configuration:**
+- Static Web App Standard: $9.00
+- Functions (Consumption): $0.00 (free grant)
+- Storage: $1.00
+- Key Vault: $0.03
+- Azure Maps (Free tier): $0.00
+- **Total: ~$10-12 USD/month**
+
+**With Paid Maps (Weather):**
+- Add ~$1-5 for 2,000-10,000 transactions
+- **Total: ~$11-17 USD/month**
+
+**Cost increases if:**
+- High traffic (>100k page views/month)
+- Frequent function executions (>1M/month)
+- Large data egress (>100 GB/month)
+
+💡 **Most organizations running this solution spend $10-20 USD per month for production workloads.**
+
+## �🚀 Quick Deploy
 
 Deploy the entire application to Azure in ~5 minutes:
 
