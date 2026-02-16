@@ -147,7 +147,7 @@ sources:
     name: "MDE Device Inventory"
     enabled: true
     refresh_threshold_hours: 12  # Refresh every 12 hours
-    query_time_window_hours: 720  # 30 days lookback (widened for testing)
+    query_time_window_hours: 336  # 14 days lookback
     incremental: false
     incremental_overlap_minutes: 10
     output_filename: "mde-devices.tsv"
@@ -157,22 +157,17 @@ sources:
       DeviceInfo
       | where TimeGenerated > ago({time_window}h)
       | summarize arg_max(TimeGenerated, *) by DeviceId
-      | extend HasPublicIP = isnotempty(PublicIP)
-      | extend IsMicrosoftIP = iff(isnotempty(PublicIP), toint(split(PublicIP, ".")[0]) in (13,20,40,52,104), false)
       | project
           TimeGenerated,
           DeviceName,
           DeviceId,
           OSPlatform,
           DeviceType,
-          CloudPlatform,
+          CloudPlatform=parse_json(CloudPlatforms)[0],
           OnboardingStatus,
           PublicIP,
-          HasPublicIP,
           SensorHealthState,
-          ExposureLevel,
-          IsMicrosoftIP
-      | order by TimeGenerated desc
+          ExposureLevel
     columns:
       - TimeGenerated
       - DeviceName
