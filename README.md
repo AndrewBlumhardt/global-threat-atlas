@@ -1,12 +1,56 @@
-# Sentinel Activity Maps - Function Backend
+# Sentinel Activity Maps
 
-Python-based Azure Functions backend for the Sentinel Activity Maps project. This function queries Azure Log Analytics (Microsoft Sentinel) and exports threat intelligence data to Azure Blob Storage as TSV files for consumption by the frontend Static Web App.
+Interactive geospatial visualization of Microsoft Sentinel security data. This project combines an Azure Static Web App frontend with an Azure Functions Python backend to query, enrich, and display threat intelligence and security telemetry on an interactive map.
+
+## 🎯 Overview
+
+**Sentinel Activity Maps** helps security teams visualize and analyze:
+- Azure AD sign-in activity across geographic locations
+- Microsoft Defender for Endpoint (MDE) device locations
+- Threat intelligence indicators with geographic context
+- Custom security telemetry from Log Analytics
+
+**Key Features:**
+- 🗺️ Interactive map visualization using Leaflet.js
+- 🔄 Real-time data refresh from Microsoft Sentinel
+- 🌍 Automatic geo-enrichment of IP addresses
+- 🔒 Secure authentication via Azure Managed Identity
+- 📊 Customizable KQL queries for any Log Analytics data
+- 🚀 One-command deployment to Azure
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│           Azure Static Web App (Frontend)                │
+│              Leaflet.js + Vanilla JavaScript             │
+└───────────────────────┬─────────────────────────────────┘
+                        │ HTTPS
+                        │
+┌───────────────────────▼─────────────────────────────────┐
+│        Azure Function App (Backend - Python)             │
+│   /api/refresh  - Refresh data from Sentinel            │
+│   /api/data     - Serve GeoJSON to frontend             │
+│   /api/health   - Health check                          │
+└───────┬────────────────────────────┬────────────────────┘
+        │                            │
+        │ Query (KQL)                │ Store (TSV/GeoJSON)
+        ▼                            ▼
+┌─────────────────────┐    ┌──────────────────────┐
+│  Log Analytics      │    │  Blob Storage        │
+│  (Sentinel)         │    │  - datasets/         │
+│                     │    │  - watermarks/       │
+│  + SigninLogs       │    │  - locks/            │
+│  + DeviceInfo       │    └──────────────────────┘
+│  + ThreatIntel      │
+└─────────────────────┘
+```
 
 ## 🚀 Quick Deploy
 
-Deploy to Azure in ~5 minutes with one command:
+Deploy the entire application to Azure in ~5 minutes:
 
-**PowerShell:**
+**PowerShell (Windows):**
 ```powershell
 .\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID"
 
@@ -14,7 +58,7 @@ Deploy to Azure in ~5 minutes with one command:
 .\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID" -Cloud AzureUSGovernment
 ```
 
-**Bash:**
+**Bash (Linux/macOS):**
 ```bash
 ./deploy.sh --workspace-id "YOUR-WORKSPACE-ID"
 
@@ -22,346 +66,230 @@ Deploy to Azure in ~5 minutes with one command:
 ./deploy.sh --workspace-id "YOUR-WORKSPACE-ID" --cloud AzureUSGovernment
 ```
 
-**Requirements:** Owner or Contributor role on subscription or target resource group
+**Requirements:**
+- Azure CLI installed and authenticated
+- Owner or Contributor role on subscription or target resource group
+- Microsoft Sentinel workspace with data
 
-👉 **[Full Deployment Guide](docs/DEPLOYMENT.md)** | **[Local Development](docs/LOCAL_DEVELOPMENT.md)** | **[Quick Start](docs/QUICKSTART.md)**
+**What gets deployed:**
+- Azure Function App (Python backend)
+- Azure Static Web App (frontend)
+- Storage Account (data + locks)
+- Managed Identity with required RBAC roles
 
-## 🔄 Automated Deployments
-
-Code updates deploy automatically via **GitHub Actions** when you push to `main`:
-
-- ✅ Triggers on any changes to `api/` folder
-- ✅ Auto-builds and deploys function code
-- ✅ No manual deployment needed after initial setup
-- ✅ See workflow status in GitHub Actions tab
-
-**Workflow:** `.github/workflows/deploy-function.yml`
-
-**Note:** Allow 30-60 seconds after deployment for the function to fully start (cold start). If you get 404 errors immediately after deployment, wait a minute and try again.
-
-## 🎯 Purpose
-
-- **HTTP-triggered** Azure Function that refreshes threat intelligence datasets
-- **Managed Identity** authentication (no secrets)
-- **Blob-based locking** for multi-user safety
-- **Incremental queries** with watermark tracking
-- **Throttling** to prevent redundant work
-- **Extensible** via YAML configuration (no code changes to add data sources)
-
-## 📁 Project Structure
+## 📁 Repository Structure
 
 ```
-api/
-├── function_app.py              # Main Azure Functions app with endpoints
-├── host.json                    # Function runtime configuration
-├── requirements.txt             # Python dependencies
-├── local.settings.json          # Local development settings (template)
-├── sources.yaml                 # Data source configuration (KQL queries)
-└── shared/                      # Shared modules
-    ├── __init__.py
-    ├── config_loader.py         # YAML config parser
-    ├── log_analytics_client.py  # Log Analytics query executor
-    ├── blob_storage.py          # Blob operations + locking
-    ├── tsv_writer.py            # TSV formatter
-    └── refresh_policy.py        # Throttling + incremental logic
-
-.github/workflows/
-├── deploy-function.yml          # CI/CD deployment pipeline
-└── lint-test.yml               # Linting and testing (optional)
-
-docs/
-└── architecture.md              # Detailed architecture documentation
+├── api/                         # Azure Functions backend (Python)
+│   ├── function_app.py         # HTTP endpoints (refresh, health, data)
+│   ├── sources.yaml            # Data source configurations (KQL queries)
+│   ├── requirements.txt        # Python dependencies
+│   └── shared/                 # Utility modules
+│       ├── log_analytics_client.py
+│       ├── blob_storage.py
+│       ├── geo_enrichment.py
+│       └── ...
+│
+├── web/                        # Static Web App frontend
+│   ├── index.html             # Main application UI
+│   ├── src/                   # JavaScript modules
+│   │   ├── app.js            # Application logic
+│   │   ├── map/              # Leaflet map components
+│   │   └── data/             # Data fetching
+│   └── api/                  # SWA-integrated API functions
+│
+├── .github/workflows/         # CI/CD automation
+│   ├── deploy-function.yml   # Backend deployment
+│   └── azure-static-web-apps.yml  # Frontend deployment
+│
+├── tests/                     # Development/debugging scripts
+├── deploy.ps1                 # Automated Azure deployment (PowerShell)
+├── deploy.sh                  # Automated Azure deployment (Bash)
+└── *.py, *.tsv, *.geojson    # Utility scripts and sample data (see below)
 ```
 
-## 🚀 Quick Start
+### Root-Level Utility Files
+
+The root directory contains several utility scripts and sample data files for development and testing:
+
+**Deployment Scripts (Keep at Root):**
+- `deploy.ps1` - PowerShell deployment automation
+- `deploy.sh` - Bash deployment automation
+
+**Data Generation Scripts:**
+- `generate_device_locations.py` - Generate sample MDE device location data
+- `generate_mde_devices.py` - Generate sample MDE device inventory
+- `generate_signin_data.py` - Generate sample sign-in activity data
+- `generate-mde-geojson.py` - Convert MDE data to GeoJSON format
+
+**Geo-Enrichment Scripts:**
+- `manual-geo-enrich.py` - Manual geo-enrichment using MaxMind
+- `manual-geo-enrich-free.py` - Manual geo-enrichment using free services
+
+**Sample Data Files:**
+- `mde-devices-enriched.tsv` - Sample enriched device data
+- `mde-devices-test.tsv` - Test device data
+- `mde-devices.geojson` - Sample GeoJSON output
+
+> **Note:** These utility scripts and data files are primarily for development/testing. Consider organizing them:
+> - Move `generate_*.py` scripts to `scripts/` or `tools/` directory
+> - Move `manual-geo-enrich*.py` to `scripts/` or `api/scripts/`
+> - Move `.tsv` and `.geojson` files to `tests/sample-data/` or `.gitignore` them if generated
+```
+
+📖 **See individual README files in each directory for detailed documentation**
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
-1. **Azure Resources**:
-   - Azure Function App (Python 3.11, Linux)
-   - Log Analytics Workspace (with Sentinel data)
-   - Storage Account with two containers: `datasets` and `locks`
+- **Azure Resources:**
+  - Microsoft Sentinel workspace (or Log Analytics with security data)
+  - Azure subscription with Owner/Contributor access
+- **Tools:**
+  - [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) (for deployment)
+  - [Python 3.11+](https://www.python.org/downloads/) (for local development)
+  - [Azure Functions Core Tools](https://learn.microsoft.com/azure/azure-functions/functions-run-local) (for local testing)
 
-2. **Local Development Tools**:
-   - Python 3.11+
-   - [Azure Functions Core Tools](https://learn.microsoft.com/azure/azure-functions/functions-run-local)
-   - Azure CLI (for authentication)
+### Deployment Options
 
-### Local Development Setup
+#### Option 1: Automated Deployment (Recommended)
+Use the deployment scripts to automatically create all resources:
 
-1. **Clone the repository**:
+```powershell
+# Login to Azure
+az login
+
+# Deploy everything
+.\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID"
+```
+
+#### Option 2: GitHub Actions CI/CD
+Set up automated deployments on every commit:
+1. Configure OIDC authentication (see [workflows README](.github/workflows/README.md))
+2. Add repository secrets
+3. Push to `main` branch
+
+### Post-Deployment
+
+1. **Verify backend health:**
    ```bash
-   git clone https://github.com/AndrewBlumhardt/sentinel-activity-maps.git
-   cd sentinel-activity-maps/api
+   curl https://YOUR-FUNCTION-APP.azurewebsites.net/api/health
    ```
 
-2. **Install dependencies**:
+2. **Trigger first data refresh:**
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
+   curl -X POST https://YOUR-FUNCTION-APP.azurewebsites.net/api/refresh
    ```
 
-3. **Configure local settings**:
-   ```bash
-   cp local.settings.json local.settings.json.bak
-   # Edit local.settings.json with your values
+3. **Access the web application:**
    ```
-
-   Required settings:
-   ```json
-   {
-     "Values": {
-       "LOG_ANALYTICS_WORKSPACE_ID": "<workspace-guid>",
-       "STORAGE_ACCOUNT_URL": "https://<account>.blob.core.windows.net",
-       "STORAGE_CONTAINER_DATASETS": "datasets",
-       "STORAGE_CONTAINER_LOCKS": "locks"
-     }
-   }
+   https://YOUR-STATIC-WEB-APP.azurestaticapps.net
    ```
-
-4. **Login to Azure** (for local Managed Identity simulation):
-   ```bash
-   az login
-   az account set --subscription <subscription-id>
-   ```
-
-5. **Run locally**:
-   ```bash
-   func start
-   ```
-
-   Test endpoints:
-   - Health: `http://localhost:7071/api/health`
-   - Refresh: `http://localhost:7071/api/refresh`
 
 ## 🔧 Configuration
 
-### Adding a New Data Source
+### Adding Custom Data Sources
 
-Edit `api/sources.yaml` and add a new entry:
+Edit [api/sources.yaml](api/sources.yaml) to add your own KQL queries:
 
 ```yaml
 sources:
-  - id: my_new_source          # Unique identifier (used in locks/metadata)
-    name: "My Data Source"     # Display name
-    enabled: true              # Set to false to disable
-    refresh_interval_seconds: 300  # Minimum time between refreshes
-    query_time_window_hours: 24    # Default query window
-    incremental: true          # Use watermark-based incremental queries
-    incremental_overlap_minutes: 10  # Overlap to catch late-arriving events
-    output_filename: "my-data.tsv"   # Output TSV filename
+  - id: my-custom-source
+    name: "My Security Data"
+    enabled: true
+    refresh_interval_seconds: 3600
+    query_time_window_hours: 24
+    output_filename: "my-data.tsv"
     kql_query: |
       MyTable
       | where TimeGenerated >= ago({time_window}h)
-      | project TimeGenerated, Column1, Column2
+      | project TimeGenerated, IPAddress, UserName, Action
       | order by TimeGenerated desc
-    columns:                   # Column order in TSV output
+    columns:
       - TimeGenerated
-      - Column1
-      - Column2
+      - IPAddress
+      - UserName
+      - Action
 ```
 
-**Deploy** the updated configuration (no code changes needed):
+Deploy your changes:
 ```bash
-func azure functionapp publish <function-app-name>
+# Via script
+cd api
+func azure functionapp publish YOUR-FUNCTION-APP-NAME
+
+# Or via GitHub Actions
+git add api/sources.yaml
+git commit -m "Add custom data source"
+git push origin main
 ```
 
 ### Environment Variables
 
-Set these in Azure Function App Configuration:
+Configure these in Azure Function App Settings:
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `LOG_ANALYTICS_WORKSPACE_ID` | Workspace GUID | `12345678-1234-1234-1234-123456789012` |
-| `STORAGE_ACCOUNT_URL` | Blob storage URL | `https://mystorageacct.blob.core.windows.net` |
-| `STORAGE_CONTAINER_DATASETS` | Container for TSV files | `datasets` |
-| `STORAGE_CONTAINER_LOCKS` | Container for locks/metadata | `locks` |
-| `DEFAULT_REFRESH_INTERVAL_SECONDS` | Default throttle interval | `300` |
-| `DEFAULT_QUERY_TIME_WINDOW_HOURS` | Default query window | `24` |
-| `INCREMENTAL_OVERLAP_MINUTES` | Overlap for incremental queries | `10` |
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `LOG_ANALYTICS_WORKSPACE_ID` | Sentinel workspace GUID | ✅ |
+| `STORAGE_ACCOUNT_URL` | Blob storage URL | ✅ |
+| `STORAGE_CONTAINER_DATASETS` | Container name for data files | ✅ |
+| `STORAGE_CONTAINER_LOCKS` | Container name for lock files | ✅ |
+| `MAXMIND_LICENSE_KEY` | MaxMind GeoLite2 license (optional) | ❌ |
+| `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval (default: 300) | ❌ |
 
-## � Deployment to Azure
+## 💡 Features
 
-### Quick Deploy (Automated - Recommended)
+**Security:**
+- 🔒 Managed Identity authentication (no secrets in code)
+- 🔐 RBAC-based access control
+- 🛡️ Secure CORS configuration
 
-The easiest way to deploy is using the provided automated scripts:
+**Performance:**
+- ⚡ Blob-based locking prevents concurrent refresh conflicts
+- 📊 Incremental queries with watermark tracking
+- 🚦 Time-based throttling prevents excessive queries
+- 🌍 Automatic IP geo-enrichment (MaxMind/Azure Maps)
 
-**PowerShell (Windows):**
-```powershell
-.\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID-HERE"
-```
+**Extensibility:**
+- 📝 YAML-based configuration (no code changes needed)
+- 🔌 Pluggable refresh policies
+- 📍 Custom geo-enrichment logic
+- 🗺️ Any Log Analytics table supported
 
-**Bash (Linux/macOS/WSL):**
-```bash
-./deploy.sh --workspace-id "YOUR-WORKSPACE-ID-HERE"
-```
-
-The script will create:
-- Resource Group
-- Storage Account with `datasets` and `locks` containers
-- Function App (Python 3.11, Linux, Consumption plan)
-- Managed Identity with required RBAC roles
-- Deploy function code
-
-**Time to deploy:** ~5 minutes
-
-### Manual Deployment
-
-For step-by-step manual deployment instructions, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**
-
-The manual guide includes:
-- Detailed Azure CLI commands for each resource
-- Troubleshooting common issues
-- Post-deployment verification steps
-- Alternative deployment methods
-
-### CI/CD Deployment (GitHub Actions)
-
-For automated deployments on every push to `main`:
-
-1. **Setup OIDC (Federated Credentials)** - No secrets needed:
-   ```bash
-   # Create Azure AD App Registration
-   APP_ID=$(az ad app create --display-name "sentinel-activity-maps-github" --query appId -o tsv)
-   
-   # Create service principal
-   az ad sp create --id $APP_ID
-   SP_OBJECT_ID=$(az ad sp show --id $APP_ID --query id -o tsv)
-   
-   # Assign Contributor role to Function App
-   az role assignment create \
-     --assignee $APP_ID \
-     --role Contributor \
-     --scope "/subscriptions/<subscription-id>/resourceGroups/$RESOURCE_GROUP"
-   
-   # Create federated credential
-   az ad app federated-credential create \
-     --id $APP_ID \
-     --parameters '{
-       "name": "github-sentinel-activity-maps",
-       "issuer": "https://token.actions.githubusercontent.com",
-       "subject": "repo:AndrewBlumhardt/sentinel-activity-maps:ref:refs/heads/main",
-       "audiences": ["api://AzureADTokenExchange"]
-     }'
-   ```
-
-2. **Add GitHub Secrets**:
-   - `AZURE_CLIENT_ID` = `$APP_ID`
-   - `AZURE_TENANT_ID` = Your tenant ID
-   - `AZURE_SUBSCRIPTION_ID` = Your subscription ID
-
-3. **Update workflow** (`.github/workflows/deploy-function.yml`):
-   - Set `AZURE_FUNCTIONAPP_NAME` to your function app name
-
-4. **Deploy**:
-   ```bash
-   git add .
-   git commit -m "Initial function implementation"
-   git push origin main
-   ```
-
-**See [.github/workflows/deploy-function.yml](.github/workflows/deploy-function.yml) for workflow details**
-
-## 🧪 Testing & Verification
-
-After deployment, verify the function is working:
-
-```bash
-# Test health endpoint
-curl https://YOUR-FUNCTION-APP.azurewebsites.net/api/health
-
-# Trigger a refresh
-curl -X POST https://YOUR-FUNCTION-APP.azurewebsites.net/api/refresh
-
-# Check logs
-az functionapp log tail --name YOUR-FUNCTION-APP --resource-group YOUR-RESOURCE-GROUP
-```
-
-Verify TSV files were created:
-```bash
-az storage blob list \
-    --container-name datasets \
-    --account-name YOUR-STORAGE-ACCOUNT \
-    --output table
-```
-
-## ⚙️ Post-Deployment Configuration
-
-### Assign Log Analytics Reader Role
-
-The deployment scripts assign the Storage role automatically, but you must manually assign Log Analytics Reader:
-
-```bash
-# Get the Function App's managed identity principal ID
-PRINCIPAL_ID=$(az functionapp identity show \
-    --name YOUR-FUNCTION-APP \
-    --resource-group YOUR-RESOURCE-GROUP \
-    --query principalId -o tsv)
-
-# Assign Log Analytics Reader role
-az role assignment create \
-    --assignee $PRINCIPAL_ID \
-    --role "Log Analytics Reader" \
-    --scope "/subscriptions/<sub-id>/resourceGroups/<workspace-rg>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>"
-```
-
-Or via Azure Portal:
-1. Navigate to your Log Analytics Workspace → Access control (IAM)
-2. Add role assignment → Log Analytics Reader
-3. Select Managed Identity → Function App → Your function app
-
-## 🧹 Cleanup
-
-To remove all deployed resources:
-
-```bash
-az group delete --name rg-sentinel-activity-maps --yes --no-wait
-```
-
-Or via Azure Portal:
-1. Navigate to Resource Groups
-2. Select `rg-sentinel-activity-maps`
-3. Click "Delete resource group" and confirm
-
-## 🛠️ Troubleshooting
-
+**Observability:**
+- 📈 Application Insights integration
+- 📋 Structured logging with correlation IDs
+- ❤️ Health check endpoints
+- 📊 GitHub Actions status badges
 ## 📡 API Reference
 
-### `GET/POST /api/refresh`
+### Backend Endpoints
 
-Refresh threat intelligence datasets.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check - returns service status |
+| `/api/refresh` | GET/POST | Trigger data refresh from Sentinel |
+| `/api/config` | GET | Get current source configurations |
+| `/api/data/{source_id}` | GET | Serve GeoJSON data for frontend |
 
-**Query Parameters**:
-- `source_id` (optional): Refresh specific source only
-- `force` (optional): Bypass throttling (`true`/`false`)
-- `correlation_id` (optional): Tracking ID for logs
-
-**Response Codes**:
-- `200` - Successfully refreshed data
-- `204` - No refresh needed (throttled)
-- `202` - Refresh in progress (locked by another process)
-- `429` - Too many requests (rate limited)
-- `500` - Internal error
-
-**Example**:
+**Example - Trigger Refresh:**
 ```bash
 # Refresh all sources
-curl https://sentinel-activity-maps-func.azurewebsites.net/api/refresh
+curl -X POST https://YOUR-FUNCTION.azurewebsites.net/api/refresh
 
 # Refresh specific source
-curl https://sentinel-activity-maps-func.azurewebsites.net/api/refresh?source_id=signin_failures
+curl "https://YOUR-FUNCTION.azurewebsites.net/api/refresh?source_id=signin_failures"
 
 # Force refresh (bypass throttling)
-curl https://sentinel-activity-maps-func.azurewebsites.net/api/refresh?force=true
+curl "https://YOUR-FUNCTION.azurewebsites.net/api/refresh?force=true"
 ```
 
-**Response**:
+**Example Response:**
 ```json
 {
   "message": "Refreshed 2/2 sources",
   "refreshed_count": 2,
-  "total_sources": 2,
   "results": [
     {
       "source_id": "signin_failures",
@@ -369,164 +297,147 @@ curl https://sentinel-activity-maps-func.azurewebsites.net/api/refresh?force=tru
       "row_count": 1234,
       "output_file": "signin-failures.tsv"
     }
-  ],
-  "correlation_id": "abc123"
+  ]
 }
 ```
 
-### `GET /api/health`
+📖 **[Full API Documentation](api/README.md)**
 
-Health check endpoint.
+## 🔍 Development & Testing
 
-**Response**:
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-02-07T12:34:56Z",
-  "sources_configured": 2
-}
-```
-
-## 🧪 Testing
-
-### Manual Testing
+### Local Development
 
 ```bash
-# Test health endpoint
-curl http://localhost:7071/api/health
-
-# Test refresh (requires Azure credentials)
-curl http://localhost:7071/api/refresh?force=true
-
-# Check generated files in Blob Storage
-az storage blob list \
-  --container-name datasets \
-  --account-name $STORAGE_ACCOUNT \
-  --output table
-```
-
-### Unit Tests (TODO)
-
-```bash
+# Backend (Function App)
 cd api
-pip install pytest pytest-cov
-pytest tests/ --cov=shared --cov-report=term-missing
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+func start
+
+# Frontend (Static Web App)
+cd web
+# Open index.html in browser or use a local server
+python -m http.server 8000
 ```
 
-## 🔍 Observability
+### Running Tests
 
-### Logs
-
-View logs in Azure:
 ```bash
-az functionapp log tail --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP
+# Backend tests (debugging scripts)
+cd tests
+python test_direct_api.py
+python test_geo_debug.py
+
+# Linting (CI/CD)
+cd api
+black --check .
+flake8 .
 ```
 
-View logs in Application Insights:
+### Monitoring & Logs
+
+**View Function Logs:**
+```bash
+az functionapp log tail --name YOUR-FUNCTION-APP --resource-group YOUR-RG
+```
+
+**Application Insights Query:**
 ```kusto
 traces
-| where cloud_RoleName == "sentinel-activity-maps-func"
-| where message contains "correlation_id"
+| where cloud_RoleName contains "sentinel-activity"
+| where timestamp > ago(1h)
 | order by timestamp desc
-```
-
-### Metrics
-
-- **Execution Count**: Total function invocations
-- **Execution Duration**: Time per refresh
-- **Success Rate**: Percentage of successful refreshes
-
-### Correlation IDs
-
-Pass `correlation_id` query parameter to track requests across logs:
-```bash
-curl "https://...azurewebsites.net/api/refresh?correlation_id=frontend-abc123"
 ```
 
 ## 🛠️ Troubleshooting
 
 ### Common Issues
 
-1. **"Failed to initialize Log Analytics client"**
-   - Ensure Managed Identity is enabled
-   - Verify RBAC assignment for Log Analytics Reader role
-   - Check `LOG_ANALYTICS_WORKSPACE_ID` is correct
+**❌ 401/403 Authentication Errors**
+- Verify Managed Identity is enabled on Function App
+- Check RBAC role assignments:
+  - Log Analytics Reader on Sentinel workspace
+  - Storage Blob Data Contributor on storage account
 
-2. **"Failed to write TSV to blob"**
-   - Verify Storage Blob Data Contributor role assignment
-   - Check `STORAGE_ACCOUNT_URL` format (must include `https://`)
-   - Ensure containers exist (`datasets`, `locks`)
+**❌ 404 Errors After Deployment**
+- Wait 30-60 seconds for function cold start
+- Verify deployment completed: `az functionapp show --name YOUR-FUNCTION-APP`
 
-3. **"Query failed with status"**
-   - Verify KQL query syntax in `sources.yaml`
-   - Check query time window (too large may timeout)
-   - Review Log Analytics workspace data retention
+**❌ No Data on Map**
+- Check blob storage has files: `az storage blob list --container datasets`
+- Test API endpoint directly: `/api/data/signin-activity`
+- Review browser console for errors
 
-4. **"Could not acquire lock"**
-   - Another process is refreshing the same source
-   - Wait for lock to expire (60 seconds) or check for stuck leases
+**❌ Geo-Enrichment Not Working**
+- Verify MaxMind license key is configured (optional)
+- Check Application Insights logs for geo lookup errors
+- Fallback: Azure Maps IP geolocation API
 
-### Debug Mode
+**❌ Query Timeouts**
+- Reduce `query_time_window_hours` in sources.yaml
+- Add filters to KQL query to limit results
+- Check Log Analytics workspace performance
 
-Enable verbose logging:
+## 🔄 CI/CD with GitHub Actions
+
+Deployments are automated via GitHub Actions workflows:
+
+- **Backend:** `.github/workflows/deploy-function.yml`
+  - Triggers on changes to `api/**`
+  - Deploys Function App automatically
+  
+- **Frontend:** `.github/workflows/azure-static-web-apps.yml`
+  - Triggers on changes to `web/**`
+  - Deploys Static Web App automatically
+
+- **Testing:** `.github/workflows/lint-test.yml`
+  - Runs on pull requests
+  - Black formatter + Flake8 linting
+
+📖 **[Workflow Documentation](.github/workflows/README.md)**
+
+## 🧹 Cleanup
+
+Remove all Azure resources:
+
 ```bash
-# Local development
-export LOGGING_LEVEL=DEBUG
-func start
-
-# Azure Function App
-az functionapp config appsettings set \
-  --name $FUNCTION_APP_NAME \
-  --resource-group $RESOURCE_GROUP \
-  --settings "LOGGING_LEVEL=DEBUG"
+# Delete resource group (WARNING: Deletes everything)
+az group delete --name rg-sentinel-activity-maps --yes --no-wait
 ```
 
-## 📚 Additional Resources
+Or delete individual resources via Azure Portal.
 
-- [Architecture Documentation](docs/architecture.md)
-- [Azure Functions Python Developer Guide](https://learn.microsoft.com/azure/azure-functions/functions-reference-python)
-- [Azure Monitor Query Client Library](https://learn.microsoft.com/python/api/overview/azure/monitor-query-readme)
-- [Azure Blob Storage SDK](https://learn.microsoft.com/python/api/overview/azure/storage-blob-readme)
-- [Managed Identity Overview](https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/overview)
+## 📚 Documentation
+
+- **[Backend API](api/README.md)** - Function App details
+- **[Frontend](web/README.md)** - Static Web App details  
+- **[Workflows](.github/workflows/README.md)** - CI/CD automation
+- **[Tests](tests/README.md)** - Development testing scripts
 
 ## 🤝 Contributing
 
-### Development Workflow
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Make changes and test locally
+4. Commit with descriptive messages
+5. Push and create a pull request
 
-1. Create a feature branch: `git checkout -b feature/my-feature`
-2. Make changes and test locally: `func start`
-3. Commit with descriptive messages
-4. Push and create a pull request
-5. CI/CD runs linting and tests automatically
+**Code Style:**
+- Python: PEP 8 (enforced by Black and Flake8)
+- JavaScript: Standard conventions
+- Add documentation for new features
 
-### Code Style
+## 📝 License
 
-- Follow PEP 8 (enforced by Black and Flake8)
-- Add docstrings to all public functions
-- Use type hints where appropriate
-- Keep functions focused and testable
-
-## 📝 Changelog
-
-### v1.0.0 (2026-02-07)
-- Initial implementation with Python Azure Functions
-- Managed Identity authentication for Log Analytics and Blob Storage
-- Blob-based locking for multi-user safety
-- Server-side throttling with configurable intervals
-- Incremental query support with watermark tracking
-- Extensible YAML-based configuration
-- GitHub Actions CI/CD pipeline with OIDC
-- Comprehensive documentation
-
-## 📄 License
-
-MIT License - See LICENSE file for details
+MIT License - See [LICENSE](LICENSE) file for details
 
 ## 👤 Author
 
-Andrew Blumhardt
+**Andrew Blumhardt**
 - GitHub: [@AndrewBlumhardt](https://github.com/AndrewBlumhardt)
+- Repository: [sentinel-activity-maps](https://github.com/AndrewBlumhardt/sentinel-activity-maps)
 
 ---
 
-**Need help?** Open an issue on GitHub or check the [architecture documentation](docs/architecture.md) for more details.
+**Need help?** Open an issue on [GitHub](https://github.com/AndrewBlumhardt/sentinel-activity-maps/issues).

@@ -141,8 +141,4 @@ export function isDemoMode() {
 }
 ```
 
----
-
-For full documentation, see [../docs/README.md](../docs/README.md)
-
 
