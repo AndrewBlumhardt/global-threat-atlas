@@ -38,6 +38,26 @@ Each source specifies:
 - Auto geo-enrichment settings
 - Output filenames
 
+### `test_local.py`
+**Local development testing script** - validates components without Azure resources:
+- Tests configuration loading from `sources.yaml`
+- Validates TSV writer/parser functionality
+- Tests refresh policy logic
+- Checks file age checker module
+- Tests KQL query generation
+
+Run locally: `python test_local.py`
+
+### `test_large_dataset.py`
+**Performance testing script** for large datasets (50K+ records):
+- **Test 1:** Log Analytics query execution and performance
+- **Test 2:** Geo-enrichment batching with MaxMind (tests concurrent lookups)
+- **Test 3:** GeoJSON generation and file output
+
+Validates the system can handle production-scale threat intelligence datasets with efficient batch processing and proper error handling.
+
+Run locally: `python test_large_dataset.py`
+
 ### `requirements.txt`
 Python dependencies:
 - `azure-functions` - Azure Functions runtime
@@ -105,3 +125,46 @@ func start
 3. **Store**: Write TSV results to blob storage
 4. **Transform**: Generate GeoJSON for map visualization
 5. **Cache**: Track file age and refresh only when needed
+
+## 🌍 Geo-Enrichment
+
+IP address geolocation is provided by **MaxMind GeoLite2** database.
+
+### MaxMind GeoLite2
+
+**This product includes GeoLite2 data created by MaxMind, available from [https://www.maxmind.com](https://www.maxmind.com)**
+
+The function uses the MaxMind GeoLite2 City database to enrich IP addresses with:
+- **Latitude/Longitude** - Precise geographic coordinates
+- **Country** - ISO country code and name
+- **City** - City name (when available)
+- **Accuracy Radius** - Geolocation accuracy estimate
+
+### Configuration
+
+To use MaxMind geo-enrichment:
+
+1. **Sign up** for a free MaxMind account: [https://www.maxmind.com/en/geolite2/signup](https://www.maxmind.com/en/geolite2/signup)
+2. **Generate a license key** in your MaxMind account
+3. **Set environment variable**:
+   ```bash
+   MAXMIND_LICENSE_KEY="your-license-key-here"
+   ```
+4. The function will automatically download and cache the GeoLite2-City database
+
+### Batch Processing
+
+For large datasets (50K+ IPs), the geo-enrichment module uses:
+- **Concurrent lookups** with ThreadPoolExecutor (20 workers by default)
+- **Chunked processing** for datasets > 10K IPs (5000 IPs per chunk)
+- **Caching** to avoid duplicate lookups
+- **Fallback to Azure Maps** if MaxMind is unavailable
+
+Average performance: **~1000 IPs/second** on typical Azure Function hardware.
+
+### Alternative: Azure Maps
+
+The function also supports Azure Maps IP Geolocation API (country-only):
+- Set `geo_provider: "azure_maps"` in `sources.yaml`
+- Requires `AZURE_MAPS_SUBSCRIPTION_KEY` environment variable
+- Returns country-level data (no city/coordinates)
