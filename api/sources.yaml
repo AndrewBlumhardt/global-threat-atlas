@@ -147,7 +147,7 @@ sources:
     name: "MDE Device Inventory"
     enabled: true
     refresh_threshold_hours: 12  # Refresh every 12 hours
-    query_time_window_hours: 168  # 7 days lookback
+    query_time_window_hours: 720  # 30 days lookback (widened for testing)
     incremental: false
     incremental_overlap_minutes: 10
     output_filename: "mde-devices.tsv"
