@@ -390,6 +390,15 @@ $mapsKey = az maps account keys list `
 
 Write-Success "Azure Maps subscription key retrieved"
 
+# Store Azure Maps key in Key Vault
+Write-Info "Storing Azure Maps subscription key in Key Vault..."
+az keyvault secret set `
+    --vault-name $KeyVaultName `
+    --name "AZURE-MAPS-SUBSCRIPTION-KEY" `
+    --value $mapsKey `
+    --output none
+Write-Success "Azure Maps key stored in Key Vault"
+
 # 7. Create Static Web App
 Write-Step "Creating Static Web App..."
 
@@ -418,6 +427,34 @@ $swaToken = az staticwebapp secrets list `
 
 Write-Success "Static Web App deployment token retrieved"
 
+# Enable Managed Identity on Static Web App
+Write-Info "Enabling Managed Identity on Static Web App..."
+az staticwebapp identity assign `
+    --name $StaticWebAppName `
+    --resource-group $ResourceGroupName `
+    --output none
+
+Write-Success "Managed Identity enabled on Static Web App"
+
+# Get SWA Managed Identity Principal ID
+$swaPrincipalId = az staticwebapp identity show `
+    --name $StaticWebAppName `
+    --resource-group $ResourceGroupName `
+    --query principalId `
+    --output tsv
+
+Write-Info "SWA Principal ID: $swaPrincipalId"
+
+# Grant SWA access to Key Vault secrets
+Write-Info "Granting Static Web App access to Key Vault..."
+az keyvault set-policy `
+    --name $KeyVaultName `
+    --object-id $swaPrincipalId `
+    --secret-permissions get list `
+    --output none
+
+Write-Success "Static Web App granted Key Vault access (get, list secrets)"
+
 # Configure SWA app settings
 Write-Info "Configuring Static Web App settings..."
 $storageUrl = "https://$StorageAccountName.blob.core.windows.net"
@@ -427,10 +464,10 @@ az staticwebapp appsettings set `
     --setting-names `
         STORAGE_ACCOUNT_URL=$storageUrl `
         STORAGE_CONTAINER_DATASETS=datasets `
-        AZURE_MAPS_SUBSCRIPTION_KEY=$mapsKey `
+        KEY_VAULT_NAME=$KeyVaultName `
     --output none
 
-Write-Success "Static Web App settings configured"
+Write-Success "Static Web App settings configured (using Key Vault for secrets)"
 
 # Function App-specific configuration (skip if -SkipFunctionApp is specified)
 if (-not $SkipFunctionApp) {

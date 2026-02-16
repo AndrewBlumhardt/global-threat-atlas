@@ -38,9 +38,15 @@ Host: your-site.azurestaticapps.net
 ## 🔑 Environment Variables
 
 Required in Static Web App settings:
-- `AZURE_MAPS_SUBSCRIPTION_KEY` - Azure Maps subscription key (optional, can be empty)
-- `STORAGE_ACCOUNT_URL` - Blob storage URL (default: from STORAGE_CONNECTION_STRING)
+- `KEY_VAULT_NAME` - Azure Key Vault name (for retrieving Azure Maps key)
+- `STORAGE_ACCOUNT_URL` - Blob storage URL
 - `STORAGE_CONTAINER_DATASETS` - Container name (default: "datasets")
+
+**Key Vault Secrets** (accessed via Managed Identity):
+- `AZURE-MAPS-SUBSCRIPTION-KEY` - Azure Maps subscription key
+
+**Fallback** (if Key Vault unavailable):
+- `AZURE_MAPS_SUBSCRIPTION_KEY` - Azure Maps subscription key from app settings
 
 ## 🎨 Frontend Usage
 
@@ -60,6 +66,8 @@ const map = new atlas.Map('map-container', {
 
 ## 📝 Notes
 
-- Returns empty string for missing `AZURE_MAPS_SUBSCRIPTION_KEY`
-- Frontend should fallback to environment variables if key is empty
+- Retrieves Azure Maps key from **Key Vault** using Managed Identity (preferred)
+- Falls back to `AZURE_MAPS_SUBSCRIPTION_KEY` app setting if Key Vault unavailable
+- Returns empty string if key not found in either location
 - Used during application initialization only (not called repeatedly)
+- **Security**: Key Vault stores secrets securely with RBAC access control

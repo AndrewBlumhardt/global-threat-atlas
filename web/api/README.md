@@ -55,9 +55,11 @@ API functionality test endpoint.
 
 Set these in Static Web App **Application Settings**:
 
-- `STORAGE_CONNECTION_STRING` - Azure Storage connection string
+- `STORAGE_ACCOUNT_URL` - Azure Storage blob URL
 - `STORAGE_CONTAINER_DATASETS` - Container name (default: "datasets")
-- `AZURE_MAPS_SUBSCRIPTION_KEY` - (Optional) Azure Maps key for config endpoint
+- `KEY_VAULT_NAME` - Azure Key Vault name (for secrets management)
+
+**Note**: Azure Maps subscription key is stored in Key Vault as `AZURE-MAPS-SUBSCRIPTION-KEY` and accessed via Managed Identity.
 
 ## 🚀 Deployment
 
