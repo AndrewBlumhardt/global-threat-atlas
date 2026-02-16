@@ -74,9 +74,6 @@ param(
     [string]$Cloud = "AzureCloud",
     
     [Parameter(Mandatory=$false)]
-    [string]$MaxMindLicenseKey,
-    
-    [Parameter(Mandatory=$false)]
     [string]$KeyVaultName = "kv-sentinel-maps-$(Get-Random -Minimum 1000 -Maximum 9999)",
     
     [Parameter(Mandatory=$false)]
@@ -330,20 +327,6 @@ if ($kvExists) {
     Write-Success "Key Vault created: $KeyVaultName"
 }
 
-# Store MaxMind License Key if provided
-if ($MaxMindLicenseKey) {
-    Write-Info "Storing MaxMind license key in Key Vault..."
-    az keyvault secret set `
-        --vault-name $KeyVaultName `
-        --name "MAXMIND-LICENSE-KEY" `
-        --value $MaxMindLicenseKey `
-        --output none
-    Write-Success "MaxMind license key stored"
-} else {
-    Write-Info "MaxMind license key not provided, skipping Key Vault secret creation"
-    Write-Info "You can add it later with: az keyvault secret set --vault-name $KeyVaultName --name MAXMIND-LICENSE-KEY --value '<your-key>'"
-}
-
 # Get Managed Identity Principal ID for Key Vault access
 $principalId = az functionapp identity show `
     --resource-group $ResourceGroupName `
@@ -360,7 +343,6 @@ az keyvault set-policy `
     --output none
 
 Write-Success "Function App granted Key Vault access (get, list secrets)"
-Write-Info "Note: You can manually adjust Key Vault access policies in the portal if needed"
 
 # 6. Create Azure Maps Account
 Write-Step "Creating Azure Maps Account..."
@@ -381,23 +363,7 @@ if ($mapsExists) {
     Write-Success "Azure Maps account created: $AzureMapsAccountName"
 }
 
-# Get Azure Maps subscription key
-$mapsKey = az maps account keys list `
-    --name $AzureMapsAccountName `
-    --resource-group $ResourceGroupName `
-    --query primaryKey `
-    --output tsv
-
-Write-Success "Azure Maps subscription key retrieved"
-
-# Store Azure Maps key in Key Vault
-Write-Info "Storing Azure Maps subscription key in Key Vault..."
-az keyvault secret set `
-    --vault-name $KeyVaultName `
-    --name "AZURE-MAPS-SUBSCRIPTION-KEY" `
-    --value $mapsKey `
-    --output none
-Write-Success "Azure Maps key stored in Key Vault"
+Write-Info "Note: You will need to manually add the Azure Maps key to Key Vault after deployment"
 
 # 7. Create Static Web App
 Write-Step "Creating Static Web App..."
@@ -468,6 +434,18 @@ az staticwebapp appsettings set `
     --output none
 
 Write-Success "Static Web App settings configured (using Key Vault for secrets)"
+
+# Disable public network access to Key Vault (Azure services can still access via backbone)
+Write-Info "Disabling public network access to Key Vault..."
+az keyvault update `
+    --name $KeyVaultName `
+    --resource-group $ResourceGroupName `
+    --default-action Deny `
+    --bypass AzureServices `
+    --output none
+
+Write-Success "Key Vault secured: Public access disabled, Azure services can access via backbone"
+Write-Info "Function App and SWA will access Key Vault using Managed Identity over Azure backbone"
 
 # Function App-specific configuration (skip if -SkipFunctionApp is specified)
 if (-not $SkipFunctionApp) {
@@ -611,7 +589,21 @@ Write-Host "`n================================================" -ForegroundColor
 
 if (-not $SkipFunctionApp) {
     Write-Host "`n⚠️  Important Next Steps:" -ForegroundColor Yellow
-    Write-Host "1. Assign 'Log Analytics Reader' role to the Function App on your Log Analytics Workspace" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "1. Add secrets to Key Vault:" -ForegroundColor Yellow
+    Write-Host "   Required secrets for the application to function:" -ForegroundColor White
+    Write-Host ""
+    Write-Host "   a) Azure Maps Subscription Key (REQUIRED for map visualization):" -ForegroundColor Cyan
+    Write-Host "      # Get key from Azure Maps account" -ForegroundColor Gray
+    Write-Host "      `$mapsKey = az maps account keys list --name $AzureMapsAccountName --resource-group $ResourceGroupName --query primaryKey -o tsv" -ForegroundColor Gray
+    Write-Host "      # Store in Key Vault" -ForegroundColor Gray
+    Write-Host "      az keyvault secret set --vault-name $KeyVaultName --name 'AZURE-MAPS-SUBSCRIPTION-KEY' --value `$mapsKey" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "   b) MaxMind License Key (OPTIONAL for IP geo-enrichment):" -ForegroundColor Cyan
+    Write-Host "      # Sign up at https://www.maxmind.com/en/geolite2/signup" -ForegroundColor Gray
+    Write-Host "      az keyvault secret set --vault-name $KeyVaultName --name 'MAXMIND-LICENSE-KEY' --value '<your-maxmind-key>'" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "2. Assign 'Log Analytics Reader' role to the Function App on your Log Analytics Workspace" -ForegroundColor Yellow
     Write-Host "   Principal ID: $principalId" -ForegroundColor White
     Write-Host ""
     Write-Host "   Option A - Via Function App Identity (Easiest):" -ForegroundColor Cyan
@@ -626,9 +618,9 @@ if (-not $SkipFunctionApp) {
     Write-Host "   Option B - Azure CLI:" -ForegroundColor Cyan
     Write-Host "   az role assignment create --assignee $principalId --role 'Log Analytics Reader' --scope /subscriptions/<sub-id>/resourceGroups/<workspace-rg>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "2. Test the deployment:" -ForegroundColor Yellow
+    Write-Host "3. Test the deployment:" -ForegroundColor Yellow
     Write-Host "   Invoke-RestMethod https://$FunctionAppName.azurewebsites.net/api/health" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "3. Trigger a data refresh:" -ForegroundColor Yellow
+    Write-Host "4. Trigger a data refresh:" -ForegroundColor Yellow
     Write-Host "   Invoke-RestMethod https://$FunctionAppName.azurewebsites.net/api/refresh" -ForegroundColor Cyan
 }
