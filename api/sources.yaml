@@ -179,7 +179,6 @@ sources:
       - PublicIP
       - SensorHealthState
       - ExposureLevel
-      - IsMicrosoftIP
       - Latitude
       - Longitude
       - Country
