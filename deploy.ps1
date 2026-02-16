@@ -317,14 +317,14 @@ $kvExists = az keyvault show --name $KeyVaultName --resource-group $ResourceGrou
 if ($kvExists) {
     Write-Info "Key Vault already exists: $KeyVaultName"
 } else {
-    Write-Info "Creating new Key Vault..."
+    Write-Info "Creating new Key Vault with RBAC authorization..."
     az keyvault create `
         --name $KeyVaultName `
         --resource-group $ResourceGroupName `
         --location $Location `
-        --enable-rbac-authorization false `
+        --enable-rbac-authorization true `
         --output none
-    Write-Success "Key Vault created: $KeyVaultName"
+    Write-Success "Key Vault created: $KeyVaultName (RBAC-enabled)"
 }
 
 # Get Managed Identity Principal ID for Key Vault access
@@ -334,15 +334,22 @@ $principalId = az functionapp identity show `
     --query principalId `
     --output tsv
 
-# Grant Function App access to Key Vault secrets
-Write-Info "Granting Function App access to Key Vault..."
-az keyvault set-policy `
+# Get Key Vault resource ID for RBAC scope
+$kvResourceId = az keyvault show `
     --name $KeyVaultName `
-    --object-id $principalId `
-    --secret-permissions get list `
+    --resource-group $ResourceGroupName `
+    --query id `
+    --output tsv
+
+# Grant Function App access to Key Vault secrets using RBAC
+Write-Info "Granting Function App 'Key Vault Secrets User' role..."
+az role assignment create `
+    --assignee $principalId `
+    --role "Key Vault Secrets User" `
+    --scope $kvResourceId `
     --output none
 
-Write-Success "Function App granted Key Vault access (get, list secrets)"
+Write-Success "Function App granted Key Vault access via RBAC (Secrets User role)"
 
 # 6. Create Azure Maps Account
 Write-Step "Creating Azure Maps Account..."
@@ -411,15 +418,15 @@ $swaPrincipalId = az staticwebapp identity show `
 
 Write-Info "SWA Principal ID: $swaPrincipalId"
 
-# Grant SWA access to Key Vault secrets
-Write-Info "Granting Static Web App access to Key Vault..."
-az keyvault set-policy `
-    --name $KeyVaultName `
-    --object-id $swaPrincipalId `
-    --secret-permissions get list `
+# Grant SWA access to Key Vault secrets using RBAC
+Write-Info "Granting Static Web App 'Key Vault Secrets User' role..."
+az role assignment create `
+    --assignee $swaPrincipalId `
+    --role "Key Vault Secrets User" `
+    --scope $kvResourceId `
     --output none
 
-Write-Success "Static Web App granted Key Vault access (get, list secrets)"
+Write-Success "Static Web App granted Key Vault access via RBAC (Secrets User role)"
 
 # Configure SWA app settings
 Write-Info "Configuring Static Web App settings..."
