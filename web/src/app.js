@@ -15,7 +15,7 @@ import { setDemoMode, getDataUrl } from "./shared/demoMode.js";
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
 
-  const map = await createMap({
+  const { map, subscriptionKey } = await createMap({
     containerId: "map",
     initialView: { center: [-20, 25], zoom: 2 },
     style: "road"
@@ -92,10 +92,10 @@ async function main() {
           await toggleThreatIntelOverlay(map, enabled);
           break;
         case 'weatherRadar':
-          await toggleWeatherRadar(map, enabled);
+          await toggleWeatherRadar(map, enabled, subscriptionKey);
           break;
         case 'weatherInfrared':
-          await toggleWeatherInfrared(map, enabled);
+          await toggleWeatherInfrared(map, enabled, subscriptionKey);
           break;
         case 'signInActivity':
           await toggleSignInActivityOverlay(map, enabled);

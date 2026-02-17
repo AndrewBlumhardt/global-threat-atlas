@@ -65,5 +65,7 @@ export async function createMap({ containerId, initialView, style }) {
   });
 
   addMapControls(map);
-  return map;
+  
+  // Return both map and subscription key for use by weather tile layers
+  return { map, subscriptionKey: cfg.subscriptionKey };
 }

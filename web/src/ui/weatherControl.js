@@ -12,17 +12,18 @@ let infraredTileLayer = null;
  * Toggle weather radar overlay on/off
  * @param {atlas.Map} map - Azure Maps instance
  * @param {boolean} turnOn - Enable or disable weather radar
+ * @param {string} subscriptionKey - Azure Maps subscription key
  */
-export async function toggleWeatherRadar(map, turnOn) {
+export async function toggleWeatherRadar(map, turnOn, subscriptionKey) {
   if (turnOn) {
     if (radarTileLayer) return; // Already enabled
     
     // Turn off infrared if it's on (mutually exclusive)
     if (infraredTileLayer) {
-      await toggleWeatherInfrared(map, false);
+      await toggleWeatherInfrared(map, false, subscriptionKey);
     }
     
-    const tileUrl = 'https://atlas.microsoft.com/map/tile?api-version=2022-08-01&tilesetId=microsoft.weather.radar.main&zoom={z}&x={x}&y={y}';
+    const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2022-08-01&tilesetId=microsoft.weather.radar.main&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
     
     radarTileLayer = new atlas.layer.TileLayer({
       tileUrl: tileUrl,
@@ -46,17 +47,18 @@ export async function toggleWeatherRadar(map, turnOn) {
  * Toggle weather infrared overlay on/off
  * @param {atlas.Map} map - Azure Maps instance
  * @param {boolean} turnOn - Enable or disable weather infrared
+ * @param {string} subscriptionKey - Azure Maps subscription key
  */
-export async function toggleWeatherInfrared(map, turnOn) {
+export async function toggleWeatherInfrared(map, turnOn, subscriptionKey) {
   if (turnOn) {
     if (infraredTileLayer) return; // Already enabled
     
     // Turn off radar if it's on (mutually exclusive)
     if (radarTileLayer) {
-      await toggleWeatherRadar(map, false);
+      await toggleWeatherRadar(map, false, subscriptionKey);
     }
     
-    const tileUrl = 'https://atlas.microsoft.com/map/tile?api-version=2022-08-01&tilesetId=microsoft.weather.infrared.main&zoom={z}&x={x}&y={y}';
+    const tileUrl = `https://atlas.microsoft.com/map/tile?api-version=2022-08-01&tilesetId=microsoft.weather.infrared.main&zoom={z}&x={x}&y={y}&subscription-key=${subscriptionKey}`;
     
     infraredTileLayer = new atlas.layer.TileLayer({
       tileUrl: tileUrl,
