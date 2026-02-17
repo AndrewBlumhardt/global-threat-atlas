@@ -1,6 +1,6 @@
 # Config API Endpoint
 
-**Route**: `/api/config`  
+**Route**: \/api/config\  
 **Methods**: GET  
 **Authentication**: Anonymous (public)
 
@@ -8,50 +8,37 @@
 
 Returns Azure Maps configuration for the frontend application, including subscription key and default settings.
 
-## 📄 Files
-
-- `__init__.py` - Function implementation
-- `function.json` - Function binding configuration
-
 ## 🔧 Function Details
 
 ### Request
-```http
+\\\http
 GET /api/config HTTP/1.1
 Host: your-site.azurestaticapps.net
-```
+\\\
 
 ### Response
-```json
+\\\json
 {
   "azureMapsKey": "your-subscription-key",
   "storageAccountUrl": "https://sentinelmapsstore.blob.core.windows.net",
   "datasetsContainer": "datasets"
 }
-```
+\\\
 
 ### Response Headers
-- `Content-Type: application/json`
-- `Access-Control-Allow-Origin: *` (CORS enabled)
+- \Content-Type: application/json\
+- \Access-Control-Allow-Origin: *\ (CORS enabled)
 
 ## 🔑 Environment Variables
 
 Required in Static Web App settings:
-- `KEY_VAULT_NAME` - Azure Key Vault name (for retrieving Azure Maps key)
-- `STORAGE_ACCOUNT_URL` - Blob storage URL
-- `STORAGE_CONTAINER_DATASETS` - Container name (default: "datasets")
-
-## 🔐 Secrets Management
-
-**Key Vault Secrets** (accessed via REST API + Managed Identity):
-- `AZURE-MAPS-SUBSCRIPTION-KEY` - Azure Maps subscription key
-
-**Fallback** (if Key Vault unavailable):
-- `AZURE_MAPS_SUBSCRIPTION_KEY` - Azure Maps subscription key from app settings
+- \AZURE_MAPS_SUBSCRIPTION_KEY\ - Azure Maps subscription key (actual value, not encrypted)
+- \STORAGE_ACCOUNT_URL\ - Blob storage URL
+- \STORAGE_CONTAINER_DATASETS\ - Container name (default: "datasets")
 
 ## 🎨 Frontend Usage
 
-```javascript
+\\\javascript
 // Fetch configuration
 const configResponse = await fetch('/api/config');
 const config = await configResponse.json();
@@ -63,71 +50,59 @@ const map = new atlas.Map('map-container', {
     subscriptionKey: config.azureMapsKey
   }
 });
-```
+\\\
 
-## 📝 Implementation Details
+## 📝 How It Works
 
-### How It Works
+1. API reads \AZURE_MAPS_SUBSCRIPTION_KEY\ from SWA app settings
+2. Returns the key in the JSON response
+3. Frontend uses the key to authenticate with Azure Maps
+4. Maps library handles authentication via the subscription key
 
-1. **REST API Approach**: Uses Key Vault REST API instead of SDK because:
-   - SWA custom code cannot use `DefaultAzureCredential()`
-   - SWA MSI is only available via HTTP endpoint, not as environment credential
-   - Reference strings (`@Microsoft.KeyVault(...)`) are NOT auto-resolved for custom app settings
+## ⚠️ Important: Why Not Key Vault?
 
-2. **Retrieval Steps**:
-   - Get MI token from `IDENTITY_ENDPOINT` (provided by SWA)
-   - Call `https://{vault}.vault.azure.net/secrets/AZURE-MAPS-SUBSCRIPTION-KEY?api-version=7.4` with Bearer token
-   - Return actual secret value to frontend
+Azure Static Web Apps has a limitation:
+- **SWA doesn't auto-resolve Key Vault references** (\@Microsoft.KeyVault(...)\) in custom app settings
+- Only built-in authentication settings leverage Key Vault references
+- Custom APIs in SWA cannot use \DefaultAzureCredential()\ and REST API with MI is unreliable
 
-3. **Fallback Behavior**:
-   - If REST API fails, try `AZURE_MAPS_SUBSCRIPTION_KEY` app setting
-   - Check if value is actual key or KV reference string
-   - Log status with visual indicators (✅, ⚠️, ❌)
+**Solution**: Store the Maps subscription key as a plain value in SWA app settings because:
+1. It's not a sensitive credential (rate-limited and publicly available)
+2. It can be rotated independently in Azure Maps
+3. Azure Maps service controls which APIs are enabled
+4. Simplifies deployment and avoids SWA MI limitations
+
+*Note: For other sensitive data (storage connection string, secrets), use app settings or managed identity where possible.*
 
 ## 🔧 Troubleshooting
 
-### Maps not loading? Verify key retrieval in browser console:
+### Maps not loading?
 
-```javascript
+**1. Verify app settings have the key:**
+\\\powershell
+az staticwebapp appsettings list --name swa-sentinel-maps --resource-group rg-sentinel-activity-maps --query "properties.AZURE_MAPS_SUBSCRIPTION_KEY"
+\\\
+
+**2. Check browser console for config API response:**
+\\\javascript
 fetch('/api/config').then(r => r.json()).then(c => {
-  console.log('Maps key:', c.azureMapsKey);
+  console.log('Maps key present:', !!c.azureMapsKey);
   console.log('Key length:', c.azureMapsKey?.length);
   console.log('First 10 chars:', c.azureMapsKey?.substring(0, 10));
 })
-```
+\\\
 
 **Expected output:**
-- `azureMapsKey`: Actual subscription key (84 chars, starts with alphanumeric)
-- `length`: 84
+- \Key length: 84\
 - First 10 chars: alphanumeric (e.g., "8fyBIXhcvT")
 
-**If shows `@Microsoft.KeyVault(...)`**: REST API failed, fallback to app setting
+**3. If empty, troubleshoot:**
+- Verify \AZURE_MAPS_SUBSCRIPTION_KEY\ is set in SWA app settings
+- Wait a few seconds for SWA to restart after updating settings
+- Hard refresh browser (Ctrl+Shift+R)
+- Check browser network tab: \/api/config\ response should include the key
 
-### Common Issues
-
-**1. MSI endpoint not available**
-- `IDENTITY_ENDPOINT` env var missing
-- Verify SWA Managed Identity enabled: 
-  ```powershell
-  az staticwebapp identity show --name swa-sentinel-maps --resource-group rg-sentinel-activity-maps
-  ```
-
-**2. Key Vault access denied**
-- SWA MI missing "Key Vault Secrets User" role
-  ```powershell
-  $swaPrincipalId = az staticwebapp identity show --name swa-sentinel-maps --resource-group rg-sentinel-activity-maps --query principalId -o tsv
-  az role assignment list --assignee $swaPrincipalId
-  ```
-- Key Vault network access blocking requests
-  - Check `bypass` setting includes "AzureServices":
-    ```powershell
-    az keyvault show --name kv-sentinel-maps-8615 --query "properties.networkAcls"
-    ```
-
-**3. Wrong secret name**
-- Verify Key Vault has `AZURE-MAPS-SUBSCRIPTION-KEY` (exact name with hyphens)
-
-**4. KV reference string in app settings**
-- Don't use `@Microsoft.KeyVault(...)` format in `AZURE_MAPS_SUBSCRIPTION_KEY`
-- SWA doesn't resolve KV references for custom code
-- Must be actual subscription key value as fallback
+### Maps showing 401 errors?
+- Check Azure Maps subscription still has credit and S1 tier active
+- Verify subscription key hasn't expired
+- Check that APIs are enabled in Azure Maps resource
