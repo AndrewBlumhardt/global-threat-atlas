@@ -47,4 +47,21 @@ htmlcov/
 *.lock
 deployment.zip
 function-app.zip
-docs-backup/
+function-deployment.zip
+
+# Development/testing files
+test_output.geojson
+mde-devices*.tsv
+mde-devices*.geojson
+CLEANUP_SUMMARY.md
+
+# Web configuration (environment-specific)
+web/config.js
+
+# Development utility scripts (optional - keep if you want to share them)
+# generate_device_locations.py
+# generate_mde_devices.py
+# generate_signin_data.py
+# generate-mde-geojson.py
+# manual-geo-enrich.py
+# manual-geo-enrich-free.py
