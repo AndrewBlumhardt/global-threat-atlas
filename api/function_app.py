@@ -816,7 +816,7 @@ def generate_geojson(req: func.HttpRequest) -> func.HttpResponse:
         )
 
 
-@app.route(route="data/{filename}", methods=["GET", "HEAD"], auth_level=func.AuthLevel.ANONYMOUS)
+@app.route(route="data/{filename}", methods=["GET", "HEAD", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def get_data(req: func.HttpRequest) -> func.HttpResponse:
     """
     Serve blob storage data via Managed Identity (no account keys exposed).
@@ -832,6 +832,18 @@ def get_data(req: func.HttpRequest) -> func.HttpResponse:
         404: Blob not found
         500: Internal error
     """
+    # Handle CORS preflight
+    if req.method == 'OPTIONS':
+        return func.HttpResponse(
+            status_code=200,
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Max-Age': '3600'
+            }
+        )
+    
     filename = req.route_params.get('filename')
     if not filename:
         return func.HttpResponse(
