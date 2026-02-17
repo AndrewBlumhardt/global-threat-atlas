@@ -20,9 +20,11 @@ export function setDemoMode(enabled) {
 }
 
 /**
- * Build API data URL with demo parameter if demo mode is enabled
+ * Build API data URL via Function App (uses Managed Identity)
+ * This retrieves blobs from secure storage without exposing account keys
  */
 export function getDataUrl(filename) {
-  const baseUrl = `/api/data/${filename}`;
+  // Use Function App endpoint (uses MI, no account keys exposed)
+  const baseUrl = `https://func-sentinel-activity-maps.azurewebsites.net/api/data/${filename}`;
   return demoMode ? `${baseUrl}?demo=true` : baseUrl;
 }

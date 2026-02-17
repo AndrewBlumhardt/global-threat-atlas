@@ -814,3 +814,110 @@ def generate_geojson(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500,
             mimetype="application/json"
         )
+
+
+@app.route(route="data/{filename}", methods=["GET", "HEAD"], auth_level=func.AuthLevel.ANONYMOUS)
+def get_data(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Serve blob storage data via Managed Identity (no account keys exposed).
+    
+    Route parameters:
+        - filename: Blob name (e.g., 'threat-intel.geojson', 'custom-source.geojson')
+    
+    Query parameters:
+        - demo: Set to 'true' to fetch from demo_data/ folder
+    
+    Returns:
+        200: Blob content
+        404: Blob not found
+        500: Internal error
+    """
+    filename = req.route_params.get('filename')
+    if not filename:
+        return func.HttpResponse(
+            json.dumps({"error": "No filename specified"}),
+            status_code=400,
+            mimetype='application/json',
+            headers={'Access-Control-Allow-Origin': '*'}
+        )
+    
+    # Check if demo mode is enabled via query parameter
+    demo_mode = req.params.get('demo', '').lower() == 'true'
+    
+    # Determine blob name and content type based on file extension
+    if filename.endswith('.tsv'):
+        blob_name = filename
+        content_type = 'text/tab-separated-values'
+    elif filename.endswith('.geojson'):
+        blob_name = filename
+        content_type = 'application/geo+json'
+    else:
+        # Default: assume GeoJSON
+        blob_name = f'{filename}.geojson'
+        content_type = 'application/geo+json'
+    
+    # Prepend demo_data/ folder if demo mode is enabled
+    if demo_mode:
+        blob_name = f'demo_data/{blob_name}'
+        logger.info(f'Demo mode: fetching {blob_name}')
+    
+    try:
+        logger.info(f'Requesting blob: {blob_name}')
+        
+        # Initialize blob storage with Managed Identity (no account key needed)
+        blob_storage = BlobStorageClient()
+        container_name = blob_storage.datasets_container
+        
+        # Get blob client
+        blob_client = blob_storage.service_client.get_blob_client(
+            container=container_name,
+            blob=blob_name
+        )
+        logger.info(f'✅ Blob client created for {container_name}/{blob_name}')
+        
+        # Check if blob exists
+        if not blob_client.exists():
+            logger.warning(f'Blob not found: {blob_name}')
+            return func.HttpResponse(
+                json.dumps({"error": f"Blob not found: {blob_name}"}),
+                status_code=404,
+                mimetype='application/json',
+                headers={'Access-Control-Allow-Origin': '*'}
+            )
+        
+        # For HEAD requests, just return existence status
+        if req.method == 'HEAD':
+            return func.HttpResponse(
+                status_code=200,
+                headers={
+                    'Content-Type': content_type,
+                    'Access-Control-Allow-Origin': '*'
+                }
+            )
+        
+        # Download blob content
+        logger.info(f'Downloading blob content...')
+        blob_data = blob_client.download_blob().readall()
+        logger.info(f'✅ Downloaded {len(blob_data)} bytes from {blob_name}')
+        
+        # Return blob content
+        return func.HttpResponse(
+            body=blob_data,
+            status_code=200,
+            mimetype=content_type,
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Cache-Control': 'public, max-age=3600'
+            }
+        )
+    
+    except Exception as e:
+        logger.error(f'Failed to retrieve blob {blob_name}: {type(e).__name__}: {str(e)}', exc_info=True)
+        return func.HttpResponse(
+            json.dumps({
+                "error": f"Failed to retrieve data: {str(e)}"
+            }),
+            status_code=500,
+            mimetype='application/json',
+            headers={'Access-Control-Allow-Origin': '*'}
+        )
