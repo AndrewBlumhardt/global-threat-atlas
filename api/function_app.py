@@ -819,7 +819,8 @@ def generate_geojson(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="data/{filename}", methods=["GET", "HEAD", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def get_data(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Serve blob storage data via Managed Identity (no account keys exposed).
+    Serve blob storage data (retrieves via proxy, hiding account keys from browser).
+    Uses connection string for reliable blob access.
     
     Route parameters:
         - filename: Blob name (e.g., 'threat-intel.geojson', 'custom-source.geojson')
@@ -861,7 +862,7 @@ def get_data(req: func.HttpRequest) -> func.HttpResponse:
         blob_name = filename
         content_type = 'text/tab-separated-values'
     elif filename.endswith('.geojson'):
-        blob_name = filename
+        blob_name = filename  
         content_type = 'application/geo+json'
     else:
         # Default: assume GeoJSON
@@ -876,15 +877,26 @@ def get_data(req: func.HttpRequest) -> func.HttpResponse:
     try:
         logger.info(f'Requesting blob: {blob_name}')
         
-        # Initialize blob storage with Managed Identity (no account key needed)
-        blob_storage = BlobStorageClient()
-        container_name = blob_storage.datasets_container
+        # Get storage configuration
+        connection_string = os.environ.get('STORAGE_CONNECTION_STRING', '')
+        container_name = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
+        
+        if not connection_string:
+            logger.error('STORAGE_CONNECTION_STRING not configured')
+            return func.HttpResponse(
+                json.dumps({"error": "Storage not configured"}),
+                status_code=500,
+                mimetype='application/json',
+                headers={'Access-Control-Allow-Origin': '*'}
+            )
+        
+        # Create BlobServiceClient with connection string
+        from azure.storage.blob import BlobServiceClient
+        blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        logger.info(f'✅ BlobServiceClient created')
         
         # Get blob client
-        blob_client = blob_storage.service_client.get_blob_client(
-            container=container_name,
-            blob=blob_name
-        )
+        blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
         logger.info(f'✅ Blob client created for {container_name}/{blob_name}')
         
         # Check if blob exists
@@ -896,6 +908,8 @@ def get_data(req: func.HttpRequest) -> func.HttpResponse:
                 mimetype='application/json',
                 headers={'Access-Control-Allow-Origin': '*'}
             )
+        
+        logger.info(f'✅ Blob exists: {blob_name}')
         
         # For HEAD requests, just return existence status
         if req.method == 'HEAD':
@@ -912,7 +926,7 @@ def get_data(req: func.HttpRequest) -> func.HttpResponse:
         blob_data = blob_client.download_blob().readall()
         logger.info(f'✅ Downloaded {len(blob_data)} bytes from {blob_name}')
         
-        # Return blob content
+        # Return blob content with CORS headers
         return func.HttpResponse(
             body=blob_data,
             status_code=200,
@@ -926,10 +940,9 @@ def get_data(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logger.error(f'Failed to retrieve blob {blob_name}: {type(e).__name__}: {str(e)}', exc_info=True)
         return func.HttpResponse(
-            json.dumps({
-                "error": f"Failed to retrieve data: {str(e)}"
-            }),
+            json.dumps({"error": f"Failed to retrieve data: {str(e)}"}),
             status_code=500,
             mimetype='application/json',
             headers={'Access-Control-Allow-Origin': '*'}
         )
+
