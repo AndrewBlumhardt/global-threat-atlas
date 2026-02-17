@@ -26,8 +26,7 @@ Host: your-site.azurestaticapps.net
 {
   "azureMapsKey": "your-subscription-key",
   "storageAccountUrl": "https://sentinelmapsstore.blob.core.windows.net",
-  "datasetsContainer": "datasets",
-  "threatIntelGeoJsonUrl": "https://sentinelmapsstore.blob.core.windows.net/datasets/threat-intel-indicators.geojson"
+  "datasetsContainer": "datasets"
 }
 ```
 
@@ -42,7 +41,9 @@ Required in Static Web App settings:
 - `STORAGE_ACCOUNT_URL` - Blob storage URL
 - `STORAGE_CONTAINER_DATASETS` - Container name (default: "datasets")
 
-**Key Vault Secrets** (accessed via Managed Identity):
+## 🔐 Secrets Management
+
+**Key Vault Secrets** (accessed via REST API + Managed Identity):
 - `AZURE-MAPS-SUBSCRIPTION-KEY` - Azure Maps subscription key
 
 **Fallback** (if Key Vault unavailable):
@@ -64,38 +65,69 @@ const map = new atlas.Map('map-container', {
 });
 ```
 
-## 📝 Notes
+## 📝 Implementation Details
 
-- Retrieves Azure Maps key from **Key Vault** using Managed Identity (preferred)
-- Falls back to `AZURE_MAPS_SUBSCRIPTION_KEY` app setting if Key Vault unavailable
-- Returns empty string if key not found in either location
-- Used during application initialization only (not called repeatedly)
-- **Security**: Key Vault stores secrets securely with RBAC access control
+### How It Works
+
+1. **REST API Approach**: Uses Key Vault REST API instead of SDK because:
+   - SWA custom code cannot use `DefaultAzureCredential()`
+   - SWA MSI is only available via HTTP endpoint, not as environment credential
+   - Reference strings (`@Microsoft.KeyVault(...)`) are NOT auto-resolved for custom app settings
+
+2. **Retrieval Steps**:
+   - Get MI token from `IDENTITY_ENDPOINT` (provided by SWA)
+   - Call `https://{vault}.vault.azure.net/secrets/AZURE-MAPS-SUBSCRIPTION-KEY?api-version=7.4` with Bearer token
+   - Return actual secret value to frontend
+
+3. **Fallback Behavior**:
+   - If REST API fails, try `AZURE_MAPS_SUBSCRIPTION_KEY` app setting
+   - Check if value is actual key or KV reference string
+   - Log status with visual indicators (✅, ⚠️, ❌)
 
 ## 🔧 Troubleshooting
 
-### Maps not loading? Check Azure Maps key retrieval:
+### Maps not loading? Verify key retrieval in browser console:
 
-**If maps load after adding the key to app settings (workaround):**
+```javascript
+fetch('/api/config').then(r => r.json()).then(c => {
+  console.log('Maps key:', c.azureMapsKey);
+  console.log('Key length:', c.azureMapsKey?.length);
+  console.log('First 10 chars:', c.azureMapsKey?.substring(0, 10));
+})
+```
 
-1. **Key Vault access issue**
-   - Verify SWA Managed Identity has `Key Vault Secrets User` role:
-     ```powershell
-     az role assignment list --assignee <swa-principal-id> --scope <kv-resource-id>
-     ```
-   - Verify Key Vault has `AZURE-MAPS-SUBSCRIPTION-KEY` secret created
-   - Check KV network access: should be `Allow public access from all networks` OR SWA → KV via private endpoint
+**Expected output:**
+- `azureMapsKey`: Actual subscription key (84 chars, starts with alphanumeric)
+- `length`: 84
+- First 10 chars: alphanumeric (e.g., "8fyBIXhcvT")
 
-2. **Fallback to app settings**
-   - As a temporary workaround, add `AZURE_MAPS_SUBSCRIPTION_KEY` to SWA app settings
-   - The config API will use it automatically if Key Vault retrieval fails
-   - Check SWA function logs to see which retrieval method is being used (look for ✅, ⚠️, or ❌ messages)
+**If shows `@Microsoft.KeyVault(...)`**: REST API failed, fallback to app setting
 
-3. **Typical behavior:**
-   - ✅ Primary: Retrieve from Key Vault (preferred)
-   - ⚠️ Fallback: Use app setting if KV fails
-   - ❌ No key: Maps won't load
+### Common Issues
 
-### To view logs:
-- App Insights (if enabled on SWA) → Logs query
-- Check stderr/stdout in function logs if available
+**1. MSI endpoint not available**
+- `IDENTITY_ENDPOINT` env var missing
+- Verify SWA Managed Identity enabled: 
+  ```powershell
+  az staticwebapp identity show --name swa-sentinel-maps --resource-group rg-sentinel-activity-maps
+  ```
+
+**2. Key Vault access denied**
+- SWA MI missing "Key Vault Secrets User" role
+  ```powershell
+  $swaPrincipalId = az staticwebapp identity show --name swa-sentinel-maps --resource-group rg-sentinel-activity-maps --query principalId -o tsv
+  az role assignment list --assignee $swaPrincipalId
+  ```
+- Key Vault network access blocking requests
+  - Check `bypass` setting includes "AzureServices":
+    ```powershell
+    az keyvault show --name kv-sentinel-maps-8615 --query "properties.networkAcls"
+    ```
+
+**3. Wrong secret name**
+- Verify Key Vault has `AZURE-MAPS-SUBSCRIPTION-KEY` (exact name with hyphens)
+
+**4. KV reference string in app settings**
+- Don't use `@Microsoft.KeyVault(...)` format in `AZURE_MAPS_SUBSCRIPTION_KEY`
+- SWA doesn't resolve KV references for custom code
+- Must be actual subscription key value as fallback
