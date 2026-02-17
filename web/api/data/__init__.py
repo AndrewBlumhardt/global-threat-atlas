@@ -62,24 +62,26 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     logger.info(f'Requesting blob: {blob_name}')
     
     # Get storage configuration
-    storage_account_url = os.environ.get('STORAGE_ACCOUNT_URL', '')
+    # Note: SWA app settings can use Key Vault references
+    # @Microsoft.KeyVault(SecretUri=https://vault.vault.azure.net/secrets/...)
+    connection_string = os.environ.get('STORAGE_CONNECTION_STRING', '')
     container_name = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
     
-    if not storage_account_url:
-        logger.error('STORAGE_ACCOUNT_URL not configured')
+    if not connection_string:
+        logger.error('STORAGE_CONNECTION_STRING not configured')
         return func.HttpResponse(
-            json.dumps({"error": "Storage not configured - STORAGE_ACCOUNT_URL missing"}),
+            json.dumps({"error": "Storage not configured - STORAGE_CONNECTION_STRING missing"}),
             status_code=500,
             mimetype='application/json',
             headers={'Access-Control-Allow-Origin': '*'}
         )
     
     try:
-        # Create BlobServiceClient with Managed Identity
+        # Create BlobServiceClient with connection string
+        # (SWA resolves Key Vault references automatically)
         logger.info(f'Creating blob service client for container: {container_name}')
-        credential = DefaultAzureCredential()
-        blob_service_client = BlobServiceClient(account_url=storage_account_url, credential=credential)
-        logger.info('✅ BlobServiceClient created (Managed Identity)')
+        blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        logger.info('✅ BlobServiceClient created (connection string)')
         
         # Get blob client
         blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
