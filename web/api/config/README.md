@@ -71,3 +71,31 @@ const map = new atlas.Map('map-container', {
 - Returns empty string if key not found in either location
 - Used during application initialization only (not called repeatedly)
 - **Security**: Key Vault stores secrets securely with RBAC access control
+
+## 🔧 Troubleshooting
+
+### Maps not loading? Check Azure Maps key retrieval:
+
+**If maps load after adding the key to app settings (workaround):**
+
+1. **Key Vault access issue**
+   - Verify SWA Managed Identity has `Key Vault Secrets User` role:
+     ```powershell
+     az role assignment list --assignee <swa-principal-id> --scope <kv-resource-id>
+     ```
+   - Verify Key Vault has `AZURE-MAPS-SUBSCRIPTION-KEY` secret created
+   - Check KV network access: should be `Allow public access from all networks` OR SWA → KV via private endpoint
+
+2. **Fallback to app settings**
+   - As a temporary workaround, add `AZURE_MAPS_SUBSCRIPTION_KEY` to SWA app settings
+   - The config API will use it automatically if Key Vault retrieval fails
+   - Check SWA function logs to see which retrieval method is being used (look for ✅, ⚠️, or ❌ messages)
+
+3. **Typical behavior:**
+   - ✅ Primary: Retrieve from Key Vault (preferred)
+   - ⚠️ Fallback: Use app setting if KV fails
+   - ❌ No key: Maps won't load
+
+### To view logs:
+- App Insights (if enabled on SWA) → Logs query
+- Check stderr/stdout in function logs if available
