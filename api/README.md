@@ -1,4 +1,4 @@
-# Azure Function App - Sentinel Activity Maps API
+# Azure Function App - Global Threat Intelligence Atlas API
 
 Backend Azure Function App that queries Microsoft Sentinel Log Analytics, enriches data with geolocation, and stores results in Azure Blob Storage.
 

@@ -1,6 +1,6 @@
 # GitHub Actions Workflows
 
-This directory contains CI/CD workflows for automated deployment and testing of the Sentinel Activity Maps application.
+This directory contains CI/CD workflows for automated deployment and testing of the Global Threat Intelligence Atlas application.
 
 ## Workflows
 

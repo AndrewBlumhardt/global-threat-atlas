@@ -1,10 +1,10 @@
-# Sentinel Activity Maps
+# Global Threat Intelligence Atlas
 
 Interactive geospatial visualization of Microsoft Sentinel security data. This project combines an Azure Static Web App frontend with an Azure Functions Python backend to query, enrich, and display threat intelligence and security telemetry on an interactive map.
 
 ## 🎯 Overview
 
-**Sentinel Activity Maps** helps security teams visualize and analyze:
+**Global Threat Intelligence Atlas** helps security teams visualize and analyze:
 - Azure AD sign-in activity across geographic locations
 - Microsoft Defender for Endpoint (MDE) device locations
 - Threat intelligence indicators with geographic context

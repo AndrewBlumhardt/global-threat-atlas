@@ -1,6 +1,6 @@
 # Frontend Source Code
 
-JavaScript modules for the Sentinel Activity Maps web application.
+JavaScript modules for the Global Threat Intelligence Atlas web application.
 
 ## 📁 Directory Structure
 

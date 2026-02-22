@@ -1,4 +1,4 @@
-# Sentinel Activity Maps - Frontend
+# Global Threat Intelligence Atlas - Frontend
 
 Azure Maps-based frontend for visualizing Microsoft Sentinel activity data.
 

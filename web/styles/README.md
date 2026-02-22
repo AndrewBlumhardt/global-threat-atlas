@@ -1,6 +1,6 @@
 # Styles
 
-CSS stylesheets for the Sentinel Activity Maps application.
+CSS stylesheets for the Global Threat Intelligence Atlas application.
 
 ## 📄 Files
 
