@@ -1,9 +1,9 @@
 // Constants for auto-scroll behavior
 // Levels intentionally span from visibly slow to very fast for ambient map motion.
 const AUTO_SCROLL_SPEED_LEVELS = {
-  1: 1.8,
-  2: 3.5,
-  3: 6,
+  1: 4,
+  2: 7,
+  3: 9,
   4: 10,
   5: 16,
 };
