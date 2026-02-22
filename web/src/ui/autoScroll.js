@@ -149,7 +149,8 @@ export function addAutoScrollControl(map) {
     animationFrameId = requestAnimationFrame(scroll);
   }
 
-  button.addEventListener("click", () => {
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
     scrolling = !scrolling;
 
     if (scrolling) {
@@ -178,6 +179,10 @@ export function addAutoScrollControl(map) {
       speedMenu.style.display = "none";
       clearMenuAutoHide();
     }
+  });
+
+  speedMenu.addEventListener("click", (event) => {
+    event.stopPropagation();
   });
 
   speedMenu.addEventListener("mouseenter", () => {
