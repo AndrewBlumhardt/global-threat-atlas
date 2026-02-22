@@ -1,11 +1,11 @@
 // Constants for auto-scroll behavior
 // Levels intentionally span from visibly slow to very fast for ambient map motion.
 const AUTO_SCROLL_SPEED_LEVELS = {
-  1: 0.2,
-  2: 0.3,
-  3: 0.4,
-  4: 0.8,
-  5: 1.4,
+  1: 1.8,
+  2: 3.5,
+  3: 6,
+  4: 10,
+  5: 16,
 };
 const DEFAULT_SPEED_LEVEL = 2;
 const AUTO_SCROLL_DIRECTION = "right"; // "left" or "right"
@@ -17,6 +17,7 @@ export function addAutoScrollControl(map) {
   let animationFrameId = null;
   let speedLevel = DEFAULT_SPEED_LEVEL;
   let menuHideTimerId = null;
+  let lastFrameTime = null;
 
   const control = document.createElement("div");
   control.className = "azure-maps-control-container";
@@ -122,20 +123,31 @@ export function addAutoScrollControl(map) {
     }
   });
 
-  function scroll() {
+  function scroll(timestamp) {
     if (!scrolling) return;
+
+    if (lastFrameTime === null) {
+      lastFrameTime = timestamp;
+    }
+
+    // Cap frame delta to avoid large camera jumps after tab/device stalls.
+    const deltaMs = Math.min(timestamp - lastFrameTime, 100);
+    lastFrameTime = timestamp;
+    const deltaSeconds = deltaMs / 1000;
 
     const camera = map.getCamera();
     let newCenter = [...camera.center];
-    const speed = AUTO_SCROLL_SPEED_LEVELS[speedLevel] ?? AUTO_SCROLL_SPEED_LEVELS[DEFAULT_SPEED_LEVEL];
+    // Speed values are degrees per second for consistent behavior across devices.
+    const speedPerSecond = AUTO_SCROLL_SPEED_LEVELS[speedLevel] ?? AUTO_SCROLL_SPEED_LEVELS[DEFAULT_SPEED_LEVEL];
+    const longitudeDelta = speedPerSecond * deltaSeconds;
 
     if (AUTO_SCROLL_DIRECTION === "right") {
-      newCenter[0] += speed;
+      newCenter[0] += longitudeDelta;
       if (newCenter[0] > MAX_LONGITUDE) {
         newCenter[0] = MIN_LONGITUDE;
       }
     } else {
-      newCenter[0] -= speed;
+      newCenter[0] -= longitudeDelta;
       if (newCenter[0] < MIN_LONGITUDE) {
         newCenter[0] = MAX_LONGITUDE;
       }
@@ -160,13 +172,15 @@ export function addAutoScrollControl(map) {
       refreshSpeedMenuState();
       speedMenu.style.display = "block";
       scheduleMenuAutoHide();
-      scroll();
+      lastFrameTime = null;
+      animationFrameId = requestAnimationFrame(scroll);
     } else {
       button.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
       button.style.color = "#333";
       button.style.borderColor = "rgba(255, 255, 255, 0.5)";
       speedMenu.style.display = "none";
       clearMenuAutoHide();
+      lastFrameTime = null;
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
