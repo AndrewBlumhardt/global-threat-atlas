@@ -6,7 +6,8 @@
 
 ## 📋 Purpose
 
-Returns Azure Maps configuration for the frontend application, including subscription key and default settings.
+Returns Azure Maps configuration for the frontend application.
+Primary model proxies to Function App `/api/config` so SWA does not need to store Maps key.
 
 ## 🔧 Function Details
 
@@ -31,10 +32,13 @@ Host: your-site.azurestaticapps.net
 
 ## 🔑 Environment Variables
 
-Required in Static Web App settings:
-- \AZURE_MAPS_SUBSCRIPTION_KEY\ - Azure Maps subscription key (actual value, not encrypted)
-- \STORAGE_ACCOUNT_URL\ - Blob storage URL
-- \STORAGE_CONTAINER_DATASETS\ - Container name (default: "datasets")
+Recommended in Static Web App settings:
+- \FUNCTION_APP_BASE_URL\ - Function App base URL (example: `https://func-sentinel-activity-maps.azurewebsites.net`)
+
+Optional SWA fallback settings:
+- \AZURE_MAPS_SUBSCRIPTION_KEY\ - Used only if Function proxy is unavailable
+- \STORAGE_ACCOUNT_URL\ - Optional fallback value
+- \STORAGE_CONTAINER_DATASETS\ - Optional fallback value (default: "datasets")
 
 ## 🎨 Frontend Usage
 
@@ -54,50 +58,46 @@ const map = new atlas.Map('map-container', {
 
 ## 📝 How It Works
 
-1. API reads \AZURE_MAPS_SUBSCRIPTION_KEY\ from SWA app settings
-2. Returns the key in the JSON response
-3. Frontend uses the key to authenticate with Azure Maps
-4. Maps library handles authentication via the subscription key
+1. API checks \FUNCTION_APP_BASE_URL\ and calls `FUNCTION_APP_BASE_URL/api/config`
+2. If proxy succeeds, returns Function-provided config (preferred)
+3. If proxy fails, falls back to local SWA app settings
+4. Frontend uses returned key to authenticate with Azure Maps
 
-## ⚠️ Important: Why Not Key Vault?
+## 🔐 Security Model
 
-Azure Static Web Apps has a limitation:
-- **SWA doesn't auto-resolve Key Vault references** (\@Microsoft.KeyVault(...)\) in custom app settings
-- Only built-in authentication settings leverage Key Vault references
-- Custom APIs in SWA cannot use \DefaultAzureCredential()\ and REST API with MI is unreliable
-
-**Solution**: Store the Maps subscription key as a plain value in SWA app settings because:
-1. It's not a sensitive credential (rate-limited and publicly available)
-2. It can be rotated independently in Azure Maps
-3. Azure Maps service controls which APIs are enabled
-4. Simplifies deployment and avoids SWA MI limitations
-
-*Note: For other sensitive data (storage connection string, secrets), use app settings or managed identity where possible.*
+- Function App owns data access and can source Maps key from Function app settings or Key Vault.
+- SWA config endpoint acts as a lightweight proxy.
+- This avoids SWA managed identity/key-vault limitations for custom API code.
 
 ## 🔧 Troubleshooting
 
 ### Maps not loading?
 
-**1. Verify app settings have the key:**
+**1. Verify proxy target is configured:**
 \\\powershell
-az staticwebapp appsettings list --name swa-sentinel-maps --resource-group rg-sentinel-activity-maps --query "properties.AZURE_MAPS_SUBSCRIPTION_KEY"
+az staticwebapp appsettings list --name swa-sentinel-maps --resource-group rg-sentinel-activity-maps --query "properties.FUNCTION_APP_BASE_URL"
 \\\
 
-**2. Check browser console for config API response:**
-\\\javascript
+**2. Verify Function config endpoint responds:**
+\\\powershell
+curl https://func-sentinel-activity-maps.azurewebsites.net/api/config
+\\\
+
+**3. Check browser console for config API response:**
+\\\powershell
 fetch('/api/config').then(r => r.json()).then(c => {
   console.log('Maps key present:', !!c.azureMapsKey);
   console.log('Key length:', c.azureMapsKey?.length);
-  console.log('First 10 chars:', c.azureMapsKey?.substring(0, 10));
 })
 \\\
 
 **Expected output:**
 - \Key length: 84\
-- First 10 chars: alphanumeric (e.g., "8fyBIXhcvT")
 
-**3. If empty, troubleshoot:**
-- Verify \AZURE_MAPS_SUBSCRIPTION_KEY\ is set in SWA app settings
+
+**4. If empty, troubleshoot:**
+- Verify Function App has \AZURE_MAPS_SUBSCRIPTION_KEY\ or Key Vault setup
+- Verify \FUNCTION_APP_BASE_URL\ is set correctly in SWA app settings
 - Wait a few seconds for SWA to restart after updating settings
 - Hard refresh browser (Ctrl+Shift+R)
 - Check browser network tab: \/api/config\ response should include the key

@@ -28,6 +28,57 @@ logger = logging.getLogger(__name__)
 app = func.FunctionApp()
 
 
+@app.route(route="config", methods=["GET", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
+def get_config(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Return frontend configuration from the Function App side.
+    This keeps Azure Maps key ownership on the Function App (not SWA settings).
+    """
+    if req.method == 'OPTIONS':
+        return func.HttpResponse(
+            status_code=200,
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Max-Age': '3600'
+            }
+        )
+
+    maps_key = os.environ.get('AZURE_MAPS_SUBSCRIPTION_KEY', '')
+    storage_account_url = os.environ.get('STORAGE_ACCOUNT_URL', '')
+    datasets_container = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
+
+    # Optionally load Maps key from Key Vault when configured.
+    if not maps_key:
+        key_vault_name = os.environ.get('KEY_VAULT_NAME', '')
+        if key_vault_name:
+            try:
+                kv_client = KeyVaultClient(key_vault_name)
+                maps_key = kv_client.get_secret(
+                    secret_name='AZURE-MAPS-SUBSCRIPTION-KEY',
+                    fallback_env_var='AZURE_MAPS_SUBSCRIPTION_KEY'
+                ) or ''
+            except Exception as e:
+                logger.warning(f"Config endpoint Key Vault lookup failed: {e}")
+
+    payload = {
+        'azureMapsKey': maps_key,
+        'storageAccountUrl': storage_account_url,
+        'datasetsContainer': datasets_container
+    }
+
+    return func.HttpResponse(
+        body=json.dumps(payload),
+        mimetype='application/json',
+        headers={
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Content-Type': 'application/json'
+        }
+    )
+
+
 @app.route(route="refresh", methods=["GET", "POST"], auth_level=func.AuthLevel.ANONYMOUS)
 def refresh(req: func.HttpRequest) -> func.HttpResponse:
     """
