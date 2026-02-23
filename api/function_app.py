@@ -819,8 +819,8 @@ def generate_geojson(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="data/{filename}", methods=["GET", "HEAD", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def get_data(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Serve blob storage data (retrieves via proxy, hiding account keys from browser).
-    Uses connection string for reliable blob access.
+    Serve blob storage data through a function proxy (hides storage details from browser).
+    Uses managed identity with STORAGE_ACCOUNT_URL and RBAC (no storage keys).
     
     Route parameters:
         - filename: Blob name (e.g., 'threat-intel.geojson', 'custom-source.geojson')
@@ -878,22 +878,24 @@ def get_data(req: func.HttpRequest) -> func.HttpResponse:
         logger.info(f'Requesting blob: {blob_name}')
         
         # Get storage configuration
-        connection_string = os.environ.get('STORAGE_CONNECTION_STRING', '')
+        storage_account_url = os.environ.get('STORAGE_ACCOUNT_URL', '')
         container_name = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
         
-        if not connection_string:
-            logger.error('STORAGE_CONNECTION_STRING not configured')
+        if not storage_account_url:
+            logger.error('STORAGE_ACCOUNT_URL not configured')
             return func.HttpResponse(
-                json.dumps({"error": "Storage not configured"}),
+                json.dumps({"error": "Storage not configured - STORAGE_ACCOUNT_URL missing"}),
                 status_code=500,
                 mimetype='application/json',
                 headers={'Access-Control-Allow-Origin': '*'}
             )
         
-        # Create BlobServiceClient with connection string
+        # Create BlobServiceClient with managed identity
+        from azure.identity import DefaultAzureCredential
         from azure.storage.blob import BlobServiceClient
-        blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-        logger.info(f'✅ BlobServiceClient created')
+        credential = DefaultAzureCredential()
+        blob_service_client = BlobServiceClient(account_url=storage_account_url, credential=credential)
+        logger.info(f'✅ BlobServiceClient created (managed identity)')
         
         # Get blob client
         blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)

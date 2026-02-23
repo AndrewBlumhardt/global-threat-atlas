@@ -67,7 +67,7 @@ When `?demo=true` query parameter is present:
 #### Configuration Error (500)
 ```json
 {
-  "error": "Storage not configured - STORAGE_CONNECTION_STRING missing"
+  "error": "Storage not configured - STORAGE_ACCOUNT_URL missing"
 }
 ```
 
@@ -79,7 +79,7 @@ When `?demo=true` query parameter is present:
 ## 🔑 Environment Variables
 
 Required in Static Web App settings:
-- `STORAGE_CONNECTION_STRING` - Azure Storage connection string
+- `STORAGE_ACCOUNT_URL` - Azure Storage account blob URL (e.g. `https://<account>.blob.core.windows.net`)
 - `STORAGE_CONTAINER_DATASETS` - Container name (default: "datasets")
 
 ## 📊 Data Flow
@@ -121,8 +121,8 @@ const tsvText = await tsvResponse.text();
 
 ## 🛡️ Security
 
-- Uses **connection string** (not managed identity) for Python SDK compatibility
-- Connection string stored in SWA application settings (not exposed to frontend)
+- Uses **managed identity** with `DefaultAzureCredential` (no storage account keys)
+- Storage account URL is stored in app settings; authentication uses RBAC
 - Anonymous access allowed (data is non-sensitive geolocation info)
 - CORS enabled for browser access
 
@@ -138,7 +138,7 @@ Function logs:
 ## ⚠️ Error Handling
 
 The function handles:
-- Missing `STORAGE_CONNECTION_STRING` → 500 error with clear message
+- Missing `STORAGE_ACCOUNT_URL` → 500 error with clear message
 - Blob not found → 404 error with blob details
 - Invalid blob names → 400 error
 - Storage connection failures → 500 error with exception details
