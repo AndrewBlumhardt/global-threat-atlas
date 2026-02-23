@@ -24,7 +24,8 @@ export function setDemoMode(enabled) {
  * This retrieves blobs from secure storage without exposing account keys
  */
 export function getDataUrl(filename) {
-  // Use Function App endpoint (uses MI, no account keys exposed)
-  const baseUrl = `https://func-sentinel-activity-maps.azurewebsites.net/api/data/${filename}`;
+  // Use same-origin API route so SWA can forward to the linked Function App.
+  // This avoids hard-coding a function host and keeps the browser unaware of storage details.
+  const baseUrl = `/api/data/${filename}`;
   return demoMode ? `${baseUrl}?demo=true` : baseUrl;
 }
