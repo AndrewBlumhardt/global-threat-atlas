@@ -34,6 +34,7 @@ Host: your-site.azurestaticapps.net
 
 Recommended in Static Web App settings:
 - \FUNCTION_APP_BASE_URL\ - Function App base URL (example: `https://func-sentinel-activity-maps.azurewebsites.net`)
+- \REQUIRE_FUNCTION_CONFIG_PROXY\ - Set `true` to block local SWA fallback and require Function-provided config
 
 Optional SWA fallback settings:
 - \AZURE_MAPS_SUBSCRIPTION_KEY\ - Used only if Function proxy is unavailable
@@ -62,6 +63,11 @@ const map = new atlas.Map('map-container', {
 2. If proxy succeeds, returns Function-provided config (preferred)
 3. If proxy fails, falls back to local SWA app settings
 4. Frontend uses returned key to authenticate with Azure Maps
+
+Response includes `configSource` for verification:
+- `function-proxy` when config was proxied from Function App
+- `swa-fallback` when local SWA fallback was used
+- `proxy-required-error` when strict mode is enabled and proxy is unavailable
 
 ## 🔐 Security Model
 
