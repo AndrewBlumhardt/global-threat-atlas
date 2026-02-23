@@ -8,14 +8,6 @@ import logging
 import json
 import azure.functions as func
 from datetime import datetime, timedelta
-from shared.config_loader import ConfigLoader
-from shared.log_analytics_client import LogAnalyticsClient
-from shared.blob_storage import BlobStorageClient
-from shared.tsv_writer import TSVWriter
-from shared.refresh_policy import RefreshPolicy
-from shared.geo_enrichment import GeoEnrichmentClient
-from shared.file_age_checker import check_file_age, get_file_stats
-from shared.key_vault_client import KeyVaultClient
 
 # Configure logging
 logging.basicConfig(
@@ -23,6 +15,28 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Guard shared imports so route indexing does not fail if a backend dependency is missing.
+MODULE_IMPORT_ERROR = None
+try:
+    from shared.config_loader import ConfigLoader
+    from shared.log_analytics_client import LogAnalyticsClient
+    from shared.blob_storage import BlobStorageClient
+    from shared.tsv_writer import TSVWriter
+    from shared.refresh_policy import RefreshPolicy
+    from shared.geo_enrichment import GeoEnrichmentClient
+    from shared.file_age_checker import check_file_age, get_file_stats
+except Exception as import_error:
+    MODULE_IMPORT_ERROR = import_error
+    ConfigLoader = None
+    LogAnalyticsClient = None
+    BlobStorageClient = None
+    TSVWriter = None
+    RefreshPolicy = None
+    GeoEnrichmentClient = None
+    check_file_age = None
+    get_file_stats = None
+    logger.exception("Shared module import failed; lightweight routes remain available.")
 
 # Initialize Azure Functions app
 app = func.FunctionApp()
@@ -54,6 +68,7 @@ def get_config(req: func.HttpRequest) -> func.HttpResponse:
         key_vault_name = os.environ.get('KEY_VAULT_NAME', '')
         if key_vault_name:
             try:
+                from shared.key_vault_client import KeyVaultClient
                 kv_client = KeyVaultClient(key_vault_name)
                 maps_key = kv_client.get_secret(
                     secret_name='AZURE-MAPS-SUBSCRIPTION-KEY',
@@ -96,6 +111,18 @@ def refresh(req: func.HttpRequest) -> func.HttpResponse:
     """
     correlation_id = req.params.get('correlation_id', req.headers.get('X-Correlation-ID', 'none'))
     logger.info(f"[{correlation_id}] Refresh request received")
+
+    if MODULE_IMPORT_ERROR is not None:
+        logger.error(f"[{correlation_id}] Backend modules unavailable: {MODULE_IMPORT_ERROR}")
+        return func.HttpResponse(
+            json.dumps({
+                'message': 'Backend modules unavailable',
+                'error': str(MODULE_IMPORT_ERROR),
+                'correlation_id': correlation_id
+            }),
+            status_code=500,
+            mimetype="application/json"
+        )
     
     # Parse parameters
     source_id = req.params.get('source_id')
