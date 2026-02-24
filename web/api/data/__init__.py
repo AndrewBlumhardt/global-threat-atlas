@@ -100,13 +100,15 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             )
         except urllib_error.HTTPError as http_error:
             logger.warning(f'Function App data proxy returned HTTP error: {http_error.code}')
-            error_body = http_error.read()
-            return func.HttpResponse(
-                body=error_body,
-                status_code=http_error.code,
-                mimetype=http_error.headers.get('Content-Type', 'application/json'),
-                headers={'Access-Control-Allow-Origin': '*'}
-            )
+            if require_proxy:
+                error_body = http_error.read()
+                return func.HttpResponse(
+                    body=error_body,
+                    status_code=http_error.code,
+                    mimetype=http_error.headers.get('Content-Type', 'application/json'),
+                    headers={'Access-Control-Allow-Origin': '*'}
+                )
+            logger.info('Function App data proxy is optional; falling back to local blob read path')
         except Exception as proxy_error:
             logger.warning(f'Function App data proxy failed, using local fallback: {proxy_error}')
             if require_proxy:
