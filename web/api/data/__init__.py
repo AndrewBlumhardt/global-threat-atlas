@@ -161,29 +161,31 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             )
 
         # Create BlobServiceClient with managed identity first.
-        # Fallback to connection string only if MI auth fails.
+        # Prefer connection string when configured for stable auth in SWA runtime.
+        # Fallback to managed identity when no connection string is set.
         logger.info(f'Creating blob service client for container: {container_name}')
-        try:
-            if DefaultAzureCredential is None:
-                raise RuntimeError(f'Identity SDK unavailable: {IDENTITY_SDK_IMPORT_ERROR}')
-            credential = DefaultAzureCredential()
-            blob_service_client = BlobServiceClient(account_url=storage_account_url, credential=credential)
-            logger.info('✅ BlobServiceClient created (managed identity)')
-        except Exception as mi_error:
-            logger.warning(f'Managed identity auth failed in SWA API fallback: {mi_error}')
-            connection_string = os.environ.get('STORAGE_CONNECTION_STRING', '')
-            if not connection_string:
+        connection_string = os.environ.get('STORAGE_CONNECTION_STRING', '')
+        if connection_string:
+            blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+            logger.info('✅ BlobServiceClient created (connection string)')
+        else:
+            try:
+                if DefaultAzureCredential is None:
+                    raise RuntimeError(f'Identity SDK unavailable: {IDENTITY_SDK_IMPORT_ERROR}')
+                credential = DefaultAzureCredential()
+                blob_service_client = BlobServiceClient(account_url=storage_account_url, credential=credential)
+                logger.info('✅ BlobServiceClient created (managed identity)')
+            except Exception as mi_error:
+                logger.warning(f'Managed identity auth failed in SWA API fallback: {mi_error}')
                 return func.HttpResponse(
                     json.dumps({
                         'error': 'Storage authentication unavailable',
-                        'details': 'Managed identity failed and STORAGE_CONNECTION_STRING is missing'
+                        'details': 'STORAGE_CONNECTION_STRING missing and managed identity auth failed'
                     }),
                     status_code=500,
                     mimetype='application/json',
                     headers={'Access-Control-Allow-Origin': '*'}
                 )
-            blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-            logger.info('✅ BlobServiceClient created (connection string fallback)')
         
         # Get blob client
         blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
