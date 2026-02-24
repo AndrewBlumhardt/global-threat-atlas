@@ -5,14 +5,26 @@ Uses STORAGE_CONNECTION_STRING to access blob storage.
 import azure.functions as func
 import logging
 import json
-from azure.storage.blob import BlobServiceClient
-from azure.identity import DefaultAzureCredential
 import os
 from urllib import request as urllib_request
 from urllib import error as urllib_error
 from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
+
+try:
+    from azure.storage.blob import BlobServiceClient
+    STORAGE_SDK_IMPORT_ERROR = None
+except Exception as import_error:
+    BlobServiceClient = None
+    STORAGE_SDK_IMPORT_ERROR = import_error
+
+try:
+    from azure.identity import DefaultAzureCredential
+    IDENTITY_SDK_IMPORT_ERROR = None
+except Exception as import_error:
+    DefaultAzureCredential = None
+    IDENTITY_SDK_IMPORT_ERROR = import_error
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -137,10 +149,23 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         )
     
     try:
+        if BlobServiceClient is None:
+            return func.HttpResponse(
+                json.dumps({
+                    'error': 'Storage SDK unavailable in SWA data function',
+                    'details': str(STORAGE_SDK_IMPORT_ERROR)
+                }),
+                status_code=500,
+                mimetype='application/json',
+                headers={'Access-Control-Allow-Origin': '*'}
+            )
+
         # Create BlobServiceClient with managed identity first.
         # Fallback to connection string only if MI auth fails.
         logger.info(f'Creating blob service client for container: {container_name}')
         try:
+            if DefaultAzureCredential is None:
+                raise RuntimeError(f'Identity SDK unavailable: {IDENTITY_SDK_IMPORT_ERROR}')
             credential = DefaultAzureCredential()
             blob_service_client = BlobServiceClient(account_url=storage_account_url, credential=credential)
             logger.info('✅ BlobServiceClient created (managed identity)')
