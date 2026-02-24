@@ -1,6 +1,6 @@
 """
-Azure Static Web App API endpoint to proxy threat intelligence data from blob storage.
-Uses managed identity with DefaultAzureCredential and STORAGE_ACCOUNT_URL.
+Azure Static Web App API endpoint to serve threat intelligence data from blob storage.
+Uses STORAGE_CONNECTION_STRING to access blob storage.
 """
 import azure.functions as func
 import logging
@@ -8,6 +8,9 @@ import json
 from azure.storage.blob import BlobServiceClient
 from azure.identity import DefaultAzureCredential
 import os
+from urllib import request as urllib_request
+from urllib import error as urllib_error
+from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +64,64 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     
     logger.info(f'Requesting blob: {blob_name}')
     
-    # Get storage configuration
+    # Preferred path: proxy data request to Function App /api/data endpoint.
+    # This keeps storage auth centralized in the Function App and avoids SWA secrets.
+    function_app_base_url = os.environ.get('FUNCTION_APP_BASE_URL', '').rstrip('/')
+    require_proxy = os.environ.get('REQUIRE_FUNCTION_DATA_PROXY', 'false').lower() == 'true'
+
+    if function_app_base_url:
+        query_pairs = []
+        for key in req.params.keys():
+            value = req.params.get(key)
+            if value is not None:
+                query_pairs.append((key, value))
+
+        query_string = urlencode(query_pairs)
+        target_url = f"{function_app_base_url}/api/data/{filename}"
+        if query_string:
+            target_url = f"{target_url}?{query_string}"
+
+        try:
+            logger.info(f'Proxying data request to Function App: {target_url}')
+            proxy_request = urllib_request.Request(target_url, method=req.method)
+            with urllib_request.urlopen(proxy_request, timeout=20) as response:
+                proxied_body = response.read()
+                proxied_content_type = response.headers.get('Content-Type', content_type)
+
+            return func.HttpResponse(
+                body=proxied_body,
+                status_code=200,
+                mimetype=proxied_content_type,
+                headers={
+                    'Access-Control-Allow-Origin': '*',
+                    'Cache-Control': 'public, max-age=300',
+                    'Content-Type': proxied_content_type
+                }
+            )
+        except urllib_error.HTTPError as http_error:
+            logger.warning(f'Function App data proxy returned HTTP error: {http_error.code}')
+            error_body = http_error.read()
+            return func.HttpResponse(
+                body=error_body,
+                status_code=http_error.code,
+                mimetype=http_error.headers.get('Content-Type', 'application/json'),
+                headers={'Access-Control-Allow-Origin': '*'}
+            )
+        except Exception as proxy_error:
+            logger.warning(f'Function App data proxy failed, using local fallback: {proxy_error}')
+            if require_proxy:
+                return func.HttpResponse(
+                    body=json.dumps({
+                        'error': 'Function data proxy required but unavailable',
+                        'proxyError': str(proxy_error)
+                    }),
+                    status_code=502,
+                    mimetype='application/json',
+                    headers={'Access-Control-Allow-Origin': '*'}
+                )
+
+    # Fallback path: access blob directly from SWA API with managed identity.
+    # Keep this for local/dev resilience when FUNCTION_APP_BASE_URL is not set.
     storage_account_url = os.environ.get('STORAGE_ACCOUNT_URL', '')
     container_name = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
 
@@ -75,11 +135,28 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         )
     
     try:
-        # Create BlobServiceClient with managed identity
+        # Create BlobServiceClient with managed identity first.
+        # Fallback to connection string only if MI auth fails.
         logger.info(f'Creating blob service client for container: {container_name}')
-        credential = DefaultAzureCredential()
-        blob_service_client = BlobServiceClient(account_url=storage_account_url, credential=credential)
-        logger.info('✅ BlobServiceClient created (managed identity)')
+        try:
+            credential = DefaultAzureCredential()
+            blob_service_client = BlobServiceClient(account_url=storage_account_url, credential=credential)
+            logger.info('✅ BlobServiceClient created (managed identity)')
+        except Exception as mi_error:
+            logger.warning(f'Managed identity auth failed in SWA API fallback: {mi_error}')
+            connection_string = os.environ.get('STORAGE_CONNECTION_STRING', '')
+            if not connection_string:
+                return func.HttpResponse(
+                    json.dumps({
+                        'error': 'Storage authentication unavailable',
+                        'details': 'Managed identity failed and STORAGE_CONNECTION_STRING is missing'
+                    }),
+                    status_code=500,
+                    mimetype='application/json',
+                    headers={'Access-Control-Allow-Origin': '*'}
+                )
+            blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+            logger.info('✅ BlobServiceClient created (connection string fallback)')
         
         # Get blob client
         blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)

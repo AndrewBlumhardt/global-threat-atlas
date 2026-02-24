@@ -79,8 +79,13 @@ When `?demo=true` query parameter is present:
 ## 🔑 Environment Variables
 
 Required in Static Web App settings:
-- `STORAGE_ACCOUNT_URL` - Azure Storage account blob URL (e.g. `https://<account>.blob.core.windows.net`)
+- `FUNCTION_APP_BASE_URL` - Function App base URL used for `/api/data/*` proxy (recommended)
 - `STORAGE_CONTAINER_DATASETS` - Container name (default: "datasets")
+
+Optional fallback settings (used only if function proxy is unavailable):
+- `STORAGE_ACCOUNT_URL` - Azure Storage account blob URL (for managed identity fallback)
+- `STORAGE_CONNECTION_STRING` - Emergency/local fallback when managed identity is unavailable
+- `REQUIRE_FUNCTION_DATA_PROXY` - Set to `true` to fail closed if Function App proxy is unreachable
 
 ## 📊 Data Flow
 
@@ -90,7 +95,10 @@ Frontend Request
 API Function (__init__.py)
     ↓ Parse filename and demo flag
     ↓ Determine blob name: demo_data/threat-intel-indicators.geojson
-    ↓ Connect to blob storage via connection string
+    ↓ Proxy to Function App /api/data/{filename} (preferred)
+    ↓ Function App reads blob using managed identity
+    ↓ Return content to SWA API
+    ↓ OR fallback: SWA API reads blob directly with managed identity
     ↓ Download blob content
     ↓ Add CORS headers
     ↓ Return content
