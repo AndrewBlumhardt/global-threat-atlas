@@ -6,29 +6,15 @@ This solution provides a secure, Azure-hosted interactive map for monitoring glo
 
 ## 🎯 Overview
 
-**Global Threat Intelligence Atlas** enables security teams to:
-- Visualize live Entra sign-in activity across global locations
-- Display Microsoft Defender for Endpoint (MDE) device locations
-- Overlay static threat actor maps (manually revised)
-- Geo-locate IPs and devices using MaxMind
-- Upload custom GeoJSON files for static layers
-- View weather overlays (Azure Maps)
-- Use rich map controls with auto-scroll and screen capture
-- Securely host in Azure (Static Web App + Function App)
-- Access a live demo (link below)
+**Global Threat Intelligence Atlas** is a live SOC wall display for:
+- Visualizing Entra sign-in activity and MDE device locations
+- Overlaying static threat actor maps and custom GeoJSON layers
+- Geo-locating IPs/devices with MaxMind
+- Weather overlays, rich map controls, and screen capture
+- Secure, Azure-hosted deployment (Static Web App + Function App)
+- Live demo available
 
-**Key Features:**
-- 🗺️ Interactive map visualization powered by [Leaflet.js](https://leafletjs.com) (open-source JavaScript mapping library; fast, flexible, and widely used for geospatial apps)
-- 🔄 Scheduled data refresh from Microsoft Sentinel (not true real-time; periodic updates)
-- 🌍 Geo-enrichment of IP addresses/devices via MaxMind
-- 📊 Static threat actor overlays from manually revised GeoJSON/TSV files
-- ☁️ Weather overlay (Azure Maps)
-- 📂 Custom GeoJSON file upload for static layers
-- 🖱️ Rich map controls: auto-scroll, layer toggles, screen capture
-- 🔒 Secure Azure hosting (Managed Identity, no keys in code)
-- 🚀 Live demo available
-
-> **Note:** Entra sign-in activity replaces Azure AD terminology. Custom security telemetry is sourced from static GeoJSON and TSV files, not Log Analytics.
+Powered by [Leaflet.js](https://leafletjs.com) for fast, interactive map rendering.
 
 ## 🏗️ Architecture
 
@@ -300,6 +286,10 @@ Configure these in Azure Function App Settings:
 | `STORAGE_CONTAINER_LOCKS` | Container name for lock files | ✅ |
 | `MAXMIND_LICENSE_KEY` | MaxMind GeoLite2 license (optional) | ❌ |
 | `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval (default: 300) | ❌ |
+
+## Configuration Notes
+
+- You may use a custom domain for your Static Web App (SWA) deployment. See Azure SWA documentation for setup.
 
 ## 💡 Features
 
