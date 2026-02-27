@@ -1,22 +1,34 @@
 # Global Threat Intelligence Atlas
 
-Interactive geospatial visualization of Microsoft Sentinel security data. This project combines an Azure Static Web App frontend with an Azure Functions Python backend to query, enrich, and display threat intelligence and security telemetry on an interactive map.
+Live Security Operations Center (SOC) wall display for threat activity visualization.
+
+This solution provides a secure, Azure-hosted interactive map for monitoring global threat activity, integrating live Microsoft Sentinel data, static threat actor maps, and geo-located IPs/devices. Designed for SOCs, it supports real-time situational awareness and rich map controls.
 
 ## 🎯 Overview
 
-**Global Threat Intelligence Atlas** helps security teams visualize and analyze:
-- Azure AD sign-in activity across geographic locations
-- Microsoft Defender for Endpoint (MDE) device locations
-- Threat intelligence indicators with geographic context
-- Custom security telemetry from Log Analytics
+**Global Threat Intelligence Atlas** enables security teams to:
+- Visualize live Entra sign-in activity across global locations
+- Display Microsoft Defender for Endpoint (MDE) device locations
+- Overlay static threat actor maps (manually revised)
+- Geo-locate IPs and devices using MaxMind
+- Upload custom GeoJSON files for static layers
+- View weather overlays (Azure Maps)
+- Use rich map controls with auto-scroll and screen capture
+- Securely host in Azure (Static Web App + Function App)
+- Access a live demo (link below)
 
 **Key Features:**
-- 🗺️ Interactive map visualization using Leaflet.js
-- 🔄 Real-time data refresh from Microsoft Sentinel
-- 🌍 Automatic geo-enrichment of IP addresses
-- 🔒 Secure authentication via Azure Managed Identity
-- 📊 Customizable KQL queries for any Log Analytics data
-- 🚀 One-command deployment to Azure
+- 🗺️ Interactive map visualization powered by [Leaflet.js](https://leafletjs.com) (open-source JavaScript mapping library; fast, flexible, and widely used for geospatial apps)
+- 🔄 Scheduled data refresh from Microsoft Sentinel (not true real-time; periodic updates)
+- 🌍 Geo-enrichment of IP addresses/devices via MaxMind
+- 📊 Static threat actor overlays from manually revised GeoJSON/TSV files
+- ☁️ Weather overlay (Azure Maps)
+- 📂 Custom GeoJSON file upload for static layers
+- 🖱️ Rich map controls: auto-scroll, layer toggles, screen capture
+- 🔒 Secure Azure hosting (Managed Identity, no keys in code)
+- 🚀 Live demo available
+
+> **Note:** Entra sign-in activity replaces Azure AD terminology. Custom security telemetry is sourced from static GeoJSON and TSV files, not Log Analytics.
 
 ## 🏗️ Architecture
 
@@ -46,7 +58,7 @@ Interactive geospatial visualization of Microsoft Sentinel security data. This p
 └─────────────────────┘
 ```
 
-## � Azure Costs
+## Azure Costs
 
 This solution uses several Azure services with associated costs. Here's a breakdown to help you budget:
 
