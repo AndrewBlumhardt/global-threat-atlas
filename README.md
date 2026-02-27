@@ -145,7 +145,6 @@ The `tests` directory contains:
 These scripts and files are for development/testing only and not required for normal app runtime or deployment.
 ```
 
-📖 **See individual README files in each directory for detailed documentation**
 
 ## 🚀 Getting Started
 
