@@ -57,53 +57,9 @@ Powered by [Leaflet.js](https://leafletjs.com).
 
 ## Azure Costs
 
-This solution uses several Azure services with associated costs. Here's a breakdown to help you budget:
+**Typical monthly cost:** $10–20 USD for most demo or small production environments (Static Web App, Functions, Storage, Maps). Add Defender for Cloud for advanced protection.
 
-### Service Cost Summary
-
-| Service | Tier | Monthly Cost | Notes |
-|---------|------|--------------|-------|
-| **Azure Static Web App** | Standard | ~$9 USD | Required for Managed Identity (keyless auth) |
-| **Azure Functions** | Consumption | ~$0-2 USD | Pay-per-execution; typically free under grant |
-| **Azure Storage** | Standard (LRS) | ~$1-5 USD | Stores TSV/GeoJSON data files |
-| **Azure Key Vault** | Standard | ~$0.03 USD | Secure secret storage (Maps, MaxMind keys) |
-| **Azure Maps** | Gen2 (Free/Paid) | ~$0-5 USD | Free tier sufficient; paid needed for weather |
-| | | **~$10-20 USD/month** | **Base infrastructure** |
-| **Defender for Cloud** | Recommended | **+$25-40 USD/month** | **Threat protection (recommended except personal demos)** |
-
-### Key Service Details
-
-**Azure Static Web App (Standard)** - $9/month required for Managed Identity support. Free tier requires storing keys in app settings (security risk).
-
-**Azure Maps** - Free tier (5,000 transactions/month) covers basic mapping. Paid tier (~$0.50 per 1,000 transactions) required only for weather radar/infrared overlays.
-
-**Azure Functions (Consumption)** - First 1M executions free monthly. This app typically runs hourly/daily refreshes, staying within free grant.
-
-**Storage & Key Vault** - Minimal costs for low data volumes. Key Vault operations typically <1,000/month (effectively free at $0.03 per 10k operations).
-
-### 🛡️ Microsoft Defender for Cloud
-
-**Recommended for all Azure deployments handling security data** (except personal demo tenants). Provides threat detection, malware scanning, and compliance monitoring.
-
-| Defender Plan | Monthly Cost | Protection |
-|--------------|--------------|------------|
-| **Defender for Storage** | ~$10/account | Malware scanning, activity monitoring |
-| **Defender for App Service** | ~$15/plan | Runtime threat detection |
-| **Defender for Key Vault** | ~$0.02/10k ops | Anomalous access detection |
-| **Defender CSPM (Premium)** | ~$5/resource | Attack path analysis, governance |
-
-**Cost Optimization:** Share Storage Accounts and Key Vaults across multiple apps to reduce per-app Defender costs (e.g., $10 for shared storage vs $10 per app).
-
-**Foundational CSPM (Free):** Basic security recommendations and secure score included at no cost for all environments.
-
-### Total Monthly Estimate
-
-| Configuration | Monthly Cost | Use Case |
-|--------------|--------------|----------|
-| **Base Infrastructure** | ~$10-20 | Personal demos only |
-| **With Defender for Cloud** | ~$35-60 | All corporate/production environments |
-
-💡 **Recommendation:** Budget $35-60/month for secured deployments. Use base infrastructure ($10-20) only for personal learning environments.
+**MaxMind:** This project uses a free GeoLite2 license for IP geolocation. Business users may need a paid MaxMind license to comply with commercial terms—see [MaxMind licensing](https://www.maxmind.com) for details.
 
 ## 🚀 Quick Deploy
 
