@@ -81,28 +81,7 @@ Deploy the entire application to Azure in ~5 minutes:
 - Azure CLI installed and authenticated
 - Owner or Contributor role on subscription or target resource group
 
-│  (Sentinel)         │    │  - datasets/         │
 
-# README RESET PLACEHOLDER
-
-This file was reset to clear merge conflicts and repository state. Please restore your intended content and commit again.
-./deploy.sh --workspace-id "YOUR-WORKSPACE-ID" --cloud AzureUSGovernment
-```
-
-**Requirements:**
-- Azure CLI installed and authenticated
-- Owner or Contributor role on subscription or target resource group
-- Microsoft Sentinel workspace with data
-
-**What gets deployed:**
-- Azure Function App (Python backend)
-- Azure Static Web App (frontend)
-- Storage Account (data + locks)
-- Managed Identity with required RBAC roles
-
-**Deployment model:**
-- Frontend (SWA) deploys via GitHub Actions (`azure-static-web-apps.yml`)
-- Stand-alone Function App deploys via CLI or function workflow (`deploy-function.yml`)
 
 ## 📁 Repository Structure
 
