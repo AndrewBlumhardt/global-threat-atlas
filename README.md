@@ -1,9 +1,3 @@
-
-
-
-
-
-
 # Global Threat Intelligence Atlas
 
 <img src="screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="600"/>
@@ -145,38 +139,6 @@ The `tests` directory contains:
 These scripts and files are for development/testing only and not required for normal app runtime or deployment.
 ```
 
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- **Azure Resources:**
-  - Microsoft Sentinel workspace (or Log Analytics with security data)
-  - Azure subscription with Owner/Contributor access
-- **Tools:**
-  - [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) (for deployment)
-  - [Python 3.11+](https://www.python.org/downloads/) (for local development)
-  - [Azure Functions Core Tools](https://learn.microsoft.com/azure/azure-functions/functions-run-local) (for local testing)
-
-### Deployment Options
-
-#### Option 1: Automated Deployment (Recommended)
-Use the deployment scripts to automatically create all resources:
-
-```powershell
-# Login to Azure
-az login
-
-# Deploy everything
-.\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID"
-```
-
-#### Option 2: GitHub Actions CI/CD
-Set up automated deployments on every commit:
-1. Configure OIDC authentication (see [workflows README](.github/workflows/README.md))
-2. Add repository secrets
-3. Push to `main` branch
-
 ### Post-Deployment
 
 1. **Verify backend health:**
@@ -196,42 +158,6 @@ Set up automated deployments on every commit:
 
 ## 🔧 Configuration
 
-### Adding Custom Data Sources
-
-Edit [api/sources.yaml](api/sources.yaml) to add your own KQL queries:
-
-```yaml
-sources:
-  - id: my-custom-source
-    name: "My Security Data"
-    enabled: true
-    refresh_interval_seconds: 3600
-    query_time_window_hours: 24
-    output_filename: "my-data.tsv"
-    kql_query: |
-      MyTable
-      | where TimeGenerated >= ago({time_window}h)
-      | project TimeGenerated, IPAddress, UserName, Action
-      | order by TimeGenerated desc
-    columns:
-      - TimeGenerated
-      - IPAddress
-      - UserName
-      - Action
-```
-
-Deploy your changes:
-```bash
-# Via script
-cd api
-func azure functionapp publish YOUR-FUNCTION-APP-NAME
-
-# Or via GitHub Actions
-git add api/sources.yaml
-git commit -m "Add custom data source"
-git push origin main
-```
-
 ### Environment Variables
 
 Configure these in Azure Function App Settings:
@@ -242,16 +168,13 @@ Configure these in Azure Function App Settings:
 | `STORAGE_ACCOUNT_URL` | Blob storage URL | ✅ |
 | `STORAGE_CONTAINER_DATASETS` | Container name for data files | ✅ |
 | `STORAGE_CONTAINER_LOCKS` | Container name for lock files | ✅ |
-| `MAXMIND_LICENSE_KEY` | MaxMind GeoLite2 license (optional) | ❌ |
-| `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval (default: 300) | ❌ |
+| `MAXMIND_LICENSE_KEY` | MaxMind GeoLite2 license | ✅ |
+| `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval (default: 300) | ✅ |
 
 ## Configuration Notes
 
 - You may use a custom domain for your Static Web App (SWA) deployment. See Azure SWA documentation for setup.
 
-## 💡 Features
-
-*This section intentionally removed for clarity. See Overview and Architecture for key capabilities.*
 ## 📡 API Reference
 
 ### Backend Endpoints
