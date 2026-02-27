@@ -293,28 +293,7 @@ Configure these in Azure Function App Settings:
 
 ## 💡 Features
 
-**Security:**
-- 🔒 Managed Identity authentication (no secrets in code)
-- 🔐 RBAC-based access control
-- 🛡️ Secure CORS configuration
-
-**Performance:**
-- ⚡ Blob-based locking prevents concurrent refresh conflicts
-- 📊 Incremental queries with watermark tracking
-- 🚦 Time-based throttling prevents excessive queries
-- 🌍 Automatic IP geo-enrichment (MaxMind/Azure Maps)
-
-**Extensibility:**
-- 📝 YAML-based configuration (no code changes needed)
-- 🔌 Pluggable refresh policies
-- 📍 Custom geo-enrichment logic
-- 🗺️ Any Log Analytics table supported
-
-**Observability:**
-- 📈 Application Insights integration
-- 📋 Structured logging with correlation IDs
-- ❤️ Health check endpoints
-- 📊 GitHub Actions status badges
+*This section intentionally removed for clarity. See Overview and Architecture for key capabilities.*
 ## 📡 API Reference
 
 ### Backend Endpoints
