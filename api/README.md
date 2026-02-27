@@ -168,3 +168,21 @@ The function also supports Azure Maps IP Geolocation API (country-only):
 - Set `geo_provider: "azure_maps"` in `sources.yaml`
 - Requires `AZURE_MAPS_SUBSCRIPTION_KEY` environment variable
 - Returns country-level data (no city/coordinates)
+
+## Azure Function Endpoints
+
+The following HTTP-triggered functions are defined in `api/function_app.py`:
+
+| Function Name      | Route/Endpoint         | Purpose                                      | Main File(s)         |
+|--------------------|-----------------------|----------------------------------------------|----------------------|
+| get_config         | /api/config           | Returns frontend config for web app          | function_app.py      |
+| refresh           | /api/refresh          | Refreshes data from Sentinel                 | function_app.py      |
+| health            | /api/health           | Health check endpoint                        | function_app.py      |
+| enrich_geo        | /api/enrich-geo       | Enriches TSV data with geolocation           | function_app.py      |
+| generate_geojson  | /api/generate-geojson | Converts TSV to GeoJSON for map overlays      | function_app.py      |
+| get_data          | /api/data/{filename}  | Serves blob data via proxy                   | function_app.py      |
+| test_geo_lookup   | /api/test-geo-lookup  | Test endpoint for geo provider (dev/test)    | function_app.py, tests/test_local.py |
+
+- All shared utility modules are in `api/shared/` and are required for production endpoints.
+- Test/dev scripts are now in `tests/`.
+- `test_geo_lookup` is for development/testing and not required in production deployments.
