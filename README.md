@@ -9,12 +9,6 @@ Live Security Operations Center (SOC) wall display for threat activity visualiza
 
 This solution provides a secure, Azure-hosted interactive map for monitoring global threat activity, integrating live Microsoft Sentinel data, static threat actor maps, and geo-located IPs/devices. Designed for SOCs, it supports situational awareness and rich map controls.
 
-**Key capabilities:**
-- Visualize Entra sign-in activity and MDE device locations
-- Overlay static threat actor maps and custom GeoJSON layers
-- Geo-locate IPs/devices with MaxMind
-- Weather overlays, rich map controls, and screen capture
-- Secure, Azure-hosted deployment (Static Web App + Function App)
 
 Powered by [Leaflet.js](https://leafletjs.com) for fast, interactive map rendering.
 
