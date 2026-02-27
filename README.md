@@ -2,9 +2,10 @@
 
 
 
+
 # Global Threat Intelligence Atlas
 
-<img src="web/screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="800"/>
+![Global Threat Activity Map](web/screenshot-global-threat-map.png)
 
 [Live Demo](https://jolly-cliff-0f92c201e.2.azurestaticapps.net/)
 
