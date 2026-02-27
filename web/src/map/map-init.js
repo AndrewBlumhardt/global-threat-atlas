@@ -1,10 +1,12 @@
 /* global atlas */
 
+import { getApiUrl } from "../shared/demoMode.js";
+
 /**
  * Fetch Azure Maps configuration from the SWA Functions endpoint.
  */
 async function getMapsConfig() {
-  const resp = await fetch("/api/config", { cache: "no-store" });
+  const resp = await fetch(getApiUrl("/api/config"), { cache: "no-store" });
   if (!resp.ok) throw new Error("Failed to load /api/config: " + resp.status);
   const data = await resp.json();
   // Adapt to current API response format {azureMapsKey: "..."}

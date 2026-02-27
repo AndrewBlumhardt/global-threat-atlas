@@ -21,13 +21,15 @@ This directory contains CI/CD workflows for automated deployment and testing of 
 ### 🌐 azure-static-web-apps.yml
 **Static Web App Deployment**
 - **Triggers:** Push to `main` branch (when `web/**` changes), pull requests, manual dispatch
-- **Purpose:** Deploys the frontend web application and its associated API
+- **Purpose:** Deploys frontend static content only
 - **Process:**
   - Builds and deploys static web content from `/web`
-  - Deploys API functions from `/web/api`
+  - Does not deploy `/web/api` functions
   - Auto-closes preview deployments when PRs are closed
 - **Required Secrets:**
   - `AZURE_STATIC_WEB_APPS_API_TOKEN`
+
+**API Ownership:** Runtime API is served by the stand-alone Function App (`/api/*`) deployed via `deploy-function.yml` or CLI.
 
 ### ✅ lint-test.yml
 **Code Quality Checks**

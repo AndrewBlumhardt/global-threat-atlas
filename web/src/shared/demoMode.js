@@ -5,6 +5,24 @@
 let demoMode = false;
 
 /**
+ * Normalize optional Function App base URL from runtime environment.
+ * When not set, callers fall back to same-origin /api routes.
+ */
+function getFunctionAppBaseUrl() {
+  const rawBaseUrl = window.ENV?.FUNCTION_APP_BASE_URL || "";
+  return rawBaseUrl.replace(/\/+$/, "");
+}
+
+/**
+ * Build API URL path for either direct Function App calls or same-origin fallback.
+ */
+export function getApiUrl(path) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const functionAppBaseUrl = getFunctionAppBaseUrl();
+  return functionAppBaseUrl ? `${functionAppBaseUrl}${normalizedPath}` : normalizedPath;
+}
+
+/**
  * Get current demo mode state
  */
 export function isDemoMode() {
@@ -24,8 +42,7 @@ export function setDemoMode(enabled) {
  * This retrieves blobs from secure storage without exposing account keys
  */
 export function getDataUrl(filename) {
-  // Use same-origin API route so SWA can forward to the linked Function App.
-  // This avoids hard-coding a function host and keeps the browser unaware of storage details.
-  const baseUrl = `/api/data/${filename}`;
+  // Use direct Function App URL when configured; otherwise keep same-origin /api path.
+  const baseUrl = getApiUrl(`/api/data/${filename}`);
   return demoMode ? `${baseUrl}?demo=true` : baseUrl;
 }

@@ -127,6 +127,10 @@ Deploy the entire application to Azure in ~5 minutes:
 - Storage Account (data + locks)
 - Managed Identity with required RBAC roles
 
+**Deployment model:**
+- Frontend (SWA) deploys via GitHub Actions (`azure-static-web-apps.yml`)
+- Stand-alone Function App deploys via CLI or function workflow (`deploy-function.yml`)
+
 ## 📁 Repository Structure
 
 ```
@@ -146,7 +150,7 @@ Deploy the entire application to Azure in ~5 minutes:
 │   │   ├── app.js            # Application logic
 │   │   ├── map/              # Leaflet map components
 │   │   └── data/             # Data fetching
-│   └── api/                  # SWA-integrated API functions
+│   └── api/                  # Legacy SWA API (not deployed in current workflow)
 │
 ├── .github/workflows/         # CI/CD automation
 │   ├── deploy-function.yml   # Backend deployment

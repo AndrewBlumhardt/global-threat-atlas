@@ -46,29 +46,15 @@ Click any marker to find related activities within 300km:
 
 Create `config.js` from template:
 ```javascript
-// config.js
-const config = {
-  azureMapsKey: 'YOUR-AZURE-MAPS-KEY',
-  apiBaseUrl: '/api' // Function App endpoint
-};
-```
-
-Get Azure Maps key:
 ```powershell
 az maps account keys list --name YOUR-MAPS-ACCOUNT --resource-group YOUR-RG
+### API Functions
+
+The `web/api` directory and its Azure Functions are no longer required. The frontend now calls the stand-alone Function App backend directly. All legacy files have been removed.
 ```
 
-### API Base URL
-
-For local development:
-```javascript
-const config = {
-  azureMapsKey: 'YOUR-KEY',
-  apiBaseUrl: 'http://localhost:7071/api' // Local function
-};
-```
-
-For production, use relative path `/api` (Static Web App proxies to Function App).
+When `FUNCTION_APP_BASE_URL` is set, frontend API requests target that host directly.
+When unset, frontend falls back to same-origin `/api` routes.
 
 ## File Structure
 
