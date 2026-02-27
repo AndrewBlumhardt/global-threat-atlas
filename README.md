@@ -3,6 +3,7 @@
 
 
 
+
 # Global Threat Intelligence Atlas
 
 ![Global Threat Activity Map](web/screenshot-global-threat-map.png)
@@ -11,9 +12,9 @@
 
 ## Overview
 
-Global Threat Intelligence Atlas is an Azure-hosted interactive map for Security Operations Centers (SOC) and threat intelligence teams. It visualizes real-time and historical threat activity, device locations, and sign-in events, with overlays for threat actors, weather, and custom data. Designed for wall displays and analyst dashboards.
+Azure-hosted interactive map for SOC and threat intelligence teams. Visualizes real-time and historical threat activity, device locations, sign-in events, overlays for threat actors, weather, and custom data. Designed for wall displays and analyst dashboards.
 
-Powered by [Leaflet.js](https://leafletjs.com) for fast, interactive map rendering.
+Powered by [Leaflet.js](https://leafletjs.com).
 
 ## 🏗️ Architecture
 
