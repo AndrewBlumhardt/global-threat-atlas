@@ -1,18 +1,23 @@
 
 
+
 # Global Threat Intelligence Atlas
 
 ![Global Threat Activity Map](web/screenshot-global-threat-map.png)
 
 [Live Demo](https://jolly-cliff-0f92c201e.2.azurestaticapps.net/)
 
-**Global Threat Intelligence Atlas** is a live Security Operations Center (SOC) wall display for:
-- Visualizing Entra sign-in activity and Defender for Endpoint device locations
-- Overlaying static threat actor maps and custom GeoJSON layers
-- Geo-locating IPs/devices with MaxMind (free account required)
-- Weather overlays, rich map controls, and screen capture
-- Secure, Azure-hosted deployment (Static Web App + Function App)
-- Custom domain support and public/private access options
+## Overview
+
+Global Threat Intelligence Atlas is a modern, Azure-hosted interactive map for Security Operations Centers (SOC) and threat intelligence teams. It visualizes real-time and historical threat activity, device locations, and sign-in events, with overlays for threat actors, weather, and custom data. Designed for wall displays and analyst dashboards.
+
+**Key Features:**
+- Live Entra sign-in and Defender for Endpoint device visualization
+- Static threat actor overlays and custom GeoJSON support
+- IP/device geo-location (MaxMind GeoLite2, free account required)
+- Weather overlays, screen capture, and rich map controls
+- Secure Azure Static Web App + Function App backend
+- Custom domain and public/private access options
 
 Powered by [Leaflet.js](https://leafletjs.com) for fast, interactive map rendering.
 
