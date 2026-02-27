@@ -136,7 +136,13 @@ Deploy the entire application to Azure in ~5 minutes:
 
 ### Development Utility Files (`tests`)
 
-The `tests` directory contains scripts for deployment automation, sample data generation, geo-enrichment, and test data files. These are for development only and not required for normal app runtime or deployment.
+The `tests` directory contains:
+- Deployment scripts: `deploy.ps1`, `deploy.sh`
+- Data generation: `generate_device_locations.py`, `generate_mde_devices.py`, `generate_signin_data.py`, `generate-mde-geojson.py`
+- Geo-enrichment: `manual-geo-enrich.py`, `manual-geo-enrich-free.py`
+- Sample data: `sample-data/mde-devices-enriched.tsv`, `sample-data/mde-devices-test.tsv`, `sample-data/mde-devices.geojson`
+
+These scripts and files are for development/testing only and not required for normal app runtime or deployment.
 ```
 
 📖 **See individual README files in each directory for detailed documentation**
