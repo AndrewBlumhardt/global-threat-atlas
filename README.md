@@ -144,7 +144,6 @@ These scripts and files are for development/testing only and not required for no
 
 ## 🔧 Configuration
 
-<<<<<<< HEAD
 ### Environment Variables
 =======
 ### Adding Custom Data Sources
@@ -201,14 +200,13 @@ git push origin main
 - All secrets (e.g., MaxMind license, Azure Maps keys) must be stored in Azure Key Vault.
 - The Function App uses Managed Identity to access secrets at runtime.
 - Set environment variables to the Key Vault secret name or URI, not the secret value.
->>>>>>> 0293404 (README: clarify Key Vault/MI best practices and concise, instructive deployment steps)
+
 =======
 **Secrets (must be stored in Key Vault):**
 - `MAXMIND-LICENSE-KEY` (required for IP geolocation)
 - `AZURE-MAPS-SUBSCRIPTION-KEY` (required for weather overlays)
 
 After deployment, add your MaxMind license key and any other required secrets to Azure Key Vault. The Function App uses Managed Identity to access secrets at runtime.
->>>>>>> 0cbda90 (README: update env vars for Key Vault/MI, clarify secret handling, remove direct backend API endpoint docs)
 
 ## Configuration Notes
 
