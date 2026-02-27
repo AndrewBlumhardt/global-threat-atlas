@@ -21,7 +21,6 @@ Global Threat Intelligence Atlas is an Azure-hosted interactive map for SOC and 
 Powered by [Leaflet.js](https://leafletjs.com).
 
 **OPerating Instructions:**
-## Operating Instructions
 
 - Load the map to begin visualization. There may be a short delay while data loads. Use **Fn + F12** to view browser debug output if needed.  
 - Use the optional **Demo Layers** for initial exploration. These rely on generated static sample data.  
@@ -38,6 +37,7 @@ Powered by [Leaflet.js](https://leafletjs.com).
 
 - This atlas is intended for pattern research and as a visually engaging display for SOC wallboards. It does not provide the accuracy or real-time fidelity required for incident response.  
 - The application is designed to be cost-effective and secure. The Static Web App URL is public by default, with additional hardening options available if required.
+
 
 ## 🏗️ Architecture
 ```
