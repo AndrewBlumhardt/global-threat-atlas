@@ -144,8 +144,6 @@ These scripts and files are for development/testing only and not required for no
 
 ## 🔧 Configuration
 
-### Environment Variables
-=======
 ### Adding Custom Data Sources
 
 Edit [api/sources.yaml](api/sources.yaml) to add your own KQL queries:
@@ -184,14 +182,13 @@ git push origin main
 
 ### Configuration & Secrets
 
-**Environment Variables (non-secret):**
+**Environment Variables (Function):**
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `LOG_ANALYTICS_WORKSPACE_ID` | Sentinel workspace GUID (set by deployment) | ✅ |
 | `STORAGE_ACCOUNT_URL` | Blob storage URL | ✅ |
 | `STORAGE_CONTAINER_DATASETS` | Container name for data files | ✅ |
 | `STORAGE_CONTAINER_LOCKS` | Container name for lock files | ✅ |
-| `MAXMIND_LICENSE_KEY` | MaxMind GeoLite2 license | ✅ |
 | `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval (default: 300) | ✅ |
 | `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval | ✅ |
 | `KEY_VAULT_NAME` | Azure Key Vault name (for secrets) | ✅ |
