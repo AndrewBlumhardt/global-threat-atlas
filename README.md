@@ -152,39 +152,36 @@ Deploy the entire application to Azure in ~5 minutes:
 │   ├── deploy-function.yml   # Backend deployment
 │   └── azure-static-web-apps.yml  # Frontend deployment
 │
-├── tests/                     # Development/debugging scripts
+├── tests/                     # Test helpers and development data utilities
 ├── deploy.ps1                 # Automated Azure deployment (PowerShell)
 ├── deploy.sh                  # Automated Azure deployment (Bash)
-└── *.py, *.tsv, *.geojson    # Utility scripts and sample data (see below)
+└── *.tsv, *.geojson          # Sample/generated data files (see below)
 ```
 
-### Root-Level Utility Files
+### Development Utility Files (`tests`)
 
-The root directory contains several utility scripts and sample data files for development and testing:
+The `tests` directory contains utility scripts used for development and testing:
 
 **Deployment Scripts (Keep at Root):**
 - `deploy.ps1` - PowerShell deployment automation
 - `deploy.sh` - Bash deployment automation
 
 **Data Generation Scripts:**
-- `generate_device_locations.py` - Generate sample MDE device location data
-- `generate_mde_devices.py` - Generate sample MDE device inventory
-- `generate_signin_data.py` - Generate sample sign-in activity data
-- `generate-mde-geojson.py` - Convert MDE data to GeoJSON format
+- `tests/generate_device_locations.py` - Generate sample MDE device location data
+- `tests/generate_mde_devices.py` - Generate sample MDE device inventory
+- `tests/generate_signin_data.py` - Generate sample sign-in activity data
+- `tests/generate-mde-geojson.py` - Convert MDE data to GeoJSON format
 
 **Geo-Enrichment Scripts:**
-- `manual-geo-enrich.py` - Manual geo-enrichment using MaxMind
-- `manual-geo-enrich-free.py` - Manual geo-enrichment using free services
+- `tests/manual-geo-enrich.py` - Manual geo-enrichment using MaxMind
+- `tests/manual-geo-enrich-free.py` - Manual geo-enrichment using free services
 
 **Sample Data Files:**
-- `mde-devices-enriched.tsv` - Sample enriched device data
-- `mde-devices-test.tsv` - Test device data
-- `mde-devices.geojson` - Sample GeoJSON output
+- `tests/sample-data/mde-devices-enriched.tsv` - Sample enriched device data
+- `tests/sample-data/mde-devices-test.tsv` - Test device data
+- `tests/sample-data/mde-devices.geojson` - Sample GeoJSON output
 
-> **Note:** These utility scripts and data files are primarily for development/testing. Consider organizing them:
-> - Move `generate_*.py` scripts to `scripts/` or `tools/` directory
-> - Move `manual-geo-enrich*.py` to `scripts/` or `api/scripts/`
-> - Move `.tsv` and `.geojson` files to `tests/sample-data/` or `.gitignore` them if generated
+> **Note:** These scripts are development-only and are not required for normal app runtime or deployment.
 ```
 
 📖 **See individual README files in each directory for detailed documentation**

@@ -6,13 +6,17 @@ Downloads the file from blob, enriches IPs with MaxMind, and uploads back.
 import os
 import sys
 import csv
-from io import StringIO
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SAMPLE_DATA_DIR = REPO_ROOT / "tests" / "sample-data"
 
 def enrich_device_csv():
     """Manually enrich device TSV with geolocation."""
     
     # Read the TSV file
-    tsv_file = "c:\\repos\\sentinel-activity-maps\\mde-devices-test.tsv"
+    tsv_file = SAMPLE_DATA_DIR / "mde-devices-test.tsv"
     
     with open(tsv_file, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f, delimiter='\t')
@@ -30,7 +34,7 @@ def enrich_device_csv():
             r"C:\ProgramData\MaxMind\GeoLite2-City.mmdb",
             r"C:\Program Files\MaxMind\GeoLite2-City.mmdb",
             os.path.expanduser("~/.maxmind/GeoLite2-City.mmdb"),
-            r"C:\repos\sentinel-activity-maps\GeoLite2-City.mmdb"
+            str(REPO_ROOT / "GeoLite2-City.mmdb")
         ]
         
         reader_obj = None
@@ -70,7 +74,7 @@ def enrich_device_csv():
         reader_obj.close()
         
         # Write back to file
-        output_file = "c:\\repos\\sentinel-activity-maps\\mde-devices-enriched.tsv"
+        output_file = SAMPLE_DATA_DIR / "mde-devices-enriched.tsv"
         fieldnames = list(rows[0].keys())
         
         with open(output_file, 'w', newline='', encoding='utf-8') as f:

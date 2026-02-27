@@ -2,11 +2,11 @@ import csv
 import random
 from datetime import datetime, timedelta
 import hashlib
+from pathlib import Path
 
-# Read the sample CSV
-with open(r'c:\Users\anblumha\Downloads\query_data (5).csv', 'r', encoding='utf-8') as f:
-    reader = csv.DictReader(f)
-    sample_devices = list(reader)
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SAMPLE_DATA_DIR = REPO_ROOT / "tests" / "sample-data"
 
 # Device naming patterns
 device_prefixes = [
@@ -119,7 +119,7 @@ for i in range(500):
     devices.append(device)
 
 # Write to TSV
-output_file = "mde-devices.tsv"
+output_file = SAMPLE_DATA_DIR / "mde-devices.tsv"
 headers = [
     "TimeGenerated",
     "DeviceName", 

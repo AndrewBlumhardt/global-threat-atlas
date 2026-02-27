@@ -5,11 +5,16 @@ Manual geo enrichment using free IP geolocation API (no MaxMind needed for testi
 import csv
 import requests
 import time
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SAMPLE_DATA_DIR = REPO_ROOT / "tests" / "sample-data"
 
 def enrich_with_free_api():
     """Enrich device TSV using ip-api.com (free, no key needed)."""
     
-    tsv_file = r"c:\repos\sentinel-activity-maps\mde-devices-test.tsv"
+    tsv_file = SAMPLE_DATA_DIR / "mde-devices-test.tsv"
     
     with open(tsv_file, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f, delimiter='\t')
@@ -51,7 +56,7 @@ def enrich_with_free_api():
             print(f"✗ {ip}: Error - {e}")
     
     # Write enriched file
-    output_file = r"c:\repos\sentinel-activity-maps\mde-devices-enriched.tsv"
+    output_file = SAMPLE_DATA_DIR / "mde-devices-enriched.tsv"
     fieldnames = list(rows[0].keys())
     
     with open(output_file, 'w', newline='', encoding='utf-8') as f:

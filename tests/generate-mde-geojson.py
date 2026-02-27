@@ -2,11 +2,16 @@
 """Generate GeoJSON from enriched MDE devices TSV."""
 import csv
 import json
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SAMPLE_DATA_DIR = REPO_ROOT / "tests" / "sample-data"
 
 def tsv_to_geojson():
     """Convert TSV to GeoJSON format."""
-    tsv_file = r"c:\repos\sentinel-activity-maps\mde-devices-enriched.tsv"
-    geojson_file = r"c:\repos\sentinel-activity-maps\mde-devices.geojson"
+    tsv_file = SAMPLE_DATA_DIR / "mde-devices-enriched.tsv"
+    geojson_file = SAMPLE_DATA_DIR / "mde-devices.geojson"
     
     features = []
     

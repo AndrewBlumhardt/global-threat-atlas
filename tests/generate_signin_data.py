@@ -1,8 +1,13 @@
 import json
 import random
 from datetime import datetime, timedelta
+from pathlib import Path
 
-# Same city data as signin generator for consistency
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SAMPLE_DATA_DIR = REPO_ROOT / "tests" / "sample-data"
+
+# Cities with coordinates (lon, lat)
 us_cities = [
     {"name": "New York", "state": "NY", "coords": [-74.006, 40.7128], "country": "United States"},
     {"name": "Los Angeles", "state": "CA", "coords": [-118.2437, 34.0522], "country": "United States"},
@@ -33,6 +38,8 @@ europe_cities = [
     {"name": "Vienna", "state": "Vienna", "coords": [16.3738, 48.2082], "country": "Austria"},
     {"name": "Stockholm", "state": "Stockholm", "coords": [18.0686, 59.3293], "country": "Sweden"},
     {"name": "Dublin", "state": "Leinster", "coords": [-6.2603, 53.3498], "country": "Ireland"},
+    {"name": "Copenhagen", "state": "Capital Region", "coords": [12.5683, 55.6761], "country": "Denmark"},
+    {"name": "Oslo", "state": "Oslo", "coords": [10.7522, 59.9139], "country": "Norway"},
 ]
 
 other_cities = [
@@ -59,13 +66,18 @@ other_cities = [
 ]
 
 first_names = ["John", "Jane", "Michael", "Sarah", "David", "Emily", "Robert", "Maria", "James", "Jennifer",
-               "William", "Linda", "Richard", "Patricia", "Thomas", "Susan", "Daniel", "Jessica", "Matthew", "Karen"]
+               "William", "Linda", "Richard", "Patricia", "Thomas", "Susan", "Daniel", "Jessica", "Matthew", "Karen",
+               "Andrew", "Lisa", "Christopher", "Nancy", "Mark", "Betty", "Paul", "Sandra"]
 
 last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez",
-              "Hernandez", "Lopez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee"]
+              "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas", "Taylor", "Moore", "Jackson", "Martin",
+              "Lee", "Thompson", "White", "Harris", "Clark", "Lewis", "Walker", "Hall", "Allen", "Young"]
 
-browsers = ["Chrome 120.0", "Edge 120.0", "Firefox 121.0", "Safari 17.2"]
+browsers = ["Chrome 120.0", "Edge 120.0", "Firefox 121.0", "Safari 17.2", "Chrome 119.0", "Edge 119.0"]
 operating_systems = ["Windows 11", "Windows 10", "macOS 14.2", "macOS 13.6", "iOS 17.2", "Android 14"]
+risk_states = ["none", "low", "medium"]
+result_types = ["SUCCESS", "50126", "50053", "50074"]  # SUCCESS and various failure codes
+ca_status = ["success", "notApplied", "failure"]
 
 # Microsoft IP ranges
 ms_ip_ranges = ["20", "40", "52", "104", "13"]
@@ -75,21 +87,17 @@ def generate_ip(use_ms_range=False):
         prefix = random.choice(ms_ip_ranges)
         return f"{prefix}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}"
     else:
-        prefixes = [8, 24, 31, 45, 64, 72, 84, 92, 100, 108, 172, 192]
+        # Random public IPs
+        prefixes = [8, 24, 31, 45, 64, 72, 84, 92, 100, 108, 140, 172, 192, 203]
         prefix = random.choice(prefixes)
         return f"{prefix}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}"
 
 def generate_device_id():
     return f"{random.randint(10000000, 99999999)}-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}-{random.randint(1000, 9999)}-{random.randint(100000000000, 999999999999)}"
 
-device_types = ["Desktop", "Laptop", "Mobile", "Tablet"]
-device_type_weights = [0.30, 0.40, 0.20, 0.10]  # 30% desktop, 40% laptop, 20% mobile, 10% tablet
-
-# Generate 500 unique device locations (last known location per device)
+# Generate 500 records
 features = []
-start_time = datetime.now() - timedelta(days=2)
-
-print("Generating 500 device location records...")
+start_time = datetime.now() - timedelta(days=7)
 
 for i in range(500):
     # More global distribution: 45% US, 30% Europe, 25% other regions
@@ -106,40 +114,32 @@ for i in range(500):
     lng = base_lng + random.uniform(-0.1, 0.1)
     lat = base_lat + random.uniform(-0.1, 0.1)
     
+    # 85% success, 15% failure
+    is_success = random.random() < 0.85
+    result_signature = "SUCCESS" if is_success else random.choice(result_types[1:])
+    
     # 20% Microsoft IP ranges
     use_ms_ip = random.random() < 0.20
     ip_address = generate_ip(use_ms_ip)
     
-    # Generate timestamp within last 48 hours
+    # Generate timestamp within last 7 days
     time_offset = timedelta(
-        hours=random.randint(0, 47),
+        days=random.randint(0, 6),
+        hours=random.randint(0, 23),
         minutes=random.randint(0, 59),
         seconds=random.randint(0, 59)
     )
     timestamp = (start_time + time_offset).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     
-    user_first = random.choice(first_names)
-    user_last = random.choice(last_names)
-    user = f"{user_first.lower()}.{user_last.lower()}@contoso.com"
-    user_display = f"{user_first} {user_last}"
+    user = f"{random.choice(first_names).lower()}.{random.choice(last_names).lower()}@contoso.com"
+    user_display = f"{random.choice(first_names)} {random.choice(last_names)}"
     
-    # Most devices are managed and compliant
-    is_managed = random.random() < 0.85
-    is_compliant = is_managed and random.random() < 0.90
+    # Success logins more likely to be compliant
+    is_compliant = is_success and random.random() < 0.9
+    is_managed = is_success and random.random() < 0.85
     
-    # Randomly select device type based on weights
-    device_type = random.choices(device_types, weights=device_type_weights)[0]
-    
-    # Generate device name based on type
-    device_suffix = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=6))
-    if device_type == "Desktop":
-        device_name = f"DESKTOP-{device_suffix}"
-    elif device_type == "Laptop":
-        device_name = f"LAPTOP-{device_suffix}"
-    elif device_type == "Mobile":
-        device_name = f"MOBILE-{device_suffix}"
-    else:  # Tablet
-        device_name = f"TABLET-{device_suffix}"
+    risk_state = "none" if is_success else random.choice(risk_states)
+    risk_reason = "" if is_success else random.choice(["unfamiliarFeatures", "anonymizedIPAddress", "maliciousIPAddress", "suspiciousInbox", ""])
     
     feature = {
         "type": "Feature",
@@ -149,17 +149,20 @@ for i in range(500):
         },
         "properties": {
             "TimeGenerated": timestamp,
-            "DeviceId": generate_device_id(),
-            "DeviceName": device_name,
-            "DeviceType": device_type,
             "UserDisplayName": user_display,
             "UserPrincipalName": user,
             "IPAddress": ip_address,
             "IsMicrosoftIP": use_ms_ip,
+            "ResultSignature": result_signature,
+            "ResourceDisplayName": random.choice(["Microsoft 365", "Azure Portal", "Teams", "SharePoint", "Exchange Online", "OneDrive"]),
             "Browser": random.choice(browsers),
             "OperatingSystem": random.choice(operating_systems),
+            "DeviceId": generate_device_id(),
             "isCompliant": is_compliant,
             "isManaged": is_managed,
+            "ConditionalAccessStatus": "success" if is_success else random.choice(ca_status),
+            "RiskState": risk_state,
+            "RiskReason": risk_reason,
             "CountryOrRegion": city["country"],
             "State": city["state"],
             "City": city["name"],
@@ -177,29 +180,21 @@ geojson = {
 }
 
 # Write to file
-with open("device-locations-demo.geojson", "w") as f:
+output_file = SAMPLE_DATA_DIR / "signin-activity-demo.geojson"
+with open(output_file, "w") as f:
     json.dump(geojson, f, indent=2)
 
-print(f"Generated {len(features)} device location records")
-print(f"File: device-locations-demo.geojson")
+print(f"Generated {len(features)} sign-in records")
+print(f"File: {output_file}")
 
 # Print some stats
+success_count = sum(1 for f in features if f["properties"]["ResultSignature"] == "SUCCESS")
 us_count = sum(1 for f in features if f["properties"]["CountryOrRegion"] == "United States")
-europe_count = sum(1 for f in features if f["properties"]["CountryOrRegion"] in ["United Kingdom", "France", "Germany", "Spain", "Italy", "Netherlands", "Belgium", "Austria", "Sweden", "Ireland"])
-ms_ip_count = sum(1 for f in features if f["properties"]["IsMicrosoftIP"])
-managed_count = sum(1 for f in features if f["properties"]["isManaged"])
-desktop_count = sum(1 for f in features if f["properties"]["DeviceType"] == "Desktop")
-laptop_count = sum(1 for f in features if f["properties"]["DeviceType"] == "Laptop")
-mobile_count = sum(1 for f in features if f["properties"]["DeviceType"] == "Mobile")
-tablet_count = sum(1 for f in features if f["properties"]["DeviceType"] == "Tablet")
+europe_count = sum(1 for f in features if f["properties"]["CountryOrRegion"] in ["United Kingdom", "France", "Germany", "Spain", "Italy", "Netherlands", "Belgium", "Austria", "Sweden", "Ireland", "Denmark", "Norway"])
+ms_ip_count = sum(1 for f in features if f["properties"]["IPAddress"].split(".")[0] in ms_ip_ranges)
 
 print(f"\nStats:")
+print(f"  Success: {success_count} ({success_count/len(features)*100:.1f}%)")
 print(f"  US locations: {us_count} ({us_count/len(features)*100:.1f}%)")
 print(f"  Europe locations: {europe_count} ({europe_count/len(features)*100:.1f}%)")
 print(f"  Microsoft IP ranges: {ms_ip_count} ({ms_ip_count/len(features)*100:.1f}%)")
-print(f"  Managed devices: {managed_count} ({managed_count/len(features)*100:.1f}%)")
-print(f"\nDevice Types:")
-print(f"  Desktops: {desktop_count} ({desktop_count/len(features)*100:.1f}%) - Blue computer icon")
-print(f"  Laptops: {laptop_count} ({laptop_count/len(features)*100:.1f}%) - Blue computer icon")
-print(f"  Mobiles: {mobile_count} ({mobile_count/len(features)*100:.1f}%) - Green phone icon")
-print(f"  Tablets: {tablet_count} ({tablet_count/len(features)*100:.1f}%) - Green phone icon")
