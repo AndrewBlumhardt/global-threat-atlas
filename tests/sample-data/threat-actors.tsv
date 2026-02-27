@@ -1,0 +1,7 @@
+# Threat Actors Sample Data
+
+This file contains sample threat actor data for demo mode and local development. Production deployments fetch this data from blob storage.
+
+- Location: tests/sample-data/threat-actors.tsv
+- Used for: Demo mode, local testing
+- Not required for production runtime

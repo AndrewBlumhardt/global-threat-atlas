@@ -127,4 +127,12 @@ export function isDemoMode() {
 }
 ```
 
+### Demo and Sample Data
+
+Demo mode uses sample data files from `tests/sample-data/`:
+- `threat-actors.tsv`: Sample threat actor data
+- `mde-devices-test.tsv`, `mde-devices-enriched.tsv`, `mde-devices.geojson`: Device and geo-enrichment samples
+
+Production deployments fetch data from blob storage; these files are only for demo mode and local development.
+
 

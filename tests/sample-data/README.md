@@ -22,6 +22,10 @@ These files are for testing and demos only. They are not required for production
   - Converted GeoJSON output from enriched TSV data.
   - Suitable for map-layer testing and uploads.
 
+- `threat-actors.tsv`
+  - Sample threat actor data for demo mode and local development.
+  - Used for demo mode and local testing; production fetches from blob storage.
+
 ## Regeneration Flow
 
 From repository root:
