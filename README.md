@@ -20,6 +20,25 @@ Global Threat Intelligence Atlas is an Azure-hosted interactive map for SOC and 
 - Application Insights and health endpoints
 Powered by [Leaflet.js](https://leafletjs.com).
 
+**OPerating Instructions:**
+## Operating Instructions
+
+- Load the map to begin visualization. There may be a short delay while data loads. Use **Fn + F12** to view browser debug output if needed.  
+- Use the optional **Demo Layers** for initial exploration. These rely on generated static sample data.  
+- Layers will appear greyed out if the data source cannot be reached. This typically indicates a failed KQL query from the Azure Function to Sentinel or a failed call from the Static Web App to the Function or Logic App.  
+- The **Threat Actor Map** uses a static TSV file stored in Blob Storage. It can be updated in Excel and is seeded from public data. There is no auto-refresh. Country attribution may be incomplete or inaccurate, and actors without a country are not displayed.  
+- Threat IPs, sign-in activity, and device location data come from Sentinel. IP data is enriched with MaxMind geolocation when needed. Country-level accuracy is generally reliable, but precision decreases toward city and street level. This is not GPS data, and routing, VPNs, or proxies may affect location accuracy.  
+- Explore map controls including layer selection, auto-scroll, full-screen mode, and screenshot capture. Hover over points for a summary, and click to open the context menu with options such as search, VirusTotal lookup when applicable, and AI prompt copy-to-clipboard.  
+- Drag and drop GeoJSON files onto the page for temporary display. A static custom GeoJSON file can also be hosted in Blob Storage for persistent overlays. Sample GeoJSON sources:
+
+  - Data.gov: https://catalog.data.gov/dataset?q=geojson  
+  - Mapping L.A. Boundaries API: https://boundaries.latimes.com/sets/  
+  - GitHub search: https://github.com/search?q=geojson 
+  - You can also create custom GeoJSON files by drawing directly on a map at: http://geojson.io/  
+
+- This atlas is intended for pattern research and as a visually engaging display for SOC wallboards. It does not provide the accuracy or real-time fidelity required for incident response.  
+- The application is designed to be cost-effective and secure. The Static Web App URL is public by default, with additional hardening options available if required.
+
 ## 🏗️ Architecture
 ```
 ┌─────────────────────────────────────────────────────────┐
