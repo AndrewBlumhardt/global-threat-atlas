@@ -183,8 +183,6 @@ git commit -m "Add custom data source"
 git push origin main
 ```
 
->>>>>>> 0293404 (README: clarify Key Vault/MI best practices and concise, instructive deployment steps)
-
 ### Configuration & Secrets
 
 **Environment Variables (non-secret):**
@@ -194,14 +192,11 @@ git push origin main
 | `STORAGE_ACCOUNT_URL` | Blob storage URL | ✅ |
 | `STORAGE_CONTAINER_DATASETS` | Container name for data files | ✅ |
 | `STORAGE_CONTAINER_LOCKS` | Container name for lock files | ✅ |
-<<<<<<< HEAD
 | `MAXMIND_LICENSE_KEY` | MaxMind GeoLite2 license | ✅ |
 | `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval (default: 300) | ✅ |
-=======
 | `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval | ✅ |
 | `KEY_VAULT_NAME` | Azure Key Vault name (for secrets) | ✅ |
 
-<<<<<<< HEAD
 **Secrets:**
 - All secrets (e.g., MaxMind license, Azure Maps keys) must be stored in Azure Key Vault.
 - The Function App uses Managed Identity to access secrets at runtime.
