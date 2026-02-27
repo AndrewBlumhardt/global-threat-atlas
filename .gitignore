@@ -15,7 +15,7 @@ __azurite_db*__.json
 .functignore
 
 # IDEs
-.vscode/
+
 .idea/
 *.swp
 *.swo
