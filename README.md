@@ -158,18 +158,67 @@ These scripts and files are for development/testing only and not required for no
 
 ## 🔧 Configuration
 
+<<<<<<< HEAD
 ### Environment Variables
+=======
+### Adding Custom Data Sources
 
-Configure these in Azure Function App Settings:
+Edit [api/sources.yaml](api/sources.yaml) to add your own KQL queries:
 
+```yaml
+sources:
+  - id: my-custom-source
+    name: "My Security Data"
+    enabled: true
+    refresh_interval_seconds: 3600
+    query_time_window_hours: 24
+    output_filename: "my-data.tsv"
+    kql_query: |
+      MyTable
+      | where TimeGenerated >= ago({time_window}h)
+      | project TimeGenerated, IPAddress, UserName, Action
+      | order by TimeGenerated desc
+    columns:
+      - TimeGenerated
+      - IPAddress
+      - UserName
+      - Action
+```
+
+Deploy your changes:
+```bash
+# Via script
+cd api
+func azure functionapp publish YOUR-FUNCTION-APP-NAME
+
+# Or via GitHub Actions
+git add api/sources.yaml
+git commit -m "Add custom data source"
+git push origin main
+```
+
+>>>>>>> 0293404 (README: clarify Key Vault/MI best practices and concise, instructive deployment steps)
+
+### Configuration & Secrets
+
+**Environment Variables (non-secret):**
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `LOG_ANALYTICS_WORKSPACE_ID` | Sentinel workspace GUID | ✅ |
 | `STORAGE_ACCOUNT_URL` | Blob storage URL | ✅ |
 | `STORAGE_CONTAINER_DATASETS` | Container name for data files | ✅ |
 | `STORAGE_CONTAINER_LOCKS` | Container name for lock files | ✅ |
+<<<<<<< HEAD
 | `MAXMIND_LICENSE_KEY` | MaxMind GeoLite2 license | ✅ |
 | `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval (default: 300) | ✅ |
+=======
+| `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval | ✅ |
+
+**Secrets:**
+- All secrets (e.g., MaxMind license, Azure Maps keys) must be stored in Azure Key Vault.
+- The Function App uses Managed Identity to access secrets at runtime.
+- Set environment variables to the Key Vault secret name or URI, not the secret value.
+>>>>>>> 0293404 (README: clarify Key Vault/MI best practices and concise, instructive deployment steps)
 
 ## Configuration Notes
 
