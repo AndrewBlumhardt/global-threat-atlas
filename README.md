@@ -193,11 +193,6 @@ git push origin main
 | `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval | ✅ |
 | `KEY_VAULT_NAME` | Azure Key Vault name (for secrets) | ✅ |
 
-**Secrets:**
-- All secrets (e.g., MaxMind license, Azure Maps keys) must be stored in Azure Key Vault.
-- The Function App uses Managed Identity to access secrets at runtime.
-- Set environment variables to the Key Vault secret name or URI, not the secret value.
-
 =======
 **Secrets (must be stored in Key Vault):**
 - `MAXMIND-LICENSE-KEY` (required for IP geolocation)
