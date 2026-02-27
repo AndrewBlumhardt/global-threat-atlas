@@ -57,9 +57,11 @@ Powered by [Leaflet.js](https://leafletjs.com).
 
 ## Azure Costs
 
-**Typical monthly cost:** $10–20 USD for most demo or small production environments (Static Web App, Functions, Storage, Maps). Add Defender for Cloud for advanced protection.
+**Typical monthly cost:** $10–20 USD covers Azure Static Web App, Functions, Storage, and Maps for most demo or small production environments. For advanced security, add Microsoft Defender for Cloud (MDC) at $25–40 USD/month.
 
-**MaxMind:** This project uses a free GeoLite2 license for IP geolocation. Business users may need a paid MaxMind license to comply with commercial terms—see [MaxMind licensing](https://www.maxmind.com) for details.
+**MaxMind:** IP geolocation uses a free GeoLite2 license. Business/commercial users must obtain a paid MaxMind license to comply with terms—see [MaxMind licensing](https://www.maxmind.com).
+
+**Note:** Azure Maps is free for basic use; weather overlays may incur extra charges. Key Vault and Storage costs are minimal for low data volumes.
 
 ## 🚀 Quick Deploy
 
