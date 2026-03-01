@@ -70,16 +70,15 @@ class ConfigLoader:
             # Load global settings
             self.geo_provider = config.get('geo_provider', 'maxmind')
             
-            # Key Vault name: Try YAML first, then environment variable
-            self.key_vault_name = config.get('key_vault_name', '') or os.getenv('KEY_VAULT_NAME', '')
+            # Remove Key Vault support; use env vars only
+            self.key_vault_name = ''
             
             sources_config = config.get('sources', [])
             self._sources = [DataSource(src) for src in sources_config]
             
             logger.info(f"Loaded {len(self._sources)} data sources from {self.config_path}")
             logger.info(f"Geo provider: {self.geo_provider}")
-            if self.key_vault_name:
-                logger.info(f"Key Vault: {self.key_vault_name}")
+            # Key Vault removed; nothing to log
         except Exception as e:
             logger.error(f"Failed to load config from {self.config_path}: {e}")
             raise

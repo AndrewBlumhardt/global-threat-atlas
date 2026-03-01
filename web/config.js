@@ -2,20 +2,21 @@
 // This file is auto-generated during deployment
 const config = {
     // Azure Maps subscription key
-    azureMapsKey: window.ENV?.AZURE_MAPS_SUBSCRIPTION_KEY || '',
+    azureMapsKey: '',
     
     // Storage account URL for GeoJSON data
-    storageAccountUrl: window.ENV?.STORAGE_ACCOUNT_URL || 'https://sentinelmapsstore.blob.core.windows.net',
+    storageAccountUrl: '',
     
     // Container name for datasets
-    datasetsContainer: window.ENV?.STORAGE_CONTAINER_DATASETS || 'datasets',
+    datasetsContainer: '',
     
     // GeoJSON file name for threat intel indicators
     geoJsonFileName: 'threat-intel-indicators.geojson',
     
     // Full URL to threat intel GeoJSON
     get threatIntelGeoJsonUrl() {
-        return `${this.storageAccountUrl}/${this.datasetsContainer}/${this.geoJsonFileName}`;
+        // In production, use /api/data/threat-intel-indicators endpoint
+        return `/api/data/threat-intel-indicators`;
     },
     
     // Local threat actors TSV file (fallback)

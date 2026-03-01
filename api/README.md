@@ -92,18 +92,39 @@ cd api
 zip -r ../function-deployment.zip .
 ```
 
-## 🔐 Required Configuration
 
-Environment variables (set in Azure Function App Settings):
-- `LOG_ANALYTICS_WORKSPACE_ID` - Sentinel workspace ID
-- `AZURE_SUBSCRIPTION_ID` - Azure subscription ID  
-- `STORAGE_ACCOUNT_NAME` - Blob storage account name
-- `MAXMIND_LICENSE_KEY` - MaxMind GeoLite2 license key (for geo enrichment)
-- `KEY_VAULT_NAME` - (Optional) Azure Key Vault for secrets
+## 🔐 Required Environment Variables
 
-Managed Identity requires:
-- **Log Analytics Reader** role on Sentinel workspace
-- **Storage Blob Data Contributor** role on storage account
+Set these in your Azure Function App Settings:
+
+| Variable                              | Description |
+|----------------------------------------|-------------|
+| LOG_ANALYTICS_WORKSPACE_ID             | Sentinel Log Analytics workspace ID (for KQL queries) |
+| AZURE_MAPS_SUBSCRIPTION_KEY            | Azure Maps API key (for geolocation enrichment) |
+| STORAGE_ACCOUNT_URL                    | Blob Storage account URL (for reading/writing datasets) |
+| STORAGE_CONTAINER_DATASETS             | Blob container for main datasets |
+| STORAGE_CONTAINER_LOCKS                | Blob container for lock files and metadata (used for concurrency control) |
+| MAXMIND_LICENSE_KEY                    | MaxMind GeoLite2 license key (for IP geolocation enrichment) |
+| DEFAULT_REFRESH_INTERVAL_SECONDS        | Default interval (seconds) for refreshing datasets |
+| APPLICATIONINSIGHTS_CONNECTION_STRING  | Application Insights connection string (for telemetry/monitoring) |
+
+### Azure Functions Runtime Variables (required by platform)
+
+| Variable                              | Description |
+|----------------------------------------|-------------|
+| AzureWebJobsStorage                    | Required for Azure Functions runtime (triggers, logs, etc.) |
+| FUNCTIONS_EXTENSION_VERSION            | Azure Functions runtime version |
+| FUNCTIONS_WORKER_RUNTIME               | Language worker (e.g., python) |
+| WEBSITE_CONTENTAZUREFILECONNECTIONSTRING| Deployment/content storage |
+| WEBSITE_CONTENTSHARE                   | Deployment/content storage |
+| WEBSITE_RUN_FROM_PACKAGE               | Deployment mode |
+| SCM_DO_BUILD_DURING_DEPLOYMENT         | Build behavior during deployment |
+| WEBSITE_HTTPLOGGING_RETENTION_DAYS     | HTTP log retention (optional) |
+
+**Note:**
+- All secrets are managed via environment variables and managed identity. Key Vault is no longer used.
+- Storage locks are still used for concurrency and metadata integrity.
+- Application Insights is recommended for monitoring and diagnostics.
 
 ## 🧪 Local Testing
 

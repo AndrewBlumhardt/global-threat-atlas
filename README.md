@@ -14,7 +14,7 @@ Global Threat Intelligence Atlas is an Azure-hosted interactive map for SOC and 
 - Overlays static threat actor maps and custom GeoJSON
 - Weather overlays and screen capture
 - Secure Azure Static Web App + Function App backend
-- Managed Identity and Key Vault for secrets
+- Managed Identity for secrets (Key Vault removed)
 - Custom domain and public/private access options
 - YAML-based configuration for data sources
 - Application Insights and health endpoints
@@ -67,11 +67,11 @@ Powered by [Leaflet.js](https://leafletjs.com).
 
 ## Azure Costs
 
+
 **Core Azure resources required:**
 - Azure Static Web App (Standard tier required for stand-alone Function App integration)
 - Azure Function App
 - Azure Maps Account (Gen2, pay-as-you-go; paid tier required for weather overlays)
-- Azure Key Vault
 - Azure Storage Account
 
 **Typical monthly cost:** $10–20 USD covers most demo or small production environments. For advanced security, add Microsoft Defender for Cloud (MDC) at $25–40 USD/month.
@@ -199,6 +199,7 @@ git commit -m "Add custom data source"
 git push origin main
 ```
 
+
 ### Configuration & Secrets
 
 **Environment Variables (Function):**
@@ -209,15 +210,10 @@ git push origin main
 | `STORAGE_CONTAINER_DATASETS` | Container name for data files | ✅ |
 | `STORAGE_CONTAINER_LOCKS` | Container name for lock files | ✅ |
 | `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval (default: 300) | ✅ |
-| `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval | ✅ |
-| `KEY_VAULT_NAME` | Azure Key Vault name (for secrets) | ✅ |
+| `MAXMIND_LICENSE_KEY` | MaxMind GeoLite2 license key (required for IP geolocation) | ✅ |
+| `AZURE_MAPS_SUBSCRIPTION_KEY` | Azure Maps key (required for weather overlays) | ✅ |
 
-=======
-**Secrets (must be stored in Key Vault):**
-- `MAXMIND-LICENSE-KEY` (required for IP geolocation)
-- `AZURE-MAPS-SUBSCRIPTION-KEY` (required for weather overlays)
-
-After deployment, add your MaxMind license key and any other required secrets to Azure Key Vault. The Function App uses Managed Identity to access secrets at runtime.
+All secrets must be set as environment variables in the Function App configuration. Key Vault is no longer used.
 
 ## Configuration Notes
 

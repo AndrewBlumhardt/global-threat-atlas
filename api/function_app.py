@@ -63,20 +63,6 @@ def get_config(req: func.HttpRequest) -> func.HttpResponse:
     storage_account_url = os.environ.get('STORAGE_ACCOUNT_URL', '')
     datasets_container = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
 
-    # Optionally load Maps key from Key Vault when configured.
-    if not maps_key:
-        key_vault_name = os.environ.get('KEY_VAULT_NAME', '')
-        if key_vault_name:
-            try:
-                from shared.key_vault_client import KeyVaultClient
-                kv_client = KeyVaultClient(key_vault_name)
-                maps_key = kv_client.get_secret(
-                    secret_name='AZURE-MAPS-SUBSCRIPTION-KEY',
-                    fallback_env_var='AZURE_MAPS_SUBSCRIPTION_KEY'
-                ) or ''
-            except Exception as e:
-                logger.warning(f"Config endpoint Key Vault lookup failed: {e}")
-
     payload = {
         'azureMapsKey': maps_key,
         'storageAccountUrl': storage_account_url,
@@ -322,8 +308,7 @@ def _refresh_source_with_cache(source, log_analytics, blob_storage, refresh_poli
                 
                 # Initialize geo client with Key Vault support
                 geo_client = GeoEnrichmentClient(
-                    provider=config_loader.geo_provider,
-                    key_vault_client=kv_client
+                    provider=config_loader.geo_provider
                 )
                 
                 # Read TSV from temp file
@@ -468,8 +453,7 @@ def _refresh_source_with_cache(source, log_analytics, blob_storage, refresh_poli
                 # Initialize geo client for GeoJSON creation
                 config_loader = ConfigLoader()
                 geo_client = GeoEnrichmentClient(
-                    provider=config_loader.geo_provider,
-                    key_vault_client=kv_client
+                    provider=config_loader.geo_provider
                 )
                 
                 # Read TSV from temp file

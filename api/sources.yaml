@@ -6,8 +6,7 @@
 # Azure Maps requires: AZURE_MAPS_SUBSCRIPTION_KEY environment variable
 geo_provider: "maxmind"  # Options: "maxmind", "azure_maps"
 
-# Key Vault settings (optional - falls back to environment variables)
-key_vault_name: ""  # e.g., "kv-sentinel-maps" - leave empty to use env vars
+## Key Vault settings removed. Use environment variables for all secrets.
 
 sources:
   - id: signin_activity

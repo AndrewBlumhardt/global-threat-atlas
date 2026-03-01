@@ -5,21 +5,21 @@
 let demoMode = false;
 
 /**
- * Normalize optional Function App base URL from runtime environment.
- * When not set, callers fall back to same-origin /api routes.
+ * All backend secrets and config are now securely fetched via API endpoints.
+ * No local environment variables are used in production.
  */
 function getFunctionAppBaseUrl() {
-  const rawBaseUrl = window.ENV?.FUNCTION_APP_BASE_URL || "";
-  return rawBaseUrl.replace(/\/+$/, "");
+  // In production, base URL is determined by deployment; no local env variables are used.
+  return "";
 }
 
 /**
  * Build API URL path for either direct Function App calls or same-origin fallback.
  */
 export function getApiUrl(path) {
+  // In production, all API calls are proxied through SWA to the Function App
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const functionAppBaseUrl = getFunctionAppBaseUrl();
-  return functionAppBaseUrl ? `${functionAppBaseUrl}${normalizedPath}` : normalizedPath;
+  return normalizedPath;
 }
 
 /**
@@ -42,7 +42,8 @@ export function setDemoMode(enabled) {
  * This retrieves blobs from secure storage without exposing account keys
  */
 export function getDataUrl(filename) {
-  // Use direct Function App URL when configured; otherwise keep same-origin /api path.
+  // All data requests are proxied through /api/data/:filename endpoint
+  // No local secrets or env variables are used
   const baseUrl = getApiUrl(`/api/data/${filename}`);
   return demoMode ? `${baseUrl}?demo=true` : baseUrl;
 }
