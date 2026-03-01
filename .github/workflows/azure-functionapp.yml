@@ -26,7 +26,7 @@ jobs:
       - name: Archive function app
         run: |
           cd api
-          zip -r ../functionapp.zip .
+          zip -r ../functionapp.zip . -x '*.venv*' '*__pycache__*'
 
       - name: Deploy to Azure Function App
         uses: azure/functions-action@v1
