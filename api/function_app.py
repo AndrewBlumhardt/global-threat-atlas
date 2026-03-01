@@ -878,7 +878,7 @@ def generate_geojson(req: func.HttpRequest) -> func.HttpResponse:
         )
 
 
-@app.route(route="data/{filename}", methods=["GET", "HEAD", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
+@app.route(route="data/{filename}", methods=["GET", "HEAD", "OPTIONS"], auth_level=func.AuthLevel.FUNCTION)
 def get_data(req: func.HttpRequest) -> func.HttpResponse:
     """
     Serve blob storage data through a function proxy (hides storage details from browser).
