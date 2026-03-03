@@ -20,13 +20,6 @@
     This layout uses flexbox so the left panel takes real width.
     The map resizes when the panel opens or closes.
   -->
-  <div id="underConstruction" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);color:#fff;z-index:9999;align-items:center;justify-content:center;font-size:2em;text-align:center;flex-direction:column;">
-    <div>
-      <strong>🚧 Under Construction 🚧</strong><br>
-      The map is currently unavailable.<br>
-      Please check back later.
-    </div>
-  </div>
   <div id="appShell" class="app-shell">
 
     <!-- Left threat details panel (hidden by default) -->
@@ -174,10 +167,6 @@
   <!-- App entry point -->
   <script type="module" src="./src/app.js"></script>
   <script>
-    // Show under construction warning ONLY if map fails to load config API
-    window.addEventListener('DOMContentLoaded', function() {
-      document.getElementById('underConstruction').style.display = 'none';
-    });
   </script>
 </body>
 </html>
