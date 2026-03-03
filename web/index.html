@@ -24,8 +24,7 @@
     <div>
       <strong>🚧 Under Construction 🚧</strong><br>
       The map is currently unavailable.<br>
-      Please check back later.<br>
-      The repository will be shared in March when the project is complete.
+      Please check back later.
     </div>
   </div>
   <div id="appShell" class="app-shell">
@@ -175,11 +174,15 @@
   <!-- App entry point -->
   <script type="module" src="./src/app.js"></script>
   <script>
-    // Show under construction warning if map fails to load
+    // Show under construction warning ONLY if map fails to load
     window.addEventListener('DOMContentLoaded', function() {
+      let mapLoaded = false;
+      window.addEventListener('mapReady', function() {
+        mapLoaded = true;
+        document.getElementById('underConstruction').style.display = 'none';
+      });
       setTimeout(function() {
-        var mapDiv = document.getElementById('map');
-        if (!mapDiv || mapDiv.childElementCount === 0) {
+        if (!mapLoaded) {
           document.getElementById('underConstruction').style.display = 'flex';
         }
       }, 3000); // Wait 3 seconds for map to load

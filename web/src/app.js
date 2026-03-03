@@ -23,6 +23,7 @@ async function main() {
 
   map.events.add("ready", () => {
     console.log("Map ready.");
+    window.dispatchEvent(new Event('mapReady'));
     
     initPanelControls();
     
