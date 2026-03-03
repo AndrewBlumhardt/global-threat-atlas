@@ -174,18 +174,9 @@
   <!-- App entry point -->
   <script type="module" src="./src/app.js"></script>
   <script>
-    // Show under construction warning ONLY if map fails to load
+    // Show under construction warning ONLY if map fails to load config API
     window.addEventListener('DOMContentLoaded', function() {
-      let mapLoaded = false;
-      window.addEventListener('mapReady', function() {
-        mapLoaded = true;
-        document.getElementById('underConstruction').style.display = 'none';
-      });
-      setTimeout(function() {
-        if (!mapLoaded) {
-          document.getElementById('underConstruction').style.display = 'flex';
-        }
-      }, 3000); // Wait 3 seconds for map to load
+      document.getElementById('underConstruction').style.display = 'none';
     });
   </script>
 </body>

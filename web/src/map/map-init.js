@@ -7,7 +7,10 @@ import { getApiUrl } from "../shared/demoMode.js";
  */
 async function getMapsConfig() {
   const resp = await fetch(getApiUrl("/api/config"), { cache: "no-store" });
-  if (!resp.ok) throw new Error("Failed to load /api/config: " + resp.status);
+  if (!resp.ok) {
+    document.getElementById('underConstruction').style.display = 'flex';
+    throw new Error("Failed to load /api/config: " + resp.status);
+  }
   const data = await resp.json();
   // Adapt to current API response format {azureMapsKey: "..."}
   return {
