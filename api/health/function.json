@@ -8,10 +8,6 @@
       "name": "req",
       "route": "health"
     },
-    {
-      "type": "http",
-      "direction": "out",
-      "name": "res"
-    }
+    
   ]
 }
