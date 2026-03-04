@@ -28,6 +28,7 @@ except Exception as import_error:
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
+        logger.info(f'Function environment: STORAGE_ACCOUNT_URL={os.environ.get("STORAGE_ACCOUNT_URL")}, STORAGE_CONTAINER_DATASETS={os.environ.get("STORAGE_CONTAINER_DATASETS")}, STORAGE_CONNECTION_STRING={os.environ.get("STORAGE_CONNECTION_STRING")}')
     """
     Returns threat intelligence GeoJSON data from blob storage.
     Route parameter 'filename' determines which file to fetch.
@@ -47,11 +48,14 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     
     # Get filename from route parameter
     filename = req.route_params.get('filename')
+    logger.info(f'Received filename: {filename}')
     if not filename:
+        logger.error('No filename specified in route params')
         return func.HttpResponse(
             '{"error": "No filename specified"}',
             status_code=400,
-            mimetype='application/json'
+            mimetype='application/json',
+            headers={'Access-Control-Allow-Origin': '*'}
         )
     
     # Check if demo mode is enabled via query parameter
@@ -68,76 +72,24 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         # Default: add .geojson extension
         blob_name = f'{filename}.geojson'
         content_type = 'application/json'
+    logger.info(f'Normalized blob name: {blob_name}, content_type: {content_type}')
     
     # Prepend demo_data/ folder if demo mode is enabled
     if demo_mode:
         blob_name = f'demo_data/{blob_name}'
-        logger.info(f'Demo mode enabled - using demo data')
+        logger.info(f'Demo mode enabled - using demo data: {blob_name}')
     
     logger.info(f'Requesting blob: {blob_name}')
     
     # Preferred path: proxy data request to Function App /api/data endpoint.
     # This keeps storage auth centralized in the Function App and avoids SWA secrets.
-    function_app_base_url = os.environ.get('FUNCTION_APP_BASE_URL', '').rstrip('/')
-    require_proxy = os.environ.get('REQUIRE_FUNCTION_DATA_PROXY', 'false').lower() == 'true'
-
-    if function_app_base_url:
-        query_pairs = []
-        for key in req.params.keys():
-            value = req.params.get(key)
-            if value is not None:
-                query_pairs.append((key, value))
-
-        query_string = urlencode(query_pairs)
-        target_url = f"{function_app_base_url}/api/data/{filename}"
-        if query_string:
-            target_url = f"{target_url}?{query_string}"
-
-        try:
-            logger.info(f'Proxying data request to Function App: {target_url}')
-            proxy_request = urllib_request.Request(target_url, method=req.method)
-            with urllib_request.urlopen(proxy_request, timeout=20) as response:
-                proxied_body = response.read()
-                proxied_content_type = response.headers.get('Content-Type', content_type)
-
-            return func.HttpResponse(
-                body=proxied_body,
-                status_code=200,
-                mimetype=proxied_content_type,
-                headers={
-                    'Access-Control-Allow-Origin': '*',
-                    'Cache-Control': 'public, max-age=300',
-                    'Content-Type': proxied_content_type
-                }
-            )
-        except urllib_error.HTTPError as http_error:
-            logger.warning(f'Function App data proxy returned HTTP error: {http_error.code}')
-            if require_proxy:
-                error_body = http_error.read()
-                return func.HttpResponse(
-                    body=error_body,
-                    status_code=http_error.code,
-                    mimetype=http_error.headers.get('Content-Type', 'application/json'),
-                    headers={'Access-Control-Allow-Origin': '*'}
-                )
-            logger.info('Function App data proxy is optional; falling back to local blob read path')
-        except Exception as proxy_error:
-            logger.warning(f'Function App data proxy failed, using local fallback: {proxy_error}')
-            if require_proxy:
-                return func.HttpResponse(
-                    body=json.dumps({
-                        'error': 'Function data proxy required but unavailable',
-                        'proxyError': str(proxy_error)
-                    }),
-                    status_code=502,
-                    mimetype='application/json',
-                    headers={'Access-Control-Allow-Origin': '*'}
-                )
+    # Proxying disabled: always use local blob access
 
     # Fallback path: access blob directly from SWA API with managed identity.
     # Keep this for local/dev resilience when FUNCTION_APP_BASE_URL is not set.
     storage_account_url = os.environ.get('STORAGE_ACCOUNT_URL', '')
     container_name = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
+    logger.info(f'Using storage_account_url={storage_account_url}, container_name={container_name}')
 
     if not storage_account_url:
         logger.error('STORAGE_ACCOUNT_URL not configured')
@@ -149,6 +101,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         )
     
     try:
+        logger.info('Starting blob access logic')
         if BlobServiceClient is None:
             return func.HttpResponse(
                 json.dumps({
@@ -198,7 +151,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         
         # For HEAD requests, just return existence status
         if req.method == 'HEAD':
+            logger.info(f'HEAD request for blob: {blob_name}, exists={exists}')
             if exists:
+                logger.info('HEAD request: blob exists, returning 200')
                 return func.HttpResponse(
                     status_code=200,
                     headers={
@@ -207,12 +162,14 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                     }
                 )
             else:
+                logger.info('HEAD request: blob does not exist, returning 404')
                 return func.HttpResponse(
                     status_code=404,
                     headers={'Access-Control-Allow-Origin': '*'}
                 )
             
         if not exists:
+            logger.error(f'Blob not found: {blob_name}')
             # List available blobs to help with debugging
             logger.info('Blob not found, listing available blobs...')
             try:
@@ -239,7 +196,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         blob_data = blob_client.download_blob()
         content = blob_data.readall()
         
-        logger.info(f'Successfully retrieved {len(content)} bytes')
+        logger.info(f'Successfully retrieved {len(content)} bytes from blob {blob_name}')
         
         return func.HttpResponse(
             body=content,
@@ -252,7 +209,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         )
         
     except Exception as e:
-        logger.error(f'Error retrieving blob data: {e}')
+        logger.error(f'Error retrieving blob data: {e}', exc_info=True)
         return func.HttpResponse(
             f'{{"error": "Failed to retrieve data: {str(e)}"}}',
             status_code=500,
