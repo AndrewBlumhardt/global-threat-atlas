@@ -1,6 +1,6 @@
 """
 Azure Static Web App API endpoint to serve threat intelligence data from blob storage.
-Uses STORAGE_CONNECTION_STRING to access blob storage.
+Uses managed identity to access blob storage.
 """
 import azure.functions as func
 import logging
@@ -28,7 +28,7 @@ except Exception as import_error:
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
-    logger.info(f'Function environment: STORAGE_ACCOUNT_URL={os.environ.get("STORAGE_ACCOUNT_URL")}, STORAGE_CONTAINER_DATASETS={os.environ.get("STORAGE_CONTAINER_DATASETS")}, STORAGE_CONNECTION_STRING={os.environ.get("STORAGE_CONNECTION_STRING")}')
+    logger.info(f'Function environment: STORAGE_ACCOUNT_URL={os.environ.get("STORAGE_ACCOUNT_URL")}, STORAGE_CONTAINER_DATASETS={os.environ.get("STORAGE_CONTAINER_DATASETS")}')
     """
     Returns threat intelligence GeoJSON data from blob storage.
     Route parameter 'filename' determines which file to fetch.
@@ -81,12 +81,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     
     logger.info(f'Requesting blob: {blob_name}')
     
-    # Preferred path: proxy data request to Function App /api/data endpoint.
-    # This keeps storage auth centralized in the Function App and avoids SWA secrets.
-    # Proxying disabled: always use local blob access
 
-    # Fallback path: access blob directly from SWA API with managed identity.
-    # Keep this for local/dev resilience when FUNCTION_APP_BASE_URL is not set.
+    # Only use managed identity for blob access
     storage_account_url = os.environ.get('STORAGE_ACCOUNT_URL', '')
     container_name = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
     logger.info(f'Using storage_account_url={storage_account_url}, container_name={container_name}')
@@ -99,10 +95,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             mimetype='application/json',
             headers={'Access-Control-Allow-Origin': '*'}
         )
-    
+
     try:
-        logger.info('Starting blob access logic')
+        logger.info('Starting blob access logic (managed identity only)')
         if BlobServiceClient is None:
+            logger.error(f'Storage SDK unavailable: {STORAGE_SDK_IMPORT_ERROR}')
             return func.HttpResponse(
                 json.dumps({
                     'error': 'Storage SDK unavailable in SWA data function',
@@ -113,42 +110,30 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 headers={'Access-Control-Allow-Origin': '*'}
             )
 
-        # Create BlobServiceClient with managed identity first.
-        # Prefer connection string when configured for stable auth in SWA runtime.
-        # Fallback to managed identity when no connection string is set.
-        logger.info(f'Creating blob service client for container: {container_name}')
-        connection_string = os.environ.get('STORAGE_CONNECTION_STRING', '')
-        if connection_string:
-            blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-            logger.info('✅ BlobServiceClient created (connection string)')
-        else:
-            try:
-                if DefaultAzureCredential is None:
-                    raise RuntimeError(f'Identity SDK unavailable: {IDENTITY_SDK_IMPORT_ERROR}')
-                credential = DefaultAzureCredential()
-                blob_service_client = BlobServiceClient(account_url=storage_account_url, credential=credential)
-                logger.info('✅ BlobServiceClient created (managed identity)')
-            except Exception as mi_error:
-                logger.warning(f'Managed identity auth failed in SWA API fallback: {mi_error}')
-                return func.HttpResponse(
-                    json.dumps({
-                        'error': 'Storage authentication unavailable',
-                        'details': 'STORAGE_CONNECTION_STRING missing and managed identity auth failed'
-                    }),
-                    status_code=500,
-                    mimetype='application/json',
-                    headers={'Access-Control-Allow-Origin': '*'}
-                )
-        
-        # Get blob client
+        if DefaultAzureCredential is None:
+            logger.error(f'Identity SDK unavailable: {IDENTITY_SDK_IMPORT_ERROR}')
+            return func.HttpResponse(
+                json.dumps({
+                    'error': 'Identity SDK unavailable',
+                    'details': str(IDENTITY_SDK_IMPORT_ERROR)
+                }),
+                status_code=500,
+                mimetype='application/json',
+                headers={'Access-Control-Allow-Origin': '*'}
+            )
+
+        credential = DefaultAzureCredential()
+        blob_service_client = BlobServiceClient(account_url=storage_account_url, credential=credential)
+        logger.info('✅ BlobServiceClient created using managed identity')
+
         blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
         logger.info(f'✅ Blob client created for {container_name}/{blob_name}')
-        
+
         # Check if blob exists
         logger.info('Checking if blob exists...')
         exists = blob_client.exists()
         logger.info(f'✅ Blob exists: {exists}')
-        
+
         # For HEAD requests, just return existence status
         if req.method == 'HEAD':
             logger.info(f'HEAD request for blob: {blob_name}, exists={exists}')
@@ -167,7 +152,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                     status_code=404,
                     headers={'Access-Control-Allow-Origin': '*'}
                 )
-            
+
         if not exists:
             logger.error(f'Blob not found: {blob_name}')
             # List available blobs to help with debugging
@@ -190,14 +175,14 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                     mimetype='application/json',
                     headers={'Access-Control-Allow-Origin': '*'}
                 )
-        
+
         # Download the blob
-        logger.info(f'Downloading blob: {container_name}/{blob_name}')
+        logger.info(f'Downloading blob: {container_name}/{blob_name} using managed identity')
         blob_data = blob_client.download_blob()
         content = blob_data.readall()
-        
-        logger.info(f'Successfully retrieved {len(content)} bytes from blob {blob_name}')
-        
+
+        logger.info(f'Successfully retrieved {len(content)} bytes from blob {blob_name} using managed identity')
+
         return func.HttpResponse(
             body=content,
             mimetype=content_type,
@@ -207,9 +192,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 'Content-Type': content_type
             }
         )
-        
+
     except Exception as e:
-        logger.error(f'Error retrieving blob data: {e}', exc_info=True)
+        logger.error(f'Error retrieving blob data with managed identity: {e}', exc_info=True)
         return func.HttpResponse(
             f'{{"error": "Failed to retrieve data: {str(e)}"}}',
             status_code=500,
