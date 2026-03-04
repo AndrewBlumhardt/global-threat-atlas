@@ -28,13 +28,13 @@ except Exception as import_error:
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
-        logger.info(f'Function environment: STORAGE_ACCOUNT_URL={os.environ.get("STORAGE_ACCOUNT_URL")}, STORAGE_CONTAINER_DATASETS={os.environ.get("STORAGE_CONTAINER_DATASETS")}, STORAGE_CONNECTION_STRING={os.environ.get("STORAGE_CONNECTION_STRING")}')
+    logger.info(f'Function environment: STORAGE_ACCOUNT_URL={os.environ.get("STORAGE_ACCOUNT_URL")}, STORAGE_CONTAINER_DATASETS={os.environ.get("STORAGE_CONTAINER_DATASETS")}, STORAGE_CONNECTION_STRING={os.environ.get("STORAGE_CONNECTION_STRING")}')
     """
     Returns threat intelligence GeoJSON data from blob storage.
     Route parameter 'filename' determines which file to fetch.
     """
     logger.info(f'Data API endpoint called: {req.method}')
-    
+
     # Handle CORS preflight  
     if req.method == 'OPTIONS':
         return func.HttpResponse(
