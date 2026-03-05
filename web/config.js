@@ -9,6 +9,9 @@ const config = {
     
     // Container name for datasets
     datasetsContainer: '',
+
+    // Storage account key for direct blob access (set via window.env for security)
+    storageAccountKey: window.env?.STORAGE_ACCOUNT_KEY || '',
     
     // GeoJSON file name for threat intel indicators
     geoJsonFileName: 'threat-intel-indicators.geojson',
