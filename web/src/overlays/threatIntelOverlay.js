@@ -42,177 +42,177 @@ async function enable(map) {
     } else {
       console.error(`Error: Failed to load threat intel indicators from blob: ${blobPath} (status: ${response.status})`);
       // Fallback to Function API
-      response = await fetch("/api/data/threat-intel-indicators");
-      if (response.ok) {
-        console.log("Success: Loaded threat intel indicators from Function API fallback.");
-      } else {
-        const errorText = await response.text();
-        console.error("API error response:", errorText);
-        let errorMsg = `Failed to load threat intel: ${response.status} ${response.statusText}`;
-        try {
-          const errorData = JSON.parse(errorText);
-          if (errorData.error) {
-            errorMsg = errorData.error;
+      try {
+        // ...existing code...
+        const config = window.mapConfig || {};
+        const blobPath = `${config.storageAccountUrl}/${config.datasetsContainer}/threat-intel-indicators`;
+        console.log(`Loading threat intel indicators from blob: ${blobPath}`);
+        let response = await fetch(getDataUrl("threat-intel-indicators"));
+        if (response.ok) {
+          console.log(`Success: Loaded threat intel indicators from blob: ${blobPath}`);
+        } else {
+          console.error(`Error: Failed to load threat intel indicators from blob: ${blobPath} (status: ${response.status})`);
+          // Fallback to Function API
+          response = await fetch("/api/data/threat-intel-indicators");
+          if (response.ok) {
+            console.log("Success: Loaded threat intel indicators from Function API fallback.");
+          } else {
+            const errorText = await response.text();
+            console.error("API error response:", errorText);
+            let errorMsg = `Failed to load threat intel: ${response.status} ${response.statusText}`;
+            try {
+              const errorData = JSON.parse(errorText);
+              if (errorData.error) {
+                errorMsg = errorData.error;
+              }
+              if (errorData.available_files) {
+                console.log("Available files in blob storage:", errorData.available_files);
+                errorMsg += `\n\nAvailable files: ${errorData.available_files.join(", ")}`;
+              }
+            } catch (e) {
+              // Not JSON, use text
+              if (errorText) {
+                errorMsg += `\n\n${errorText}`;
+              }
+            }
+            throw new Error(errorMsg);
           }
-          if (errorData.available_files) {
-            console.log("Available files in blob storage:", errorData.available_files);
-            errorMsg += `\n\nAvailable files: ${errorData.available_files.join(", ")}`;
-          }
-        } catch (e) {
-          // Not JSON, use text
-          if (errorText) {
-            errorMsg += `\n\n${errorText}`;
-          }
         }
-        throw new Error(errorMsg);
-      }
 
-    const geojson = await response.json();
-    console.log("GeoJSON loaded:", geojson);
-    
-    if (!geojson.features || geojson.features.length === 0) {
-      console.warn("No threat intel indicators found");
-      throw new Error("No threat intelligence indicators available");
-    }
+        const geojson = await response.json();
+        console.log("GeoJSON loaded:", geojson);
 
-    console.log(`Loaded ${geojson.features.length} threat intel indicators`);
-
-    // Create data source
-    const dataSource = new atlas.source.DataSource(THREAT_INTEL_SOURCE_ID);
-    map.sources.add(dataSource);
-    dataSource.add(geojson);
-
-    // Find max for color scaling
-    const counts = geojson.features
-      .map(f => f.properties?.count || f.properties?.Count || 1)
-      .filter(c => typeof c === 'number' && !isNaN(c));
-    const maxCount = counts.length > 0 ? Math.max(...counts) : 1;
-
-    console.log(`Threat intel count range: 1 to ${maxCount}`);
-
-    // Add symbol layer for indicators (peg-like markers with 3D effect)
-    // Use smaller, more dimensional visualization
-    const bubbleLayer = new atlas.layer.BubbleLayer(dataSource, THREAT_INTEL_LAYER_ID, {
-      radius: 4,
-      color: "#e51010",
-      strokeColor: "#eb6060",
-      strokeWidth: 1,
-      opacity: 0.7,
-      pitchAlignment: "map"
-    });
-
-    map.layers.add(bubbleLayer);
-
-    // Create popup for hover interactions
-    const popup = new atlas.Popup({
-      pixelOffset: [0, -10],
-      closeButton: false
-    });
-
-    // Show details on hover
-    map.events.add("mousemove", bubbleLayer, (e) => {
-      if (e.shapes && e.shapes.length > 0) {
-        const props = e.shapes[0].getProperties();
-        
-        let content = '<div style="padding:10px;width:280px;box-sizing:border-box;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">';
-        
-        // IP Address (prominent)
-        if (props.ObservableValue || props.observableValue || props.ip) {
-          const ip = props.ObservableValue || props.observableValue || props.ip;
-          content += `<div style="font-weight:600;font-size:14px;margin-bottom:8px;"><strong>IP:</strong> <span style="display:inline;word-break:break-all;white-space:normal;">${ip}</span></div>`;
+        if (!geojson.features || geojson.features.length === 0) {
+          console.warn("No threat intel indicators found");
+          throw new Error("No threat intelligence indicators available");
         }
-        
-        // Location (City, Country)
-        const city = props.City || props.city || '';
-        const country = props.Country || props.country || '';
-        if (city || country) {
-          const location = [city, country].filter(Boolean).join(', ');
-          content += `<div style="margin-bottom:6px;"><strong>Location:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${location}</span></div>`;
-        }
-        
-        // Type
-        if (props.Type || props.type) {
-          content += `<div style="margin-bottom:4px;"><strong>Type:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">${props.Type || props.type}</span></div>`;
-        }
-        
-        // Label
-        if (props.Label || props.label) {
-          content += `<div style="margin-bottom:4px;"><strong>Label:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${props.Label || props.label}</span></div>`;
-        }
-        
-        // Confidence
-        if (props.Confidence || props.confidence) {
-          content += `<div style="margin-bottom:4px;"><strong>Confidence:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${props.Confidence || props.confidence}</span></div>`;
-        }
-        
-        // Description
-        if (props.Description || props.description) {
-          const desc = String(props.Description || props.description);
-          content += `<div style="margin-top:6px;margin-bottom:6px;font-size:12px;color:#666;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">${desc}</div>`;
-        }
-        
-        // Source System
-        if (props.SourceSystem || props.sourceSystem) {
-          content += `<div style="font-size:11px;color:#888;margin-bottom:4px;"><strong>Source:</strong> <span style="display:inline;white-space:normal;">${props.SourceSystem || props.sourceSystem}</span></div>`;
-        }
-        
-        // Created date
-        if (props.Created || props.created) {
-          const created = props.Created || props.created;
-          const dateStr = new Date(created).toLocaleString();
-          content += `<div style="font-size:11px;color:#888;"><strong>Created:</strong> <span style="display:inline;white-space:normal;">${dateStr}</span></div>`;
-        }
-        
-        content += '</div>';
-        
-        popup.setOptions({
-          content: content,
-          position: e.shapes[0].getCoordinates()
+
+        console.log(`Loaded ${geojson.features.length} threat intel indicators`);
+
+        // Create data source
+        const dataSource = new atlas.source.DataSource(THREAT_INTEL_SOURCE_ID);
+        map.sources.add(dataSource);
+        dataSource.add(geojson);
+
+        // Find max for color scaling
+        const counts = geojson.features
+          .map(f => f.properties?.count || f.properties?.Count || 1)
+          .filter(c => typeof c === 'number' && !isNaN(c));
+        const maxCount = counts.length > 0 ? Math.max(...counts) : 1;
+
+        console.log(`Threat intel count range: 1 to ${maxCount}`);
+
+        // Add symbol layer for indicators (peg-like markers with 3D effect)
+        // Use smaller, more dimensional visualization
+        const bubbleLayer = new atlas.layer.BubbleLayer(dataSource, THREAT_INTEL_LAYER_ID, {
+          radius: 4,
+          color: "#e51010",
+          strokeColor: "#eb6060",
+          strokeWidth: 1,
+          opacity: 0.7,
+          pitchAlignment: "map"
         });
-        popup.open(map);
+
+        map.layers.add(bubbleLayer);
+
+        // Create popup for hover interactions
+        const popup = new atlas.Popup({
+          pixelOffset: [0, -10],
+          closeButton: false
+        });
+
+        // Show details on hover
+        map.events.add("mousemove", bubbleLayer, (e) => {
+          if (e.shapes && e.shapes.length > 0) {
+            const props = e.shapes[0].getProperties();
+
+            let content = '<div style="padding:10px;width:280px;box-sizing:border-box;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">';
+
+            // IP Address (prominent)
+            if (props.ObservableValue || props.observableValue || props.ip) {
+              const ip = props.ObservableValue || props.observableValue || props.ip;
+              content += `<div style="font-weight:600;font-size:14px;margin-bottom:8px;"><strong>IP:</strong> <span style="display:inline;word-break:break-all;white-space:normal;">${ip}</span></div>`;
+            }
+
+            // Location (City, Country)
+            const city = props.City || props.city || '';
+            const country = props.Country || props.country || '';
+            if (city || country) {
+              const location = [city, country].filter(Boolean).join(', ');
+              content += `<div style="margin-bottom:6px;"><strong>Location:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${location}</span></div>`;
+            }
+
+            // Type
+            if (props.Type || props.type) {
+              content += `<div style="margin-bottom:4px;"><strong>Type:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">${props.Type || props.type}</span></div>`;
+            }
+
+            // Label
+            if (props.Label || props.label) {
+              content += `<div style="margin-bottom:4px;"><strong>Label:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${props.Label || props.label}</span></div>`;
+            }
+
+            // Confidence
+            if (props.Confidence || props.confidence) {
+              content += `<div style="margin-bottom:4px;"><strong>Confidence:</strong> <span style="display:inline;white-space:normal;word-wrap:break-word;">${props.Confidence || props.confidence}</span></div>`;
+            }
+
+            // Description
+            if (props.Description || props.description) {
+              const desc = String(props.Description || props.description);
+              content += `<div style="margin-top:6px;margin-bottom:6px;font-size:12px;color:#666;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">${desc}</div>`;
+            }
+
+            // Source System
+            if (props.SourceSystem || props.sourceSystem) {
+              content += `<div style="font-size:11px;color:#888;margin-bottom:4px;"><strong>Source:</strong> <span style="display:inline;white-space:normal;">${props.SourceSystem || props.sourceSystem}</span></div>`;
+            }
+
+            // Created date
+            if (props.Created || props.created) {
+              const created = props.Created || props.created;
+              const dateStr = new Date(created).toLocaleString();
+              content += `<div style="font-size:11px;color:#888;"><strong>Created:</strong> <span style="display:inline;white-space:normal;">${dateStr}</span></div>`;
+            }
+
+            content += '</div>';
+
+            popup.setOptions({
+              content: content,
+              position: e.shapes[0].getCoordinates()
+            });
+            popup.open(map);
+          }
+        });
+
+        map.events.add("mouseleave", bubbleLayer, () => {
+          popup.close();
+        });
+
+        // Change cursor on hover
+        map.events.add("mousemove", bubbleLayer, () => {
+          map.getCanvasContainer().style.cursor = "pointer";
+        });
+
+        map.events.add("mouseleave", bubbleLayer, () => {
+          map.getCanvasContainer().style.cursor = "grab";
+        });
+
+        // Add click event to show nearby IPs in panel
+        map.events.add("click", bubbleLayer, (e) => {
+          if (e.shapes && e.shapes.length > 0) {
+            const clickedPosition = e.shapes[0].getCoordinates();
+            showNearbyIPsPanel(map, clickedPosition, dataSource);
+          }
+        });
+
+        isEnabled = true;
+        console.log("Threat intel overlay enabled");
+      } catch (error) {
+        console.error("Error enabling threat intel overlay:", error);
+        disable(map);
+        throw error;
       }
-    });
-
-    map.events.add("mouseleave", bubbleLayer, () => {
-      popup.close();
-    });
-
-    // Change cursor on hover
-    map.events.add("mousemove", bubbleLayer, () => {
-      map.getCanvasContainer().style.cursor = "pointer";
-    });
-
-    map.events.add("mouseleave", bubbleLayer, () => {
-      map.getCanvasContainer().style.cursor = "grab";
-    });
-
-    // Add click event to show nearby IPs in panel
-    map.events.add("click", bubbleLayer, (e) => {
-      if (e.shapes && e.shapes.length > 0) {
-        const clickedPosition = e.shapes[0].getCoordinates();
-        showNearbyIPsPanel(map, clickedPosition, dataSource);
-      }
-    });
-
-    isEnabled = true;
-    console.log("Threat intel overlay enabled");
-
-  } catch (error) {
-    console.error("Error enabling threat intel overlay:", error);
-    disable(map);
-    throw error;
-  }
-}
-
-/**
- * Disable the overlay - remove layers and sources
- */
-function disable(map) {
-  // Remove layer
-  try {
-    const layer = map.layers.getLayerById(THREAT_INTEL_LAYER_ID);
-    if (layer) {
-      map.events.remove("mousemove", layer);
       map.events.remove("mouseleave", layer);
       map.layers.remove(THREAT_INTEL_LAYER_ID);
     }
