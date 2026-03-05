@@ -79,11 +79,22 @@ async function enable(map) {
 
     const geojson = await resp.json();
     console.log("Custom GeoJSON loaded:", geojson);
-    
+
     if (!geojson.features || geojson.features.length === 0) {
       console.warn("No custom source features found");
       throw new Error("No custom source data available");
     }
+
+    // Sanitize null numeric properties
+    geojson.features.forEach(f => {
+      if (f.properties) {
+        Object.keys(f.properties).forEach(key => {
+          if (typeof f.properties[key] === "number" && f.properties[key] === null) {
+            f.properties[key] = 0;
+          }
+        });
+      }
+    });
 
     console.log(`Loaded ${geojson.features.length} custom source features`);
 

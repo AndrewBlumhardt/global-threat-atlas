@@ -231,11 +231,22 @@ async function enable(map) {
 }
 function disable(map) {
   try {
-    if (map.layers.getLayerById && map.layers.getLayerById(THREAT_INTEL_LAYER_ID)) {
-      map.layers.remove(THREAT_INTEL_LAYER_ID);
+    // Remove all threat intel layers and sources
+    if (map.layers.getLayerById) {
+      const layer = map.layers.getLayerById(THREAT_INTEL_LAYER_ID);
+      if (layer) map.layers.remove(THREAT_INTEL_LAYER_ID);
     }
-    if (map.sources.getById && map.sources.getById(THREAT_INTEL_SOURCE_ID)) {
-      map.sources.remove(THREAT_INTEL_SOURCE_ID);
+    if (map.sources.getById) {
+      const source = map.sources.getById(THREAT_INTEL_SOURCE_ID);
+      if (source) map.sources.remove(THREAT_INTEL_SOURCE_ID);
+    }
+    // Remove any remaining threat intel markers
+    if (map.markers && Array.isArray(map.markers)) {
+      map.markers.forEach(marker => {
+        if (marker && marker.properties && marker.properties.threatIntel) {
+          map.markers.remove(marker);
+        }
+      });
     }
     map.getCanvasContainer().style.cursor = "grab";
     isEnabled = false;
