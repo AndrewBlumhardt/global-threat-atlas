@@ -166,11 +166,11 @@ async function checkCustomSourceAvailability() {
 async function checkSignInActivityAvailability() {
   try {
     // Try direct blob access first
-    let response = await fetch(getDataUrl("signin-activity"), { method: 'HEAD' });
+    let response = await fetch(getDataUrl("signin-activity.geojson"), { method: 'HEAD' });
     if (!response.ok) {
       console.log('Direct blob access failed, falling back to Function API.');
       // Fallback to Function API
-      const fallbackUrl = `/api/data/signin-activity`;
+      const fallbackUrl = `/api/data/signin-activity.geojson`;
       response = await fetch(fallbackUrl, { method: 'HEAD' });
     }
     const isAvailable = response.ok;
@@ -188,11 +188,11 @@ async function checkSignInActivityAvailability() {
 async function checkDeviceLocationsAvailability() {
   try {
     // Try direct blob access first
-    let response = await fetch(getDataUrl("device-locations"), { method: 'HEAD' });
+    let response = await fetch(getDataUrl("mde-devices.geojson"), { method: 'HEAD' });
     if (!response.ok) {
       console.log('Direct blob access failed, falling back to Function API.');
       // Fallback to Function API
-      const fallbackUrl = `/api/data/device-locations`;
+      const fallbackUrl = `/api/data/mde-devices.geojson`;
       response = await fetch(fallbackUrl, { method: 'HEAD' });
     }
     const isAvailable = response.ok;

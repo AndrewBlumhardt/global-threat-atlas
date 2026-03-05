@@ -42,6 +42,12 @@ export function setDemoMode(enabled) {
  * This retrieves blobs from secure storage without exposing account keys
  */
 export function getDataUrl(filename) {
+  if (demoMode) {
+    // Use demo_data files in demo mode
+    const demoPath = `demo_data/${filename}`;
+    console.log(`[getDataUrl] Demo mode active, using: ${demoPath}`);
+    return demoPath;
+  }
   const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
   const datasetsContainer = window.DATASETS_CONTAINER;
   if (storageAccountUrl && datasetsContainer) {

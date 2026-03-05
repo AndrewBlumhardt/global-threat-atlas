@@ -48,12 +48,12 @@ async function enable(map) {
       });
       throw new Error("Missing required storage config");
     }
-      // Hard-coded Azure Blob Storage URL for custom source overlay
-      const dataUrl = "https://sentinelactivitymaps.blob.core.windows.net/datasets/custom-source.geojson";
-    console.log(`Loading custom source from blob: ${blobPath}`);
+    // Hard-coded Azure Blob Storage URL for custom source overlay
+    const dataUrl = "https://sentinelmapsstore.blob.core.windows.net/datasets/custom-source.geojson";
+    console.log(`Loading custom source from blob: ${dataUrl}`);
     let resp;
     try {
-      resp = await fetch(getDataUrl("custom-source.geojson"), { cache: "no-store" });
+      resp = await fetch(dataUrl, { cache: "no-store" });
     } catch (fetchErr) {
       console.error("Fetch error for custom source:", fetchErr);
       throw new Error(`Network error fetching custom source: ${fetchErr}`);
