@@ -85,11 +85,12 @@ async function enable(map) {
       throw new Error("No custom source data available");
     }
 
-    // Sanitize null numeric properties
+    // Robustly sanitize null numeric properties
     geojson.features.forEach(f => {
       if (f.properties) {
         Object.keys(f.properties).forEach(key => {
-          if (typeof f.properties[key] === "number" && f.properties[key] === null) {
+          if (f.properties[key] === null) {
+            // If the property is used as a number, set to 0
             f.properties[key] = 0;
           }
         });
@@ -218,18 +219,17 @@ function disable(map) {
   console.log("disable() called");
   if (!isEnabled) return;
 
-  const dataSource = map.sources.getById(CUSTOM_SOURCE_ID);
-  if (dataSource) {
-    // Remove layers
-    [CUSTOM_BUBBLE_LAYER_ID, CUSTOM_LINE_LAYER_ID, CUSTOM_POLYGON_LAYER_ID].forEach(layerId => {
+  // Remove all custom source layers
+  [CUSTOM_BUBBLE_LAYER_ID, CUSTOM_LINE_LAYER_ID, CUSTOM_POLYGON_LAYER_ID].forEach(layerId => {
+    if (map.layers.getLayerById) {
       const layer = map.layers.getLayerById(layerId);
-      if (layer) {
-        map.layers.remove(layerId);
-      }
-    });
-    
-    // Remove source
-    map.sources.remove(dataSource);
+      if (layer) map.layers.remove(layerId);
+    }
+  });
+  // Remove custom source data source
+  if (map.sources.getById) {
+    const dataSource = map.sources.getById(CUSTOM_SOURCE_ID);
+    if (dataSource) map.sources.remove(dataSource);
   }
 
   isEnabled = false;
