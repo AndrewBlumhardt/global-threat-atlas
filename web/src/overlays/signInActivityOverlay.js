@@ -200,7 +200,8 @@ function disable() {
     htmlMarkers.forEach(marker => {
       map.markers.remove(marker);
     });
-    htmlMarkers = [];
+      // Hard-coded Azure Blob Storage URL for sign-in activity
+      const dataUrl = "https://sentinelmapsstore.blob.core.windows.net/datasets/signin-activity.geojson";
 
     if (popup) {
       popup.close();
