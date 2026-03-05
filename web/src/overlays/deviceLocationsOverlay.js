@@ -23,10 +23,13 @@ async function enable(azureMap) {
   map = azureMap;
   
   try {
-    const storageAccountUrl = window.env?.STORAGE_ACCOUNT_URL;
-    const datasetsContainer = window.env?.DATASETS_CONTAINER;
+    const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
+    const datasetsContainer = window.DATASETS_CONTAINER;
     if (!storageAccountUrl || !datasetsContainer) {
-      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in window.env");
+      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in global window scope", {
+        STORAGE_ACCOUNT_URL: storageAccountUrl,
+        DATASETS_CONTAINER: datasetsContainer
+      });
       throw new Error("Missing required storage config");
     }
     const blobPath = `${storageAccountUrl}/${datasetsContainer}/device-locations`;

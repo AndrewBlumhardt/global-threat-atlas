@@ -42,9 +42,9 @@ export function setDemoMode(enabled) {
  * This retrieves blobs from secure storage without exposing account keys
  */
 export function getDataUrl(filename) {
-  const storageAccountUrl = window.env?.STORAGE_ACCOUNT_URL;
-  const datasetsContainer = window.env?.DATASETS_CONTAINER;
-  const storageAccountKey = window.env?.STORAGE_ACCOUNT_KEY;
+  const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
+  const datasetsContainer = window.DATASETS_CONTAINER;
+  const storageAccountKey = window.STORAGE_ACCOUNT_KEY;
   if (storageAccountUrl && datasetsContainer && storageAccountKey) {
     const blobUrl = `${storageAccountUrl}/${datasetsContainer}/${filename}`;
     console.log(`[getDataUrl] Blob path: ${blobUrl}, file: ${filename}`);
