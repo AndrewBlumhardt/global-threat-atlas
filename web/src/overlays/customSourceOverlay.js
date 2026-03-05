@@ -48,7 +48,8 @@ async function enable(map) {
       });
       throw new Error("Missing required storage config");
     }
-    const blobPath = `${storageAccountUrl}/${datasetsContainer}/custom-source.geojson`;
+      // Hard-coded Azure Blob Storage URL for custom source overlay
+      const dataUrl = "https://sentinelactivitymaps.blob.core.windows.net/datasets/custom-source.geojson";
     console.log(`Loading custom source from blob: ${blobPath}`);
     let resp;
     try {
