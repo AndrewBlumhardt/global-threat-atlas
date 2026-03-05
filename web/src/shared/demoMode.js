@@ -44,12 +44,10 @@ export function setDemoMode(enabled) {
 export function getDataUrl(filename) {
   const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
   const datasetsContainer = window.DATASETS_CONTAINER;
-  const storageAccountKey = window.STORAGE_ACCOUNT_KEY;
-  if (storageAccountUrl && datasetsContainer && storageAccountKey) {
+  if (storageAccountUrl && datasetsContainer) {
     const blobUrl = `${storageAccountUrl}/${datasetsContainer}/${filename}`;
     console.log(`[getDataUrl] Blob path: ${blobUrl}, file: ${filename}`);
-    const directUrl = `${blobUrl}?access_key=${encodeURIComponent(storageAccountKey)}`;
-    return directUrl;
+    return blobUrl;
   }
   const baseUrl = getApiUrl(`/api/data/${filename}`);
   console.log(`[getDataUrl] Using Function API fallback for file: ${filename}`);
