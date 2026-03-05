@@ -1,7 +1,7 @@
 // Azure Maps and Storage configuration
 // This file is auto-generated during deployment
 const config = {
-    // Azure Maps subscription key
+    // Azure Maps subscription key 
     azureMapsKey: '',
     
     // Storage account URL for GeoJSON data
