@@ -35,22 +35,22 @@ async function enable(azureMap) {
       });
       throw new Error("Missing required storage config");
     }
-      // Hard-coded Azure Blob Storage URL for device locations
-      const dataUrl = "https://sentinelactivitymaps.blob.core.windows.net/datasets/device-locations.geojson";
-    console.log(`Loading device locations from blob: ${blobPath}`);
+    // Hard-coded Azure Blob Storage URL for device locations (.geojson)
+    const dataUrl = "https://sentinelmapsstore.blob.core.windows.net/datasets/mde-devices.geojson";
+    console.log(`Loading device locations from blob: ${dataUrl}`);
     let resp;
     try {
-      resp = await fetch(getDataUrl("mde-devices-enriched.tsv"), { cache: "no-store" });
+      resp = await fetch(dataUrl, { cache: "no-store" });
     } catch (fetchErr) {
       console.error("Fetch error for device locations:", fetchErr);
       throw new Error(`Network error fetching device locations: ${fetchErr}`);
     }
     if (resp.ok) {
-      console.log(`Success: Loaded device locations from blob: ${blobPath}`);
+      console.log(`Success: Loaded device locations from blob: ${dataUrl}`);
     } else {
-      console.error(`Error: Failed to load device locations from blob: ${blobPath} (status: ${resp.status})`);
+      console.error(`Error: Failed to load device locations from blob: ${dataUrl} (status: ${resp.status})`);
       try {
-        resp = await fetch("/api/data/mde-devices-enriched.tsv", { cache: "no-store" });
+        resp = await fetch("/api/data/mde-devices.geojson", { cache: "no-store" });
       } catch (apiErr) {
         console.error("Function API fetch error for device locations:", apiErr);
         throw new Error(`Network error fetching device locations from API: ${apiErr}`);

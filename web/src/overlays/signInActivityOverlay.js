@@ -35,21 +35,22 @@ async function enable(azureMap) {
       });
       throw new Error("Missing required storage config");
     }
-    const blobPath = `${storageAccountUrl}/${datasetsContainer}/signin-activity.tsv`;
-    console.log(`Loading sign-in activity from blob: ${blobPath}`);
+    // Hard-coded Azure Blob Storage URL for sign-in activity (.geojson)
+    const dataUrl = "https://sentinelmapsstore.blob.core.windows.net/datasets/signin-activity.geojson";
+    console.log(`Loading sign-in activity from blob: ${dataUrl}`);
     let resp;
     try {
-      resp = await fetch(getDataUrl("signin-activity.tsv"), { cache: "no-store" });
+      resp = await fetch(dataUrl, { cache: "no-store" });
     } catch (fetchErr) {
       console.error("Fetch error for sign-in activity:", fetchErr);
       throw new Error(`Network error fetching sign-in activity: ${fetchErr}`);
     }
     if (resp.ok) {
-      console.log(`Success: Loaded sign-in activity from blob: ${blobPath}`);
+      console.log(`Success: Loaded sign-in activity from blob: ${dataUrl}`);
     } else {
-      console.error(`Error: Failed to load sign-in activity from blob: ${blobPath} (status: ${resp.status})`);
+      console.error(`Error: Failed to load sign-in activity from blob: ${dataUrl} (status: ${resp.status})`);
       try {
-        resp = await fetch("/api/data/signin-activity.tsv", { cache: "no-store" });
+        resp = await fetch("/api/data/signin-activity.geojson", { cache: "no-store" });
       } catch (apiErr) {
         console.error("Function API fetch error for sign-in activity:", apiErr);
         throw new Error(`Network error fetching sign-in activity from API: ${apiErr}`);

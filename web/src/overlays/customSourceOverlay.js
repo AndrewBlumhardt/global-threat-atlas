@@ -59,9 +59,9 @@ async function enable(map) {
       throw new Error(`Network error fetching custom source: ${fetchErr}`);
     }
     if (resp.ok) {
-      console.log(`Success: Loaded custom source from blob: ${blobPath}`);
+      console.log(`Success: Loaded custom source from blob: ${dataUrl}`);
     } else {
-      console.error(`Error: Failed to load custom source from blob: ${blobPath} (status: ${resp.status})`);
+      console.error(`Error: Failed to load custom source from blob: ${dataUrl} (status: ${resp.status})`);
       try {
         resp = await fetch("/api/data/custom-source.geojson", { cache: "no-store" });
       } catch (apiErr) {
@@ -77,7 +77,7 @@ async function enable(map) {
       }
     }
 
-    const geojson = await response.json();
+    const geojson = await resp.json();
     console.log("Custom GeoJSON loaded:", geojson);
     
     if (!geojson.features || geojson.features.length === 0) {
