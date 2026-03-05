@@ -43,7 +43,7 @@ async function enable(map) {
       throw new Error("Missing required storage config");
     }
     console.log(`Using global config: STORAGE_ACCOUNT_URL='${storageAccountUrl}', DATASETS_CONTAINER='${datasetsContainer}'`);
-    const blobPath = `${storageAccountUrl}/${datasetsContainer}/threat-intel-indicators`;
+      const blobPath = `${storageAccountUrl}/${datasetsContainer}/threat-intel-indicators.geojson`;
     console.log(`Loading threat intel indicators from blob: ${blobPath}`);
     let response = await fetch(getDataUrl("threat-intel-indicators"));
     if (response.ok) {
