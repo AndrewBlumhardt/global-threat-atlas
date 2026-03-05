@@ -5,10 +5,10 @@ const config = {
     azureMapsKey: '',
     
     // Storage account URL for GeoJSON data
-    storageAccountUrl: '',
-    
+    storageAccountUrl: window.env?.STORAGE_ACCOUNT_URL || 'https://sentinelmapsstore.blob.core.windows.net',
+
     // Container name for datasets
-    datasetsContainer: '',
+    datasetsContainer: window.env?.DATASETS_CONTAINER || 'datasets',
 
     // Storage account key for direct blob access (set via window.env for security)
     storageAccountKey: window.env?.STORAGE_ACCOUNT_KEY || '',
