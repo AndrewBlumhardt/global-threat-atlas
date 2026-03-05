@@ -59,14 +59,13 @@ async function enable(map) {
             errorMsg += `\n\nAvailable files: ${errorData.available_files.join(", ")}`;
           }
         } catch (e) {
-        // Not JSON, use text
-        if (errorText) {
-          errorMsg += `\n\n${errorText}`;
+          // Not JSON, use text
+          if (errorText) {
+            errorMsg += `\n\n${errorText}`;
+          }
         }
+        throw new Error(errorMsg);
       }
-      
-      throw new Error(errorMsg);
-    }
 
     const geojson = await response.json();
     console.log("GeoJSON loaded:", geojson);
