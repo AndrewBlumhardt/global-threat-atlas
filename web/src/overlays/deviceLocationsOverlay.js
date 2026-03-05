@@ -64,9 +64,16 @@ async function enable(azureMap) {
       }
     }
 
-    const geojsonData = await resp.json();
+    let geojsonData;
+    try {
+      geojsonData = await resp.json();
+    } catch (jsonErr) {
+      const errorText = await resp.text();
+      console.error("Failed to parse device locations GeoJSON:", errorText);
+      alert("Device locations data is not valid GeoJSON or missing. Please check demo_data/mde-devices.geojson.");
+      return;
+    }
     console.log("Device locations GeoJSON loaded:", geojsonData.features?.length || 0, "features");
-    
     if (!geojsonData.features || geojsonData.features.length === 0) {
       console.warn("No device location features found in GeoJSON");
       return;

@@ -64,9 +64,16 @@ async function enable(azureMap) {
       }
     }
 
-    const geojsonData = await resp.json();
+    let geojsonData;
+    try {
+      geojsonData = await resp.json();
+    } catch (jsonErr) {
+      const errorText = await resp.text();
+      console.error("Failed to parse sign-in activity GeoJSON:", errorText);
+      alert("Sign-in activity data is not valid GeoJSON or missing. Please check demo_data/signin-activity.geojson.");
+      return;
+    }
     console.log("Sign-in activity GeoJSON loaded:", geojsonData.features?.length || 0, "features");
-    
     if (!geojsonData.features || geojsonData.features.length === 0) {
       console.warn("No sign-in activity features found in GeoJSON");
       return;
