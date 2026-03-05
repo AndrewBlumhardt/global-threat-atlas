@@ -64,7 +64,7 @@ async function enable(azureMap) {
       }
     }
 
-    const geojsonData = await response.json();
+    const geojsonData = await resp.json();
     console.log("Device locations GeoJSON loaded:", geojsonData.features?.length || 0, "features");
     
     if (!geojsonData.features || geojsonData.features.length === 0) {
