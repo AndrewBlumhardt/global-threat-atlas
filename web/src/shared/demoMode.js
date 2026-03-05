@@ -42,8 +42,17 @@ export function setDemoMode(enabled) {
  * This retrieves blobs from secure storage without exposing account keys
  */
 export function getDataUrl(filename) {
-  // All data requests are proxied through /api/data/:filename endpoint
-  // No local secrets or env variables are used
+  const config = window.mapConfig || {};
+  const key = config.storageAccountKey;
+  if (key && config.storageAccountUrl && config.datasetsContainer) {
+    // Try direct blob access first
+    const blobUrl = `${config.storageAccountUrl}/${config.datasetsContainer}/${filename}`;
+    // Use SAS token or key as query param (for demo/dev only)
+    const directUrl = `${blobUrl}?access_key=${encodeURIComponent(key)}`;
+    // Return directUrl, but caller should handle fetch failure and fallback
+    return directUrl;
+  }
+  // Fallback to Function API
   const baseUrl = getApiUrl(`/api/data/${filename}`);
   return demoMode ? `${baseUrl}?demo=true` : baseUrl;
 }

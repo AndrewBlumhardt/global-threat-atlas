@@ -143,7 +143,15 @@ async function main() {
  */
 async function checkCustomSourceAvailability() {
   try {
-    const response = await fetch(getDataUrl("custom-source"), { method: 'HEAD' });
+    // Try direct blob access first
+    let response = await fetch(getDataUrl("custom-source"), { method: 'HEAD' });
+    if (!response.ok) {
+      console.log('Direct blob access failed, falling back to Function API.');
+      // Fallback to Function API
+      const config = window.mapConfig || {};
+      const fallbackUrl = `/api/data/custom-source`;
+      response = await fetch(fallbackUrl, { method: 'HEAD' });
+    }
     const isAvailable = response.ok;
     console.log(`Custom source file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
     updateLayerAvailability('CustomSource', isAvailable);
@@ -158,7 +166,15 @@ async function checkCustomSourceAvailability() {
  */
 async function checkSignInActivityAvailability() {
   try {
-    const response = await fetch(getDataUrl("signin-activity"), { method: 'HEAD' });
+    // Try direct blob access first
+    let response = await fetch(getDataUrl("signin-activity"), { method: 'HEAD' });
+    if (!response.ok) {
+      console.log('Direct blob access failed, falling back to Function API.');
+      // Fallback to Function API
+      const config = window.mapConfig || {};
+      const fallbackUrl = `/api/data/signin-activity`;
+      response = await fetch(fallbackUrl, { method: 'HEAD' });
+    }
     const isAvailable = response.ok;
     console.log(`Sign-in activity file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
     updateLayerAvailability('SignInActivity', isAvailable);
@@ -173,7 +189,15 @@ async function checkSignInActivityAvailability() {
  */
 async function checkDeviceLocationsAvailability() {
   try {
-    const response = await fetch(getDataUrl("device-locations"), { method: 'HEAD' });
+    // Try direct blob access first
+    let response = await fetch(getDataUrl("device-locations"), { method: 'HEAD' });
+    if (!response.ok) {
+      console.log('Direct blob access failed, falling back to Function API.');
+      // Fallback to Function API
+      const config = window.mapConfig || {};
+      const fallbackUrl = `/api/data/device-locations`;
+      response = await fetch(fallbackUrl, { method: 'HEAD' });
+    }
     const isAvailable = response.ok;
     console.log(`Device locations file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
     updateLayerAvailability('DeviceLocations', isAvailable);
