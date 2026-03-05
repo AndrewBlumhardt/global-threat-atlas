@@ -48,8 +48,9 @@ async function enable(map) {
       });
       throw new Error("Missing required storage config");
     }
-    // Use getDataUrl for custom source overlay
-    const dataUrl = getDataUrl("custom-source.geojson");
+    // Support SWA env variable for custom layer filename
+    const customLayerFilename = window.CUSTOM_LAYER_FILENAME || "custom-source.geojson";
+    const dataUrl = getDataUrl(customLayerFilename);
     console.log(`Loading custom source from blob: ${dataUrl}`);
     let resp;
     try {
