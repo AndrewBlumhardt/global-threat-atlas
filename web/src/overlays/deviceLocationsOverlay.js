@@ -32,20 +32,31 @@ async function enable(azureMap) {
       });
       throw new Error("Missing required storage config");
     }
-    const blobPath = `${storageAccountUrl}/${datasetsContainer}/device-locations`;
+    const blobPath = `${storageAccountUrl}/${datasetsContainer}/mde-devices-enriched.tsv`;
     console.log(`Loading device locations from blob: ${blobPath}`);
-    let response = await fetch(`${blobPath}`);
-    if (response.ok) {
+    let resp;
+    try {
+      resp = await fetch(getDataUrl("mde-devices-enriched.tsv"), { cache: "no-store" });
+    } catch (fetchErr) {
+      console.error("Fetch error for device locations:", fetchErr);
+      throw new Error(`Network error fetching device locations: ${fetchErr}`);
+    }
+    if (resp.ok) {
       console.log(`Success: Loaded device locations from blob: ${blobPath}`);
     } else {
-      console.error(`Error: Failed to load device locations from blob: ${blobPath} (status: ${response.status})`);
-      response = await fetch("/api/data/device-locations");
-      if (response.ok) {
+      console.error(`Error: Failed to load device locations from blob: ${blobPath} (status: ${resp.status})`);
+      try {
+        resp = await fetch("/api/data/mde-devices-enriched.tsv", { cache: "no-store" });
+      } catch (apiErr) {
+        console.error("Function API fetch error for device locations:", apiErr);
+        throw new Error(`Network error fetching device locations from API: ${apiErr}`);
+      }
+      if (resp.ok) {
         console.log("Success: Loaded device locations from Function API fallback.");
       } else {
-        const errorText = await response.text();
-        console.error("API error response:", errorText);
-        throw new Error(`Failed to load device locations: ${response.status} ${response.statusText}`);
+        const errorText = await resp.text();
+        console.error("Failed to load device locations:", errorText);
+        throw new Error(`Could not load device locations: ${resp.status} ${resp.statusText}`);
       }
     }
 

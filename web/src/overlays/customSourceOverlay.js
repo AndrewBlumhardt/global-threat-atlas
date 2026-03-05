@@ -47,30 +47,29 @@ async function enable(map) {
     }
     const blobPath = `${storageAccountUrl}/${datasetsContainer}/custom-source.geojson`;
     console.log(`Loading custom source from blob: ${blobPath}`);
-    let response = await fetch(getDataUrl("custom-source"));
-    if (response.ok) {
+    let resp;
+    try {
+      resp = await fetch(getDataUrl("custom-source.geojson"), { cache: "no-store" });
+    } catch (fetchErr) {
+      console.error("Fetch error for custom source:", fetchErr);
+      throw new Error(`Network error fetching custom source: ${fetchErr}`);
+    }
+    if (resp.ok) {
       console.log(`Success: Loaded custom source from blob: ${blobPath}`);
     } else {
-      console.error(`Error: Failed to load custom source from blob: ${blobPath} (status: ${response.status})`);
-      response = await fetch("/api/data/custom-source");
-      if (response.ok) {
+      console.error(`Error: Failed to load custom source from blob: ${blobPath} (status: ${resp.status})`);
+      try {
+        resp = await fetch("/api/data/custom-source.geojson", { cache: "no-store" });
+      } catch (apiErr) {
+        console.error("Function API fetch error for custom source:", apiErr);
+        throw new Error(`Network error fetching custom source from API: ${apiErr}`);
+      }
+      if (resp.ok) {
         console.log("Success: Loaded custom source from Function API fallback.");
       } else {
-        // Try to get error details
-        const errorText = await response.text();
-        console.error("API error response:", errorText);
-        let errorMsg = `Custom source not found: ${response.status} ${response.statusText}`;
-        try {
-          const errorData = JSON.parse(errorText);
-          if (errorData.error) {
-            errorMsg = errorData.error;
-          }
-        } catch (e) {
-          if (errorText) {
-            errorMsg += `\n\n${errorText}`;
-          }
-        }
-        throw new Error(errorMsg);
+        const errorText = await resp.text();
+        console.error("Failed to load custom source:", errorText);
+        throw new Error(`Could not load custom source: ${resp.status} ${resp.statusText}`);
       }
     }
 

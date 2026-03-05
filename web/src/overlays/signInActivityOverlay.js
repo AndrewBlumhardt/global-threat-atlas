@@ -34,18 +34,30 @@ async function enable(azureMap) {
       }
       const blobPath = `${storageAccountUrl}/${datasetsContainer}/sign-in-activity`;
     console.log(`Loading sign-in activity from blob: ${blobPath}`);
-    let response = await fetch(getDataUrl("signin-activity"));
-    if (response.ok) {
-      console.log(`Success: Loaded sign-in activity from blob: ${blobPath}`);
-    } else {
-      console.error(`Error: Failed to load sign-in activity from blob: ${blobPath} (status: ${response.status})`);
-      response = await fetch("/api/data/signin-activity");
-      if (response.ok) {
-        console.log("Success: Loaded sign-in activity from Function API fallback.");
+      let resp;
+      try {
+          resp = await fetch(getDataUrl("signin-activity"), { cache: "no-store" });
+      } catch (fetchErr) {
+          console.error("Fetch error for sign-in activity:", fetchErr);
+          throw new Error(`Network error fetching sign-in activity: ${fetchErr}`);
+      }
+      if (resp.ok) {
+          console.log(`Success: Loaded sign-in activity from blob: ${blobPath}`);
       } else {
-        const errorText = await response.text();
-        console.error("API error response:", errorText);
-        throw new Error(`Failed to load sign-in activity: ${response.status} ${response.statusText}`);
+          console.error(`Error: Failed to load sign-in activity from blob: ${blobPath} (status: ${resp.status})`);
+          try {
+              resp = await fetch("/api/data/signin-activity", { cache: "no-store" });
+          } catch (apiErr) {
+              console.error("Function API fetch error for sign-in activity:", apiErr);
+              throw new Error(`Network error fetching sign-in activity from API: ${apiErr}`);
+          }
+          if (resp.ok) {
+              console.log("Success: Loaded sign-in activity from Function API fallback.");
+          } else {
+              const errorText = await resp.text();
+              console.error("Failed to load sign-in activity:", errorText);
+              throw new Error(`Could not load sign-in activity: ${resp.status} ${resp.statusText}`);
+          }
       }
     }
 

@@ -49,7 +49,8 @@ export function getDataUrl(filename) {
     console.log(`[getDataUrl] Blob path: ${blobUrl}, file: ${filename}`);
     return blobUrl;
   }
+  // Fallback to Function API if config missing
   const baseUrl = getApiUrl(`/api/data/${filename}`);
   console.log(`[getDataUrl] Using Function API fallback for file: ${filename}`);
-  return demoMode ? `${baseUrl}?demo=true` : baseUrl;
+  return baseUrl;
 }
