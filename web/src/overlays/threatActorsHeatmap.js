@@ -220,15 +220,17 @@ async function enable(map, mode, onCountryClick) {
   }
 
   // Load threat actor data from blob storage via API
-  console.log("Loading threat actors from blob storage...");
+  const config = window.mapConfig || {};
+  const blobPath = `${config.storageAccountUrl}/${config.datasetsContainer}/threat-actors.tsv`;
+  console.log(`Loading threat actors from blob: ${blobPath}`);
   let resp = await fetch(getDataUrl("threat-actors.tsv"), { cache: "no-store" });
   if (resp.ok) {
-    console.log("Threat actors loaded via direct blob access.");
+    console.log(`Success: Loaded threat actors from blob: ${blobPath}`);
   } else {
-    console.warn("Direct blob access failed (status:", resp.status, ") - falling back to Function API.");
+    console.error(`Error: Failed to load threat actors from blob: ${blobPath} (status: ${resp.status})`);
     resp = await fetch("/api/data/threat-actors.tsv", { cache: "no-store" });
     if (resp.ok) {
-      console.log("Threat actors loaded via Function API fallback.");
+      console.log("Success: Loaded threat actors from Function API fallback.");
     } else {
       const errorText = await resp.text();
       console.error("Failed to load threat actors:", errorText);

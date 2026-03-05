@@ -45,14 +45,12 @@ export function getDataUrl(filename) {
   const config = window.mapConfig || {};
   const key = config.storageAccountKey;
   if (key && config.storageAccountUrl && config.datasetsContainer) {
-    // Try direct blob access first
     const blobUrl = `${config.storageAccountUrl}/${config.datasetsContainer}/${filename}`;
-    // Use SAS token or key as query param (for demo/dev only)
+    console.log(`[getDataUrl] Blob path: ${blobUrl}, file: ${filename}`);
     const directUrl = `${blobUrl}?access_key=${encodeURIComponent(key)}`;
-    // Return directUrl, but caller should handle fetch failure and fallback
     return directUrl;
   }
-  // Fallback to Function API
   const baseUrl = getApiUrl(`/api/data/${filename}`);
+  console.log(`[getDataUrl] Using Function API fallback for file: ${filename}`);
   return demoMode ? `${baseUrl}?demo=true` : baseUrl;
 }

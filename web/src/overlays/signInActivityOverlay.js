@@ -23,18 +23,17 @@ async function enable(azureMap) {
   map = azureMap;
   
   try {
-    console.log("Loading sign-in activity from blob storage...");
-
-    // Try direct blob access first
+    const config = window.mapConfig || {};
+    const blobPath = `${config.storageAccountUrl}/${config.datasetsContainer}/signin-activity`;
+    console.log(`Loading sign-in activity from blob: ${blobPath}`);
     let response = await fetch(getDataUrl("signin-activity"));
     if (response.ok) {
-      console.log("Sign-in activity loaded via direct blob access.");
+      console.log(`Success: Loaded sign-in activity from blob: ${blobPath}`);
     } else {
-      console.warn("Direct blob access failed (status:", response.status, ") - falling back to Function API.");
-      // Fallback to Function API
+      console.error(`Error: Failed to load sign-in activity from blob: ${blobPath} (status: ${response.status})`);
       response = await fetch("/api/data/signin-activity");
       if (response.ok) {
-        console.log("Sign-in activity loaded via Function API fallback.");
+        console.log("Success: Loaded sign-in activity from Function API fallback.");
       } else {
         const errorText = await response.text();
         console.error("API error response:", errorText);

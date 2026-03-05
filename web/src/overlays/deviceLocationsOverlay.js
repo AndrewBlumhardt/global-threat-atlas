@@ -23,18 +23,17 @@ async function enable(azureMap) {
   map = azureMap;
   
   try {
-    console.log("Loading device locations from blob storage...");
-
-    // Try direct blob access first
+    const config = window.mapConfig || {};
+    const blobPath = `${config.storageAccountUrl}/${config.datasetsContainer}/device-locations`;
+    console.log(`Loading device locations from blob: ${blobPath}`);
     let response = await fetch(getDataUrl("device-locations"));
     if (response.ok) {
-      console.log("Device locations loaded via direct blob access.");
+      console.log(`Success: Loaded device locations from blob: ${blobPath}`);
     } else {
-      console.warn("Direct blob access failed (status:", response.status, ") - falling back to Function API.");
-      // Fallback to Function API
+      console.error(`Error: Failed to load device locations from blob: ${blobPath} (status: ${response.status})`);
       response = await fetch("/api/data/device-locations");
       if (response.ok) {
-        console.log("Device locations loaded via Function API fallback.");
+        console.log("Success: Loaded device locations from Function API fallback.");
       } else {
         const errorText = await response.text();
         console.error("API error response:", errorText);

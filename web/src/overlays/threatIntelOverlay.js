@@ -33,31 +33,32 @@ async function enable(map) {
   if (isEnabled) return;
 
   try {
-    console.log("Loading threat intel indicators from API...");
-
-    // Fetch GeoJSON from blob storage via API proxy
-    console.log("Fetching from /api/data/threat-intel-indicators...");
-    const response = await fetch(getDataUrl("threat-intel-indicators"));
-    console.log("API response status:", response.status, response.statusText);
-    
-    if (!response.ok) {
-      // Try to get error details
-      const errorText = await response.text();
-      console.error("API error response:", errorText);
-      
-      let errorMsg = `Failed to load threat intel: ${response.status} ${response.statusText}`;
-      
-      // Parse error response if JSON
-      try {
-        const errorData = JSON.parse(errorText);
-        if (errorData.error) {
-          errorMsg = errorData.error;
-        }
-        if (errorData.available_files) {
-          console.log("Available files in blob storage:", errorData.available_files);
-          errorMsg += `\n\nAvailable files: ${errorData.available_files.join(", ")}`;
-        }
-      } catch (e) {
+    const config = window.mapConfig || {};
+    const blobPath = `${config.storageAccountUrl}/${config.datasetsContainer}/threat-intel-indicators`;
+    console.log(`Loading threat intel indicators from blob: ${blobPath}`);
+    let response = await fetch(getDataUrl("threat-intel-indicators"));
+    if (response.ok) {
+      console.log(`Success: Loaded threat intel indicators from blob: ${blobPath}`);
+    } else {
+      console.error(`Error: Failed to load threat intel indicators from blob: ${blobPath} (status: ${response.status})`);
+      // Fallback to Function API
+      response = await fetch("/api/data/threat-intel-indicators");
+      if (response.ok) {
+        console.log("Success: Loaded threat intel indicators from Function API fallback.");
+      } else {
+        const errorText = await response.text();
+        console.error("API error response:", errorText);
+        let errorMsg = `Failed to load threat intel: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.error) {
+            errorMsg = errorData.error;
+          }
+          if (errorData.available_files) {
+            console.log("Available files in blob storage:", errorData.available_files);
+            errorMsg += `\n\nAvailable files: ${errorData.available_files.join(", ")}`;
+          }
+        } catch (e) {
         // Not JSON, use text
         if (errorText) {
           errorMsg += `\n\n${errorText}`;

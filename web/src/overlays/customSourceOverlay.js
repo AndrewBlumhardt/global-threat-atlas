@@ -36,18 +36,17 @@ async function enable(map) {
   if (isEnabled) return;
 
   try {
-    console.log("Loading custom source from blob storage...");
-
-    // Try direct blob access first
+    const config = window.mapConfig || {};
+    const blobPath = `${config.storageAccountUrl}/${config.datasetsContainer}/custom-source.geojson`;
+    console.log(`Loading custom source from blob: ${blobPath}`);
     let response = await fetch(getDataUrl("custom-source"));
     if (response.ok) {
-      console.log("Custom source loaded via direct blob access.");
+      console.log(`Success: Loaded custom source from blob: ${blobPath}`);
     } else {
-      console.warn("Direct blob access failed (status:", response.status, ") - falling back to Function API.");
-      // Fallback to Function API
+      console.error(`Error: Failed to load custom source from blob: ${blobPath} (status: ${response.status})`);
       response = await fetch("/api/data/custom-source");
       if (response.ok) {
-        console.log("Custom source loaded via Function API fallback.");
+        console.log("Success: Loaded custom source from Function API fallback.");
       } else {
         // Try to get error details
         const errorText = await response.text();
