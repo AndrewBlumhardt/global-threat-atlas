@@ -202,30 +202,19 @@ async function enable(map) {
 
         isEnabled = true;
         console.log("Threat intel overlay enabled");
-      } catch (error) {
-        console.error("Error enabling threat intel overlay:", error);
-        disable(map);
-        throw error;
-      }
-      map.events.remove("mouseleave", layer);
+  try {
+    if (map.layers.getById(THREAT_INTEL_LAYER_ID)) {
       map.layers.remove(THREAT_INTEL_LAYER_ID);
     }
-  } catch (e) {
-    console.warn("Error removing threat intel layer:", e);
-  }
-
-  // Remove source
-  try {
     if (map.sources.getById(THREAT_INTEL_SOURCE_ID)) {
       map.sources.remove(THREAT_INTEL_SOURCE_ID);
     }
-  } catch (e) {
-    console.warn("Error removing threat intel source:", e);
+    map.getCanvasContainer().style.cursor = "grab";
+    isEnabled = false;
+    console.log("Threat intel overlay disabled");
+  } catch (error) {
+    console.error("Error disabling threat intel overlay:", error);
   }
-
-  map.getCanvasContainer().style.cursor = "grab";
-  isEnabled = false;
-  console.log("Threat intel overlay disabled");
 }
 
 /**
