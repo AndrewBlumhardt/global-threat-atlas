@@ -32,16 +32,28 @@ async function enable(map) {
   if (isEnabled) return;
 
   try {
-    const storageAccountUrl = window.env?.STORAGE_ACCOUNT_URL;
-    const datasetsContainer = window.env?.DATASETS_CONTAINER;
+    // Try window.env first, then fallback to window.mapConfig for local/dev
+    let storageAccountUrl = window.env?.STORAGE_ACCOUNT_URL;
+    let datasetsContainer = window.env?.DATASETS_CONTAINER;
+    let configSource = 'window.env';
     if (!storageAccountUrl || !datasetsContainer) {
-      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in window.env", {
+      // fallback to window.mapConfig (legacy/local dev)
+      storageAccountUrl = window.mapConfig?.STORAGE_ACCOUNT_URL;
+      datasetsContainer = window.mapConfig?.DATASETS_CONTAINER;
+      if (storageAccountUrl && datasetsContainer) {
+        configSource = 'window.mapConfig';
+      }
+    }
+    if (!storageAccountUrl || !datasetsContainer) {
+      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in window.env and window.mapConfig", {
         STORAGE_ACCOUNT_URL: storageAccountUrl,
         DATASETS_CONTAINER: datasetsContainer,
-        windowEnv: window.env
+        windowEnv: window.env,
+        mapConfig: window.mapConfig
       });
       throw new Error("Missing required storage config");
     }
+    console.log(`Using storage config from ${configSource}: STORAGE_ACCOUNT_URL='${storageAccountUrl}', DATASETS_CONTAINER='${datasetsContainer}'`);
     const blobPath = `${storageAccountUrl}/${datasetsContainer}/threat-intel-indicators`;
     console.log(`Loading threat intel indicators from blob: ${blobPath}`);
     let response = await fetch(getDataUrl("threat-intel-indicators"));
