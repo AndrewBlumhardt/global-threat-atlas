@@ -35,7 +35,11 @@ async function enable(map) {
     const storageAccountUrl = window.env?.STORAGE_ACCOUNT_URL;
     const datasetsContainer = window.env?.DATASETS_CONTAINER;
     if (!storageAccountUrl || !datasetsContainer) {
-      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in window.env");
+      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in window.env", {
+        STORAGE_ACCOUNT_URL: storageAccountUrl,
+        DATASETS_CONTAINER: datasetsContainer,
+        windowEnv: window.env
+      });
       throw new Error("Missing required storage config");
     }
     const blobPath = `${storageAccountUrl}/${datasetsContainer}/threat-intel-indicators`;
