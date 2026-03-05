@@ -44,14 +44,28 @@ async function enable(map) {
     }
     console.log(`Using global config: STORAGE_ACCOUNT_URL='${storageAccountUrl}', DATASETS_CONTAINER='${datasetsContainer}'`);
       const blobPath = `${storageAccountUrl}/${datasetsContainer}/threat-intel-indicators.geojson`;
-    console.log(`Loading threat intel indicators from blob: ${blobPath}`);
-    let response = await fetch(getDataUrl("threat-intel-indicators"));
+    const fetchUrl = getDataUrl("threat-intel-indicators.geojson");
+    console.log(`[threatIntelOverlay] Fetching threat intel indicators from:`, fetchUrl);
+    let response;
+    try {
+      response = await fetch(fetchUrl);
+    } catch (fetchErr) {
+      console.error(`[threatIntelOverlay] Fetch error:`, fetchErr);
+      throw new Error(`Network error fetching threat intel indicators: ${fetchErr}`);
+    }
+    console.log(`[threatIntelOverlay] Fetch response status:`, response.status, response.statusText);
     if (response.ok) {
-      console.log(`Success: Loaded threat intel indicators from blob: ${blobPath}`);
+      console.log(`[threatIntelOverlay] Success: Loaded threat intel indicators from blob: ${fetchUrl}`);
     } else {
-      console.error(`Error: Failed to load threat intel indicators from blob: ${blobPath} (status: ${response.status})`);
+      console.error(`[threatIntelOverlay] Error: Failed to load threat intel indicators from blob: ${fetchUrl} (status: ${response.status})`);
       // Fallback to Function API
-      response = await fetch("/api/data/threat-intel-indicators");
+      try {
+        response = await fetch("/api/data/threat-intel-indicators");
+      } catch (apiErr) {
+        console.error(`[threatIntelOverlay] Function API fetch error:`, apiErr);
+        throw new Error(`Network error fetching threat intel indicators from API: ${apiErr}`);
+      }
+      console.log(`[threatIntelOverlay] Function API response status:`, response.status, response.statusText);
       if (response.ok) {
         console.log("Success: Loaded threat intel indicators from Function API fallback.");
       } else {
