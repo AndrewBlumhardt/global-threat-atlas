@@ -33,8 +33,13 @@ async function enable(map) {
   if (isEnabled) return;
 
   try {
-    const config = window.mapConfig || {};
-    const blobPath = `${config.storageAccountUrl}/${config.datasetsContainer}/threat-intel-indicators`;
+    const storageAccountUrl = window.env?.STORAGE_ACCOUNT_URL;
+    const datasetsContainer = window.env?.DATASETS_CONTAINER;
+    if (!storageAccountUrl || !datasetsContainer) {
+      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in window.env");
+      throw new Error("Missing required storage config");
+    }
+    const blobPath = `${storageAccountUrl}/${datasetsContainer}/threat-intel-indicators`;
     console.log(`Loading threat intel indicators from blob: ${blobPath}`);
     let response = await fetch(getDataUrl("threat-intel-indicators"));
     if (response.ok) {

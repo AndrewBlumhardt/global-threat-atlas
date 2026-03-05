@@ -148,7 +148,8 @@ async function checkCustomSourceAvailability() {
     if (!response.ok) {
       console.log('Direct blob access failed, falling back to Function API.');
       // Fallback to Function API
-      const config = window.mapConfig || {};
+      const storageAccountUrl = window.env?.STORAGE_ACCOUNT_URL;
+      const datasetsContainer = window.env?.DATASETS_CONTAINER;
       const fallbackUrl = `/api/data/custom-source`;
       response = await fetch(fallbackUrl, { method: 'HEAD' });
     }

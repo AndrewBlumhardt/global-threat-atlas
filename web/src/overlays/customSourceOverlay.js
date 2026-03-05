@@ -36,8 +36,13 @@ async function enable(map) {
   if (isEnabled) return;
 
   try {
-    const config = window.mapConfig || {};
-    const blobPath = `${config.storageAccountUrl}/${config.datasetsContainer}/custom-source.geojson`;
+    const storageAccountUrl = window.env?.STORAGE_ACCOUNT_URL;
+    const datasetsContainer = window.env?.DATASETS_CONTAINER;
+    if (!storageAccountUrl || !datasetsContainer) {
+      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in window.env");
+      throw new Error("Missing required storage config");
+    }
+    const blobPath = `${storageAccountUrl}/${datasetsContainer}/custom-source.geojson`;
     console.log(`Loading custom source from blob: ${blobPath}`);
     let response = await fetch(getDataUrl("custom-source"));
     if (response.ok) {

@@ -220,8 +220,13 @@ async function enable(map, mode, onCountryClick) {
   }
 
   // Load threat actor data from blob storage via API
-  const config = window.mapConfig || {};
-  const blobPath = `${config.storageAccountUrl}/${config.datasetsContainer}/threat-actors.tsv`;
+  const storageAccountUrl = window.env?.STORAGE_ACCOUNT_URL;
+  const datasetsContainer = window.env?.DATASETS_CONTAINER;
+  if (!storageAccountUrl || !datasetsContainer) {
+    console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in window.env");
+    throw new Error("Missing required storage config");
+  }
+  const blobPath = `${storageAccountUrl}/${datasetsContainer}/threat-actors.tsv`;
   console.log(`Loading threat actors from blob: ${blobPath}`);
   let resp = await fetch(getDataUrl("threat-actors.tsv"), { cache: "no-store" });
   if (resp.ok) {

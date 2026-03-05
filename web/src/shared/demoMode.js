@@ -44,11 +44,13 @@ export function setDemoMode(enabled) {
 export function getDataUrl(filename) {
   const config = window.mapConfig || {};
   const key = config.storageAccountKey;
-  if (key && config.storageAccountUrl && config.datasetsContainer) {
-    const blobUrl = `${config.storageAccountUrl}/${config.datasetsContainer}/${filename}`;
-    console.log(`[getDataUrl] Blob path: ${blobUrl}, file: ${filename}`);
-    const directUrl = `${blobUrl}?access_key=${encodeURIComponent(key)}`;
-    return directUrl;
+    const storageAccountUrl = window.env?.STORAGE_ACCOUNT_URL;
+    const datasetsContainer = window.env?.DATASETS_CONTAINER;
+    if (storageAccountUrl && datasetsContainer) {
+      const blobUrl = `${storageAccountUrl}/${datasetsContainer}/${filename}`;
+      console.log(`[getDataUrl] Blob path: ${blobUrl}, file: ${filename}`);
+      const directUrl = `${blobUrl}?access_key=${encodeURIComponent(key)}`;
+      return directUrl;
   }
   const baseUrl = getApiUrl(`/api/data/${filename}`);
   console.log(`[getDataUrl] Using Function API fallback for file: ${filename}`);

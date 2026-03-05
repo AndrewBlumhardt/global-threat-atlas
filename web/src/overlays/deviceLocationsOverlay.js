@@ -23,10 +23,15 @@ async function enable(azureMap) {
   map = azureMap;
   
   try {
-    const config = window.mapConfig || {};
-    const blobPath = `${config.storageAccountUrl}/${config.datasetsContainer}/device-locations`;
+    const storageAccountUrl = window.env?.STORAGE_ACCOUNT_URL;
+    const datasetsContainer = window.env?.DATASETS_CONTAINER;
+    if (!storageAccountUrl || !datasetsContainer) {
+      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in window.env");
+      throw new Error("Missing required storage config");
+    }
+    const blobPath = `${storageAccountUrl}/${datasetsContainer}/device-locations`;
     console.log(`Loading device locations from blob: ${blobPath}`);
-    let response = await fetch(getDataUrl("device-locations"));
+    let response = await fetch(`${blobPath}`);
     if (response.ok) {
       console.log(`Success: Loaded device locations from blob: ${blobPath}`);
     } else {
