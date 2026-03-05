@@ -172,7 +172,6 @@ async function checkSignInActivityAvailability() {
     if (!response.ok) {
       console.log('Direct blob access failed, falling back to Function API.');
       // Fallback to Function API
-      const config = window.mapConfig || {};
       const fallbackUrl = `/api/data/signin-activity`;
       response = await fetch(fallbackUrl, { method: 'HEAD' });
     }
@@ -195,7 +194,6 @@ async function checkDeviceLocationsAvailability() {
     if (!response.ok) {
       console.log('Direct blob access failed, falling back to Function API.');
       // Fallback to Function API
-      const config = window.mapConfig || {};
       const fallbackUrl = `/api/data/device-locations`;
       response = await fetch(fallbackUrl, { method: 'HEAD' });
     }
