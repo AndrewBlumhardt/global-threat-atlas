@@ -144,13 +144,11 @@ async function main() {
 async function checkCustomSourceAvailability() {
   try {
     // Try direct blob access first
-    let response = await fetch(getDataUrl("custom-source"), { method: 'HEAD' });
+    let response = await fetch(getDataUrl("custom-source.geojson"), { method: 'HEAD' });
     if (!response.ok) {
       console.log('Direct blob access failed, falling back to Function API.');
       // Fallback to Function API
-      const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
-      const datasetsContainer = window.DATASETS_CONTAINER;
-      const fallbackUrl = `/api/data/custom-source`;
+      const fallbackUrl = `/api/data/custom-source.geojson`;
       response = await fetch(fallbackUrl, { method: 'HEAD' });
     }
     const isAvailable = response.ok;
