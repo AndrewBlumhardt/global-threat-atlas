@@ -38,33 +38,33 @@ async function enable(map) {
   try {
     console.log("Loading custom source from blob storage...");
 
-    // Fetch GeoJSON from blob storage via API proxy
-    // Expected naming format: custom-source.geojson
-    console.log("Fetching from /api/data/custom-source...");
-    const response = await fetch(getDataUrl("custom-source"));
-    console.log("API response status:", response.status, response.statusText);
-    
-    if (!response.ok) {
-      // Try to get error details
-      const errorText = await response.text();
-      console.error("API error response:", errorText);
-      
-      let errorMsg = `Custom source not found: ${response.status} ${response.statusText}`;
-      
-      // Parse error response if JSON
-      try {
-        const errorData = JSON.parse(errorText);
-        if (errorData.error) {
-          errorMsg = errorData.error;
+    // Try direct blob access first
+    let response = await fetch(getDataUrl("custom-source"));
+    if (response.ok) {
+      console.log("Custom source loaded via direct blob access.");
+    } else {
+      console.warn("Direct blob access failed (status:", response.status, ") - falling back to Function API.");
+      // Fallback to Function API
+      response = await fetch("/api/data/custom-source");
+      if (response.ok) {
+        console.log("Custom source loaded via Function API fallback.");
+      } else {
+        // Try to get error details
+        const errorText = await response.text();
+        console.error("API error response:", errorText);
+        let errorMsg = `Custom source not found: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.error) {
+            errorMsg = errorData.error;
+          }
+        } catch (e) {
+          if (errorText) {
+            errorMsg += `\n\n${errorText}`;
+          }
         }
-      } catch (e) {
-        // Not JSON, use text
-        if (errorText) {
-          errorMsg += `\n\n${errorText}`;
-        }
+        throw new Error(errorMsg);
       }
-      
-      throw new Error(errorMsg);
     }
 
     const geojson = await response.json();

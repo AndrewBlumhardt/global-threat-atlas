@@ -23,19 +23,25 @@ async function enable(azureMap) {
   map = azureMap;
   
   try {
-    console.log("Loading sign-in activity from API...");
+    console.log("Loading sign-in activity from blob storage...");
 
-    // Fetch GeoJSON from blob storage via API proxy
-    console.log("Fetching from /api/data/signin-activity...");
-    const response = await fetch(getDataUrl("signin-activity"));
-    console.log("API response status:", response.status, response.statusText);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("API error response:", errorText);
-      throw new Error(`Failed to load sign-in activity: ${response.status} ${response.statusText}`);
+    // Try direct blob access first
+    let response = await fetch(getDataUrl("signin-activity"));
+    if (response.ok) {
+      console.log("Sign-in activity loaded via direct blob access.");
+    } else {
+      console.warn("Direct blob access failed (status:", response.status, ") - falling back to Function API.");
+      // Fallback to Function API
+      response = await fetch("/api/data/signin-activity");
+      if (response.ok) {
+        console.log("Sign-in activity loaded via Function API fallback.");
+      } else {
+        const errorText = await response.text();
+        console.error("API error response:", errorText);
+        throw new Error(`Failed to load sign-in activity: ${response.status} ${response.statusText}`);
+      }
     }
-    
+
     const geojsonData = await response.json();
     console.log("Sign-in activity GeoJSON loaded:", geojsonData.features?.length || 0, "features");
     
