@@ -232,23 +232,18 @@ async function enable(map, mode, onCountryClick) {
     });
     throw new Error("Missing required storage config");
   }
-  const blobPath = `${storageAccountUrl}/${datasetsContainer}/threat-actors.tsv`;
-  console.log(`Loading threat actors from blob: ${blobPath}`);
-  let resp = await fetch(getDataUrl("threat-actors.tsv"), { cache: "no-store" });
-  if (resp.ok) {
-    console.log(`Success: Loaded threat actors from blob: ${blobPath}`);
-  } else {
-    console.error(`Error: Failed to load threat actors from blob: ${blobPath} (status: ${resp.status})`);
+  const dataUrl = getDataUrl("threat-actors.tsv");
+  console.log(`Loading threat actors from: ${dataUrl}`);
+  let resp = await fetch(dataUrl, { cache: "no-store" });
+  if (!resp.ok) {
+    console.error(`Error: Failed to load threat actors from: ${dataUrl} (status: ${resp.status})`);
     resp = await fetch("/api/data/threat-actors.tsv", { cache: "no-store" });
-    if (resp.ok) {
-      console.log("Success: Loaded threat actors from Function API fallback.");
-    } else {
+    if (!resp.ok) {
       const errorText = await resp.text();
       console.error("Failed to load threat actors:", errorText);
       throw new Error(`Could not load threat actors: ${resp.status} ${resp.statusText}`);
     }
   }
-
   const rows = parseTSV(await resp.text());
 
   // Count actors by country
@@ -283,20 +278,23 @@ async function enable(map, mode, onCountryClick) {
     // Country polygon view - fetch actual country boundaries from GeoJSON
     let labelSource;  // Declare outside try block for proper scope
     try {
-      // Fetch world countries GeoJSON from reliable CDN source
-      const geoResponse = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
-      if (!geoResponse.ok) throw new Error('Failed to load country boundaries');
-      
-      const topoData = await geoResponse.json();
-      
-      // Convert TopoJSON to GeoJSON using Atlas built-in support
-      // TopoJSON is more compact, we need to convert it
-      const geoJsonResponse = await fetch('https://unpkg.com/world-atlas@2/countries-50m.json');
-      const worldData = await geoJsonResponse.json();
-      
-      // Simple approach: Use a lightweight GeoJSON directly
-      const countriesResponse = await fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson');
-      const countriesGeoJSON = await countriesResponse.json();
+      // In demo mode, try to load boundaries from demo_data/countries.geojson
+      let countriesGeoJSON;
+      if (window.demoMode) {
+        try {
+          const demoBoundaries = await fetch(getDataUrl("countries.geojson"));
+          if (demoBoundaries.ok) {
+            countriesGeoJSON = await demoBoundaries.json();
+          }
+        } catch (e) {
+          // Ignore and fall back
+        }
+      }
+      if (!countriesGeoJSON) {
+        // Fallback to CDN
+        const countriesResponse = await fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson');
+        countriesGeoJSON = await countriesResponse.json();
+      }
       
       // Build lookup map of country names to their GeoJSON features
       const countryGeometries = new Map();
