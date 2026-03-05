@@ -23,45 +23,44 @@ async function enable(azureMap) {
   map = azureMap;
   
   try {
-      const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
-      const datasetsContainer = window.DATASETS_CONTAINER;
-      if (!storageAccountUrl || !datasetsContainer) {
-        console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in global window scope", {
-          STORAGE_ACCOUNT_URL: storageAccountUrl,
-          DATASETS_CONTAINER: datasetsContainer
-        });
-        throw new Error("Missing required storage config");
-      }
-      const blobPath = `${storageAccountUrl}/${datasetsContainer}/sign-in-activity`;
+    const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
+    const datasetsContainer = window.DATASETS_CONTAINER;
+    if (!storageAccountUrl || !datasetsContainer) {
+      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in global window scope", {
+        STORAGE_ACCOUNT_URL: storageAccountUrl,
+        DATASETS_CONTAINER: datasetsContainer
+      });
+      throw new Error("Missing required storage config");
+    }
+    const blobPath = `${storageAccountUrl}/${datasetsContainer}/signin-activity.tsv`;
     console.log(`Loading sign-in activity from blob: ${blobPath}`);
-      let resp;
+    let resp;
+    try {
+      resp = await fetch(getDataUrl("signin-activity.tsv"), { cache: "no-store" });
+    } catch (fetchErr) {
+      console.error("Fetch error for sign-in activity:", fetchErr);
+      throw new Error(`Network error fetching sign-in activity: ${fetchErr}`);
+    }
+    if (resp.ok) {
+      console.log(`Success: Loaded sign-in activity from blob: ${blobPath}`);
+    } else {
+      console.error(`Error: Failed to load sign-in activity from blob: ${blobPath} (status: ${resp.status})`);
       try {
-          resp = await fetch(getDataUrl("signin-activity"), { cache: "no-store" });
-      } catch (fetchErr) {
-          console.error("Fetch error for sign-in activity:", fetchErr);
-          throw new Error(`Network error fetching sign-in activity: ${fetchErr}`);
+        resp = await fetch("/api/data/signin-activity.tsv", { cache: "no-store" });
+      } catch (apiErr) {
+        console.error("Function API fetch error for sign-in activity:", apiErr);
+        throw new Error(`Network error fetching sign-in activity from API: ${apiErr}`);
       }
       if (resp.ok) {
-          console.log(`Success: Loaded sign-in activity from blob: ${blobPath}`);
+        console.log("Success: Loaded sign-in activity from Function API fallback.");
       } else {
-          console.error(`Error: Failed to load sign-in activity from blob: ${blobPath} (status: ${resp.status})`);
-          try {
-              resp = await fetch("/api/data/signin-activity", { cache: "no-store" });
-          } catch (apiErr) {
-              console.error("Function API fetch error for sign-in activity:", apiErr);
-              throw new Error(`Network error fetching sign-in activity from API: ${apiErr}`);
-          }
-          if (resp.ok) {
-              console.log("Success: Loaded sign-in activity from Function API fallback.");
-          } else {
-              const errorText = await resp.text();
-              console.error("Failed to load sign-in activity:", errorText);
-              throw new Error(`Could not load sign-in activity: ${resp.status} ${resp.statusText}`);
-          }
+        const errorText = await resp.text();
+        console.error("Failed to load sign-in activity:", errorText);
+        throw new Error(`Could not load sign-in activity: ${resp.status} ${resp.statusText}`);
       }
     }
 
-    const geojsonData = await response.json();
+    const geojsonData = await resp.json();
     console.log("Sign-in activity GeoJSON loaded:", geojsonData.features?.length || 0, "features");
     
     if (!geojsonData.features || geojsonData.features.length === 0) {
