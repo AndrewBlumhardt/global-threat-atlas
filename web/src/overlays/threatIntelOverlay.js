@@ -23,7 +23,6 @@ export async function toggleThreatIntelOverlay(map, turnOn) {
   } else {
     disable(map);
   }
-}
 
 /**
  * Enable the overlay - fetch and display GeoJSON from blob storage
@@ -202,6 +201,13 @@ async function enable(map) {
 
         isEnabled = true;
         console.log("Threat intel overlay enabled");
+  } catch (error) {
+    console.error("Error enabling threat intel overlay:", error);
+    disable(map);
+    throw error;
+  }
+}
+function disable(map) {
   try {
     if (map.layers.getById(THREAT_INTEL_LAYER_ID)) {
       map.layers.remove(THREAT_INTEL_LAYER_ID);
@@ -215,6 +221,7 @@ async function enable(map) {
   } catch (error) {
     console.error("Error disabling threat intel overlay:", error);
   }
+}
 }
 
 /**
