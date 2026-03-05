@@ -1,3 +1,6 @@
+  console.log("[threatIntelOverlay] STORAGE_ACCOUNT_URL:", window.STORAGE_ACCOUNT_URL);
+  console.log("[threatIntelOverlay] DATASETS_CONTAINER:", window.DATASETS_CONTAINER);
+  console.log("[threatIntelOverlay] getDataUrl result:", getDataUrl("threat-intel-indicators.geojson"));
 /* global atlas */
 
 /**

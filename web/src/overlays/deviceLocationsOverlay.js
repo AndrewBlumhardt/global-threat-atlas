@@ -1,3 +1,6 @@
+  console.log("[deviceLocationsOverlay] STORAGE_ACCOUNT_URL:", window.STORAGE_ACCOUNT_URL);
+  console.log("[deviceLocationsOverlay] DATASETS_CONTAINER:", window.DATASETS_CONTAINER);
+  console.log("[deviceLocationsOverlay] getDataUrl result:", getDataUrl("mde-devices-enriched.tsv"));
 /* global atlas */
 
 /**

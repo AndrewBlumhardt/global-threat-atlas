@@ -1,3 +1,6 @@
+  console.log("[signInActivityOverlay] STORAGE_ACCOUNT_URL:", window.STORAGE_ACCOUNT_URL);
+  console.log("[signInActivityOverlay] DATASETS_CONTAINER:", window.DATASETS_CONTAINER);
+  console.log("[signInActivityOverlay] getDataUrl result:", getDataUrl("signin-activity.tsv"));
 /* global atlas */
 
 /**

@@ -1,3 +1,6 @@
+  console.log("[threatActorsHeatmap] STORAGE_ACCOUNT_URL:", window.STORAGE_ACCOUNT_URL);
+  console.log("[threatActorsHeatmap] DATASETS_CONTAINER:", window.DATASETS_CONTAINER);
+  console.log("[threatActorsHeatmap] getDataUrl result:", getDataUrl("threat-actors.tsv"));
 /* global atlas */
 import { parseTSV } from "../data/tsv.js";
 import { getDataUrl } from "../shared/demoMode.js";

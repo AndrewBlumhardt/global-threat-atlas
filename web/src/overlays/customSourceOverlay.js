@@ -1,3 +1,6 @@
+  console.log("[customSourceOverlay] STORAGE_ACCOUNT_URL:", window.STORAGE_ACCOUNT_URL);
+  console.log("[customSourceOverlay] DATASETS_CONTAINER:", window.DATASETS_CONTAINER);
+  console.log("[customSourceOverlay] getDataUrl result:", getDataUrl("custom-source.geojson"));
 /* global atlas */
 
 /**
