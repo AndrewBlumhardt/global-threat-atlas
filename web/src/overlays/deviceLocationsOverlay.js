@@ -35,8 +35,8 @@ async function enable(azureMap) {
       });
       throw new Error("Missing required storage config");
     }
-    // Hard-coded Azure Blob Storage URL for device locations (.geojson)
-    const dataUrl = "https://sentinelmapsstore.blob.core.windows.net/datasets/mde-devices.geojson";
+    // Use getDataUrl for device locations (.geojson)
+    const dataUrl = getDataUrl("mde-devices.geojson");
     console.log(`Loading device locations from blob: ${dataUrl}`);
     let resp;
     try {

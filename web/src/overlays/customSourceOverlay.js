@@ -48,8 +48,8 @@ async function enable(map) {
       });
       throw new Error("Missing required storage config");
     }
-    // Hard-coded Azure Blob Storage URL for custom source overlay
-    const dataUrl = "https://sentinelmapsstore.blob.core.windows.net/datasets/custom-source.geojson";
+    // Use getDataUrl for custom source overlay
+    const dataUrl = getDataUrl("custom-source.geojson");
     console.log(`Loading custom source from blob: ${dataUrl}`);
     let resp;
     try {

@@ -61,9 +61,9 @@ async function enable(map) {
       console.log(`[threatIntelOverlay] Success: Loaded threat intel indicators from blob: ${fetchUrl}`);
     } else {
       console.error(`[threatIntelOverlay] Error: Failed to load threat intel indicators from blob: ${fetchUrl} (status: ${response.status})`);
-      // Fallback to Function API
+      // Fallback to Function API (.geojson)
       try {
-        response = await fetch("/api/data/threat-intel-indicators");
+        response = await fetch("/api/data/threat-intel-indicators.geojson");
       } catch (apiErr) {
         console.error(`[threatIntelOverlay] Function API fetch error:`, apiErr);
         throw new Error(`Network error fetching threat intel indicators from API: ${apiErr}`);
@@ -231,10 +231,10 @@ async function enable(map) {
 }
 function disable(map) {
   try {
-    if (map.layers.getById(THREAT_INTEL_LAYER_ID)) {
+    if (map.layers.getLayerById && map.layers.getLayerById(THREAT_INTEL_LAYER_ID)) {
       map.layers.remove(THREAT_INTEL_LAYER_ID);
     }
-    if (map.sources.getById(THREAT_INTEL_SOURCE_ID)) {
+    if (map.sources.getById && map.sources.getById(THREAT_INTEL_SOURCE_ID)) {
       map.sources.remove(THREAT_INTEL_SOURCE_ID);
     }
     map.getCanvasContainer().style.cursor = "grab";

@@ -35,8 +35,8 @@ async function enable(azureMap) {
       });
       throw new Error("Missing required storage config");
     }
-    // Hard-coded Azure Blob Storage URL for sign-in activity (.geojson)
-    const dataUrl = "https://sentinelmapsstore.blob.core.windows.net/datasets/signin-activity.geojson";
+    // Use getDataUrl for sign-in activity (.geojson)
+    const dataUrl = getDataUrl("signin-activity.geojson");
     console.log(`Loading sign-in activity from blob: ${dataUrl}`);
     let resp;
     try {
