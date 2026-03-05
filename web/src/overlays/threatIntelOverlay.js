@@ -47,76 +47,65 @@ async function enable(map) {
     } else {
       console.error(`Error: Failed to load threat intel indicators from blob: ${blobPath} (status: ${response.status})`);
       // Fallback to Function API
-      try {
-        // ...existing code...
-        const config = window.mapConfig || {};
-        const blobPath = `${config.storageAccountUrl}/${config.datasetsContainer}/threat-intel-indicators`;
-        console.log(`Loading threat intel indicators from blob: ${blobPath}`);
-        let response = await fetch(getDataUrl("threat-intel-indicators"));
-        if (response.ok) {
-          console.log(`Success: Loaded threat intel indicators from blob: ${blobPath}`);
-        } else {
-          console.error(`Error: Failed to load threat intel indicators from blob: ${blobPath} (status: ${response.status})`);
-          // Fallback to Function API
-          response = await fetch("/api/data/threat-intel-indicators");
-          if (response.ok) {
-            console.log("Success: Loaded threat intel indicators from Function API fallback.");
-          } else {
-            const errorText = await response.text();
-            console.error("API error response:", errorText);
-            let errorMsg = `Failed to load threat intel: ${response.status} ${response.statusText}`;
-            try {
-              const errorData = JSON.parse(errorText);
-              if (errorData.error) {
-                errorMsg = errorData.error;
-              }
-              if (errorData.available_files) {
-                console.log("Available files in blob storage:", errorData.available_files);
-                errorMsg += `\n\nAvailable files: ${errorData.available_files.join(", ")}`;
-              }
-            } catch (e) {
-              // Not JSON, use text
-              if (errorText) {
-                errorMsg += `\n\n${errorText}`;
-              }
-            }
-            throw new Error(errorMsg);
+      response = await fetch("/api/data/threat-intel-indicators");
+      if (response.ok) {
+        console.log("Success: Loaded threat intel indicators from Function API fallback.");
+      } else {
+        const errorText = await response.text();
+        console.error("API error response:", errorText);
+        let errorMsg = `Failed to load threat intel: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.error) {
+            errorMsg = errorData.error;
+          }
+          if (errorData.available_files) {
+            console.log("Available files in blob storage:", errorData.available_files);
+            errorMsg += `\n\nAvailable files: ${errorData.available_files.join(", ")}`;
+          }
+        } catch (e) {
+          // Not JSON, use text
+          if (errorText) {
+            errorMsg += `\n\n${errorText}`;
           }
         }
+        throw new Error(errorMsg);
+      }
+    }
 
-        const geojson = await response.json();
-        console.log("GeoJSON loaded:", geojson);
+    const geojson = await response.json();
+    console.log("GeoJSON loaded:", geojson);
 
-        if (!geojson.features || geojson.features.length === 0) {
-          console.warn("No threat intel indicators found");
-          throw new Error("No threat intelligence indicators available");
-        }
+    if (!geojson.features || geojson.features.length === 0) {
+      console.warn("No threat intel indicators found");
+      throw new Error("No threat intelligence indicators available");
+    }
 
-        console.log(`Loaded ${geojson.features.length} threat intel indicators`);
+    console.log(`Loaded ${geojson.features.length} threat intel indicators`);
 
-        // Create data source
-        const dataSource = new atlas.source.DataSource(THREAT_INTEL_SOURCE_ID);
-        map.sources.add(dataSource);
-        dataSource.add(geojson);
+    // Create data source
+    const dataSource = new atlas.source.DataSource(THREAT_INTEL_SOURCE_ID);
+    map.sources.add(dataSource);
+    dataSource.add(geojson);
 
-        // Find max for color scaling
-        const counts = geojson.features
-          .map(f => f.properties?.count || f.properties?.Count || 1)
-          .filter(c => typeof c === 'number' && !isNaN(c));
-        const maxCount = counts.length > 0 ? Math.max(...counts) : 1;
+    // Find max for color scaling
+    const counts = geojson.features
+      .map(f => f.properties?.count || f.properties?.Count || 1)
+      .filter(c => typeof c === 'number' && !isNaN(c));
+    const maxCount = counts.length > 0 ? Math.max(...counts) : 1;
 
-        console.log(`Threat intel count range: 1 to ${maxCount}`);
+    console.log(`Threat intel count range: 1 to ${maxCount}`);
 
-        // Add symbol layer for indicators (peg-like markers with 3D effect)
-        // Use smaller, more dimensional visualization
-        const bubbleLayer = new atlas.layer.BubbleLayer(dataSource, THREAT_INTEL_LAYER_ID, {
-          radius: 4,
-          color: "#e51010",
-          strokeColor: "#eb6060",
-          strokeWidth: 1,
-          opacity: 0.7,
-          pitchAlignment: "map"
-        });
+    // Add symbol layer for indicators (peg-like markers with 3D effect)
+    // Use smaller, more dimensional visualization
+    const bubbleLayer = new atlas.layer.BubbleLayer(dataSource, THREAT_INTEL_LAYER_ID, {
+      radius: 4,
+      color: "#e51010",
+      strokeColor: "#eb6060",
+      strokeWidth: 1,
+      opacity: 0.7,
+      pitchAlignment: "map"
+    });
 
         map.layers.add(bubbleLayer);
 
