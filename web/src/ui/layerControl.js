@@ -151,6 +151,11 @@ export function initLayerControl(toggleCallback) {
   // Custom Source toggle
   const customSourceCheckbox = document.getElementById('layerCustomSource');
   if (customSourceCheckbox) {
+    // Set display name from global variable if present
+    const labelSpan = customSourceCheckbox.parentElement.querySelector('.layer-name');
+    if (labelSpan) {
+      labelSpan.textContent = window.CUSTOM_LAYER_DISPLAY_NAME || 'Custom Source';
+    }
     customSourceCheckbox.addEventListener('change', async (e) => {
       currentState.customSource = e.target.checked;
       if (onLayerToggle) {
