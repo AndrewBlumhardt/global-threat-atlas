@@ -42,14 +42,20 @@ export function setDemoMode(enabled) {
  * This retrieves blobs from secure storage without exposing account keys
  */
 export function getDataUrl(filename) {
-  if (demoMode) {
-    // Use demo_data files in demo mode
-    const demoPath = `demo_data/${filename}`;
-    console.log(`[getDataUrl] Demo mode active, using: ${demoPath}`);
-    return demoPath;
-  }
   const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
   const datasetsContainer = window.DATASETS_CONTAINER;
+  if (demoMode) {
+    // Use demo_data subfolder in blob storage for demo mode
+    if (storageAccountUrl && datasetsContainer) {
+      const demoBlobUrl = `${storageAccountUrl}/${datasetsContainer}/demo_data/${filename}`;
+      console.log(`[getDataUrl] Demo mode active, using blob: ${demoBlobUrl}`);
+      return demoBlobUrl;
+    }
+    // Fallback to Function API if config missing
+    const demoApiUrl = getApiUrl(`/api/data/demo_data/${filename}`);
+    console.log(`[getDataUrl] Demo mode active, using API fallback: ${demoApiUrl}`);
+    return demoApiUrl;
+  }
   if (storageAccountUrl && datasetsContainer) {
     const blobUrl = `${storageAccountUrl}/${datasetsContainer}/${filename}`;
     console.log(`[getDataUrl] Blob path: ${blobUrl}, file: ${filename}`);

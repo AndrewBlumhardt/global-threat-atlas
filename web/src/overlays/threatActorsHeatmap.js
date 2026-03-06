@@ -232,8 +232,8 @@ async function enable(map, mode, onCountryClick) {
     });
     throw new Error("Missing required storage config");
   }
-  // Always use datasets version, ignore demo mode
-  const dataUrl = `${storageAccountUrl}/${datasetsContainer}/threat-actors.tsv`;
+  // Use getDataUrl for threat actors TSV (supports demo mode and blob storage)
+  const dataUrl = getDataUrl("threat-actors.tsv");
   console.log(`Loading threat actors from: ${dataUrl}`);
   let resp = await fetch(dataUrl, { cache: "no-store" });
   if (!resp.ok) {
