@@ -10,7 +10,7 @@ import { showCountryDetails, initPanelControls } from "./ui/panelManager.js";
 import { addAutoScrollControl } from "./ui/autoScroll.js";
 import { addDownloadControl } from "./ui/downloadControl.js";
 import { enableDragAndDrop } from "./ui/dragDropGeoJSON.js";
-import { setDemoMode, getDataUrl } from "./shared/demoMode.js";
+import { setDemoMode, getDataUrl, isDemoMode } from "./shared/demoMode.js";
 
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
