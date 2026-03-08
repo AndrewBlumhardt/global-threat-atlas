@@ -51,6 +51,18 @@ async function enable(map) {
     // Support SWA env variable for custom layer filename
     const customLayerFilename = window.CUSTOM_LAYER_FILENAME || "custom-source.geojson";
     const dataUrl = getDataUrl(customLayerFilename);
+
+    // Override custom layer display name using SWA env variable, only in main mode (not demo)
+    // Truncate to 25 characters for UI clarity
+    let customLayerDisplayName = "Custom Source";
+    // Import isDemoMode from demoMode.js
+    import { isDemoMode } from '../shared/demoMode.js';
+    if (window.CUSTOM_LAYER_DISPLAY_NAME && typeof window.CUSTOM_LAYER_DISPLAY_NAME === "string") {
+      // Only override if not in demo mode
+      if (!isDemoMode()) {
+        customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME.substring(0, 25);
+      }
+    }
     console.log(`Loading custom source from blob: ${dataUrl}`);
     let resp;
     try {
@@ -87,12 +99,17 @@ async function enable(map) {
     }
 
     // Robustly sanitize null numeric properties
+    // Only set nulls to 0 for properties that are expected to be numbers
+    // This prevents errors in map rendering when numeric values are missing
     geojson.features.forEach(f => {
       if (f.properties) {
         Object.keys(f.properties).forEach(key => {
           if (f.properties[key] === null) {
-            // If the property is used as a number, set to 0
-            f.properties[key] = 0;
+            // Check if the property is used as a number (common keys: 'value', 'count', 'radius', 'score')
+            // Add more keys as needed for your data
+            if (["value", "count", "radius", "score"].includes(key)) {
+              f.properties[key] = 0;
+            }
           }
         });
       }
@@ -133,7 +150,8 @@ async function enable(map) {
           let content = '<div style="padding:10px;width:250px;box-sizing:border-box;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">';
           
           // Prominent title from name property or "Custom Source"
-          const title = props.name || props.Name || props.title || props.Title || 'Custom Source';
+          // Use custom layer display name if no feature name
+          const title = props.name || props.Name || props.title || props.Title || customLayerDisplayName;
           const safeTitle = String(title).replace(/</g, '&lt;').replace(/>/g, '&gt;');
           content += `<div style="font-weight:600;font-size:14px;margin-bottom:8px;">${safeTitle}</div>`;
           
