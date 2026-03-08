@@ -28,7 +28,6 @@ export function getApiUrl(path) {
 export function isDemoMode() {
   return window.demoMode;
 }
-}
 
 /**
  * Set demo mode state
@@ -36,7 +35,6 @@ export function isDemoMode() {
 export function setDemoMode(enabled) {
   window.demoMode = enabled;
   console.log(`Demo mode ${enabled ? 'enabled' : 'disabled'}`);
-}
 }
 
 /**
