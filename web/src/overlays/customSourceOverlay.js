@@ -56,13 +56,22 @@ async function enable(map) {
     // Override custom layer display name using SWA env variable, only in main mode (not demo)
     // Truncate name to 25 characters for UI clarity
     let customLayerDisplayName = "Custom Source";
-    console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME:', window.CUSTOM_LAYER_DISPLAY_NAME);
-    if (window.CUSTOM_LAYER_DISPLAY_NAME && typeof window.CUSTOM_LAYER_DISPLAY_NAME === "string") {
-      // Only override if not in demo mode
-      if (!isDemoMode()) {
-        customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME.substring(0, 25);
-        console.log('[customSourceOverlay] Using customLayerDisplayName:', customLayerDisplayName);
+    if (typeof window.CUSTOM_LAYER_DISPLAY_NAME !== 'undefined') {
+      console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME present:', true);
+      console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME value:', window.CUSTOM_LAYER_DISPLAY_NAME);
+      if (window.CUSTOM_LAYER_DISPLAY_NAME && typeof window.CUSTOM_LAYER_DISPLAY_NAME === "string") {
+        // Only override if not in demo mode
+        if (!isDemoMode()) {
+          customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME.substring(0, 25);
+          console.log('[customSourceOverlay] Using customLayerDisplayName:', customLayerDisplayName);
+        } else {
+          console.log('[customSourceOverlay] Demo mode active, not overriding display name.');
+        }
+      } else {
+        console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME is not a string or is empty, using default name.');
       }
+    } else {
+      console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME not present, using default name.');
     }
     // Update layer menu/UI if present
     if (window.updateCustomLayerMenuName) {
