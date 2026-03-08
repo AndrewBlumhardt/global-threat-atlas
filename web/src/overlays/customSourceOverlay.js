@@ -49,8 +49,9 @@ async function enable(map) {
       throw new Error("Missing required storage config");
     }
     // Support SWA env variable for custom layer filename
-    const customLayerFilename = window.CUSTOM_LAYER_FILENAME || "custom-source.geojson";
-    const dataUrl = getDataUrl(customLayerFilename);
+    // Ensure variable is named 'lov' if required for custom layer rename
+    const lov = window.CUSTOM_LAYER_FILENAME || "custom-source.geojson";
+    const dataUrl = getDataUrl(lov);
 
     // Override custom layer display name using SWA env variable, only in main mode (not demo)
     // Truncate name to 25 characters for UI clarity
