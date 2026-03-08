@@ -10,7 +10,7 @@
  */
 
 import { showCustomSourceDetails } from "../ui/panelManager.js";
-import { getDataUrl } from "../shared/demoMode.js";
+import { getDataUrl, isDemoMode } from "../shared/demoMode.js";
 
 const CUSTOM_SOURCE_ID = "custom-source";
 const CUSTOM_BUBBLE_LAYER_ID = "custom-bubble-layer";
@@ -55,8 +55,6 @@ async function enable(map) {
     // Override custom layer display name using SWA env variable, only in main mode (not demo)
     // Truncate to 25 characters for UI clarity
     let customLayerDisplayName = "Custom Source";
-    // Import isDemoMode from demoMode.js
-    import { isDemoMode } from '../shared/demoMode.js';
     if (window.CUSTOM_LAYER_DISPLAY_NAME && typeof window.CUSTOM_LAYER_DISPLAY_NAME === "string") {
       // Only override if not in demo mode
       if (!isDemoMode()) {
