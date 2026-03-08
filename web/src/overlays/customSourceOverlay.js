@@ -61,6 +61,10 @@ async function enable(map) {
         customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME.substring(0, 25);
       }
     }
+    // Update layer menu/UI if present
+    if (window.updateCustomLayerMenuName) {
+      window.updateCustomLayerMenuName(customLayerDisplayName);
+    }
     console.log(`Loading custom source from blob: ${dataUrl}`);
     let resp;
     try {

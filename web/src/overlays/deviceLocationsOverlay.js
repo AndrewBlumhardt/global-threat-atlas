@@ -8,7 +8,7 @@
  * Displays last known location for each device from pre-generated GeoJSON
  */
 
-import { getDataUrl } from "../shared/demoMode.js";
+import { getDataUrl, isDemoMode } from "../shared/demoMode.js";
 import { showDeviceDetails } from "../ui/panelManager.js";
 
 let isEnabled = false;
@@ -37,7 +37,6 @@ async function enable(azureMap) {
     }
     // Use correct demo filename for device locations
     // In demo mode, use device-locations.geojson; in main mode, use mde-devices.geojson
-    const { isDemoMode } = await import('../shared/demoMode.js');
     const filename = isDemoMode() ? "device-locations.geojson" : "mde-devices.geojson";
     const dataUrl = getDataUrl(filename);
     console.log(`Loading device locations from blob: ${dataUrl}`);
