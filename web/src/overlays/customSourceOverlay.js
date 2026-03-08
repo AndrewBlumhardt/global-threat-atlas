@@ -48,17 +48,20 @@ async function enable(map) {
       });
       throw new Error("Missing required storage config");
     }
-      // Support SWA env variable for custom layer filename
-      const customLayerFilename = window.CUSTOM_LAYER_FILENAME || "custom-source.geojson";
+      // Always use custom-source.geojson for custom layer
+      const customLayerFilename = "custom-source.geojson";
+      console.log('[customSourceOverlay] Using customLayerFilename:', customLayerFilename);
       const dataUrl = getDataUrl(customLayerFilename);
 
     // Override custom layer display name using SWA env variable, only in main mode (not demo)
     // Truncate name to 25 characters for UI clarity
     let customLayerDisplayName = "Custom Source";
+    console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME:', window.CUSTOM_LAYER_DISPLAY_NAME);
     if (window.CUSTOM_LAYER_DISPLAY_NAME && typeof window.CUSTOM_LAYER_DISPLAY_NAME === "string") {
       // Only override if not in demo mode
       if (!isDemoMode()) {
         customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME.substring(0, 25);
+        console.log('[customSourceOverlay] Using customLayerDisplayName:', customLayerDisplayName);
       }
     }
     // Update layer menu/UI if present
