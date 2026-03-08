@@ -188,7 +188,9 @@ async function checkSignInActivityAvailability() {
 async function checkDeviceLocationsAvailability() {
   try {
     // Try direct blob access first
-    let response = await fetch(getDataUrl("mde-devices.geojson"), { method: 'HEAD' });
+    // Use device-locations.geojson in demo mode, mde-devices.geojson otherwise
+    let deviceFile = getDataUrl(setDemoMode() ? "device-locations.geojson" : "mde-devices.geojson");
+    let response = await fetch(deviceFile, { method: 'HEAD' });
     if (!response.ok) {
       console.log('Direct blob access failed, falling back to Function API.');
       // Fallback to Function API
