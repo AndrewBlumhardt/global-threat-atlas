@@ -8,7 +8,7 @@
  * Displays sign-in activity events from pre-generated GeoJSON
  */
 
-import { getDataUrl } from "../shared/demoMode.js";
+import { getDataUrl, isDemoMode } from "../shared/demoMode.js";
 import { showSignInDetails } from "../ui/panelManager.js";
 
 let isEnabled = false;
