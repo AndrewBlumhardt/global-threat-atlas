@@ -153,6 +153,24 @@ async function checkCustomSourceAvailability() {
     }
     const isAvailable = response.ok;
     console.log(`Custom source file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
+    // Custom layer display name logic
+    let customLayerDisplayName = "Custom Source";
+    if (typeof window.CUSTOM_LAYER_DISPLAY_NAME !== 'undefined') {
+      console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME present:', true);
+      console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME value:', window.CUSTOM_LAYER_DISPLAY_NAME);
+      if (window.CUSTOM_LAYER_DISPLAY_NAME && typeof window.CUSTOM_LAYER_DISPLAY_NAME === "string") {
+        customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME.substring(0, 25);
+        console.log('[customSourceOverlay] Using customLayerDisplayName:', customLayerDisplayName);
+      } else {
+        console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME is not a string or is empty, using default name.');
+      }
+    } else {
+      console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME not present, using default name.');
+    }
+    // Optionally update menu/UI if present
+    if (window.updateCustomLayerMenuName) {
+      window.updateCustomLayerMenuName(customLayerDisplayName);
+    }
     updateLayerAvailability('CustomSource', isAvailable);
   } catch (error) {
     console.log('Custom source not available:', error);
