@@ -155,17 +155,11 @@ async function checkCustomSourceAvailability() {
     console.log(`Custom source file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
     // Custom layer display name logic
     let customLayerDisplayName = "Custom Source";
-    if (typeof window.CUSTOM_LAYER_DISPLAY_NAME !== 'undefined') {
-      console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME present:', true);
-      console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME value:', window.CUSTOM_LAYER_DISPLAY_NAME);
-      if (window.CUSTOM_LAYER_DISPLAY_NAME && typeof window.CUSTOM_LAYER_DISPLAY_NAME === "string") {
-        customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME.substring(0, 25);
-        console.log('[customSourceOverlay] Using customLayerDisplayName:', customLayerDisplayName);
-      } else {
-        console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME is not a string or is empty, using default name.');
-      }
+    if (typeof window.CUSTOM_LAYER_DISPLAY_NAME !== 'undefined' && window.CUSTOM_LAYER_DISPLAY_NAME && typeof window.CUSTOM_LAYER_DISPLAY_NAME === "string") {
+      customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME;
+      console.log('[customSourceOverlay] Using CUSTOM_LAYER_DISPLAY_NAME:', customLayerDisplayName);
     } else {
-      console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME not present, using default name.');
+      console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME not set or not a string, using default name.');
     }
     // Optionally update menu/UI if present
     if (window.updateCustomLayerMenuName) {
