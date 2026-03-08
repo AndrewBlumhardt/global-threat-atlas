@@ -53,7 +53,7 @@ async function enable(map) {
     const dataUrl = getDataUrl(customLayerFilename);
 
     // Override custom layer display name using SWA env variable, only in main mode (not demo)
-    // Truncate to 25 characters for UI clarity
+    // Truncate name to 25 characters for UI clarity
     let customLayerDisplayName = "Custom Source";
     if (window.CUSTOM_LAYER_DISPLAY_NAME && typeof window.CUSTOM_LAYER_DISPLAY_NAME === "string") {
       // Only override if not in demo mode
