@@ -2,7 +2,7 @@
  * Demo mode state management
  */
 
-let demoMode = false;
+if (typeof window.demoMode === 'undefined') window.demoMode = false;
 
 /**
  * All backend secrets and config are now securely fetched via API endpoints.
@@ -25,15 +25,13 @@ export function getApiUrl(path) {
 /**
  * Get current demo mode state
  */
-export function isDemoMode() {
-  return demoMode;
+  return window.demoMode;
 }
 
 /**
  * Set demo mode state
  */
-export function setDemoMode(enabled) {
-  demoMode = enabled;
+  window.demoMode = enabled;
   console.log(`Demo mode ${enabled ? 'enabled' : 'disabled'}`);
 }
 
