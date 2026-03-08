@@ -36,8 +36,8 @@ async function enable(azureMap) {
       throw new Error("Missing required storage config");
     }
     // Use correct demo filename for device locations
-    // In demo mode, use device-locations.geojson; in main mode, use mde-devices.geojson
-    const filename = isDemoMode() ? "device-locations.geojson" : "mde-devices.geojson";
+    // In demo mode, use mde-devices.geojson from demo_data; in main mode, use mde-devices.geojson
+    const filename = "mde-devices.geojson";
     const dataUrl = getDataUrl(filename);
     console.log(`Loading device locations from blob: ${dataUrl}`);
     let resp;
