@@ -189,7 +189,7 @@ async function checkDeviceLocationsAvailability() {
   try {
     // Try direct blob access first
     // Use device-locations.geojson in demo mode, mde-devices.geojson otherwise
-    let deviceFile = getDataUrl(setDemoMode() ? "device-locations.geojson" : "mde-devices.geojson");
+    let deviceFile = getDataUrl(isDemoMode() ? "device-locations.geojson" : "mde-devices.geojson");
     let response = await fetch(deviceFile, { method: 'HEAD' });
     if (!response.ok) {
       console.log('Direct blob access failed, falling back to Function API.');
