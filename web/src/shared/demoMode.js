@@ -25,14 +25,18 @@ export function getApiUrl(path) {
 /**
  * Get current demo mode state
  */
+export function isDemoMode() {
   return window.demoMode;
+}
 }
 
 /**
  * Set demo mode state
  */
+export function setDemoMode(enabled) {
   window.demoMode = enabled;
   console.log(`Demo mode ${enabled ? 'enabled' : 'disabled'}`);
+}
 }
 
 /**
