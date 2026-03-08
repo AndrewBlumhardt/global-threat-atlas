@@ -37,7 +37,8 @@ async function enable(azureMap) {
     }
     // Use correct demo filename for device locations
     // In demo mode, use mde-devices.geojson from demo_data; in main mode, use mde-devices.geojson
-    const filename = "mde-devices.geojson";
+    // Use demo_data/device-locations.geojson in demo mode, datasets/mde-devices.geojson otherwise
+    const filename = isDemoMode() ? "demo_data/device-locations.geojson" : "mde-devices.geojson";
     const dataUrl = getDataUrl(filename);
     console.log(`Loading device locations from blob: ${dataUrl}`);
     let resp;

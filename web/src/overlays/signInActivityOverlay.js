@@ -35,8 +35,9 @@ async function enable(azureMap) {
       });
       throw new Error("Missing required storage config");
     }
-    // Use getDataUrl for sign-in activity (.geojson)
-    const dataUrl = getDataUrl("signin-activity.geojson");
+    // Use demo_data/signin-activity.geojson in demo mode, datasets/signin-activity.geojson otherwise
+    const filename = isDemoMode() ? "demo_data/signin-activity.geojson" : "signin-activity.geojson";
+    const dataUrl = getDataUrl(filename);
     console.log(`Loading sign-in activity from blob: ${dataUrl}`);
     let resp;
     try {
