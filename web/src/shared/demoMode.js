@@ -35,6 +35,7 @@ export function isDemoMode() {
 export function setDemoMode(enabled) {
   window.demoMode = enabled;
   console.log(`Demo mode ${enabled ? 'enabled' : 'disabled'}`);
+  if (!enabled) console.trace('Demo mode disabled stack trace');
 }
 
 /**
