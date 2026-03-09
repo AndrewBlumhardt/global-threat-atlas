@@ -21,14 +21,19 @@ async function main() {
     const configResp = await fetch('/api/config');
     if (configResp.ok) {
       const appConfig = await configResp.json();
+      console.log('[config] /api/config response:', JSON.stringify(appConfig));
       // Apply custom layer display name if set via app settings
       if (appConfig.customLayerDisplayName) {
         window.CUSTOM_LAYER_DISPLAY_NAME = appConfig.customLayerDisplayName;
         console.log('[config] Custom layer display name from API:', window.CUSTOM_LAYER_DISPLAY_NAME);
+      } else {
+        console.log('[config] customLayerDisplayName not in API response, using default:', window.CUSTOM_LAYER_DISPLAY_NAME);
       }
       // Apply storage config if returned
       if (appConfig.storageAccountUrl) window.STORAGE_ACCOUNT_URL = appConfig.storageAccountUrl;
       if (appConfig.datasetsContainer) window.DATASETS_CONTAINER = appConfig.datasetsContainer;
+    } else {
+      console.warn('[config] /api/config returned status:', configResp.status);
     }
   } catch (e) {
     console.warn('[config] Could not fetch /api/config, using defaults:', e.message);
