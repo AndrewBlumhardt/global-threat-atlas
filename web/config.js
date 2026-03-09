@@ -1,5 +1,5 @@
 // Set the display name for the custom source layer (UI label only)
-window.CUSTOM_LAYER_DISPLAY_NAME = 'Custom Source'; // Change this value to customize the display name
+window.CUSTOM_LAYER_DISPLAY_NAME = 'Custom US Bases Map'; // Change this value to customize the display name
 // Azure Maps and Storage configuration
 // This file is auto-generated during deployment
 

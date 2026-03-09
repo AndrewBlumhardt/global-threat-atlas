@@ -1,4 +1,16 @@
 /**
+ * Dynamically update the custom layer display name in the UI
+ */
+window.updateCustomLayerMenuName = function(newName) {
+  const customSourceCheckbox = document.getElementById('layerCustomSource');
+  if (customSourceCheckbox) {
+    const labelSpan = customSourceCheckbox.parentElement.querySelector('.layer-name');
+    if (labelSpan) {
+      labelSpan.textContent = newName;
+    }
+  }
+};
+/**
  * Layer Control Panel
  * Allows users to toggle different data layers on/off
  */

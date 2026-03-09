@@ -14,6 +14,8 @@ import { setDemoMode, getDataUrl, isDemoMode } from "./shared/demoMode.js";
 
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
+  // Debug: log custom layer display name at startup
+  console.log('[startup] CUSTOM_LAYER_DISPLAY_NAME:', window.CUSTOM_LAYER_DISPLAY_NAME);
 
   const { map, subscriptionKey } = await createMap({
     containerId: "map",
