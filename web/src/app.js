@@ -14,8 +14,25 @@ import { setDemoMode, getDataUrl, isDemoMode } from "./shared/demoMode.js";
 
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
-  // Debug: log custom layer display name at startup
-  console.log('[startup] CUSTOM_LAYER_DISPLAY_NAME:', window.CUSTOM_LAYER_DISPLAY_NAME);
+
+  // Fetch app config from the API to apply server-side settings (e.g. custom layer name, keys).
+  // This runs before the map loads so all config is ready when layers are initialized.
+  try {
+    const configResp = await fetch('/api/config');
+    if (configResp.ok) {
+      const appConfig = await configResp.json();
+      // Apply custom layer display name if set via app settings
+      if (appConfig.customLayerDisplayName) {
+        window.CUSTOM_LAYER_DISPLAY_NAME = appConfig.customLayerDisplayName;
+        console.log('[config] Custom layer display name from API:', window.CUSTOM_LAYER_DISPLAY_NAME);
+      }
+      // Apply storage config if returned
+      if (appConfig.storageAccountUrl) window.STORAGE_ACCOUNT_URL = appConfig.storageAccountUrl;
+      if (appConfig.datasetsContainer) window.DATASETS_CONTAINER = appConfig.datasetsContainer;
+    }
+  } catch (e) {
+    console.warn('[config] Could not fetch /api/config, using defaults:', e.message);
+  }
 
   const { map, subscriptionKey } = await createMap({
     containerId: "map",
@@ -155,15 +172,8 @@ async function checkCustomSourceAvailability() {
     }
     const isAvailable = response.ok;
     console.log(`Custom source file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
-    // Custom layer display name logic
-    let customLayerDisplayName = "Custom Source";
-    if (typeof window.CUSTOM_LAYER_DISPLAY_NAME !== 'undefined' && window.CUSTOM_LAYER_DISPLAY_NAME && typeof window.CUSTOM_LAYER_DISPLAY_NAME === "string") {
-      customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME;
-      console.log('[customSourceOverlay] Using CUSTOM_LAYER_DISPLAY_NAME:', customLayerDisplayName);
-    } else {
-      console.log('[customSourceOverlay] CUSTOM_LAYER_DISPLAY_NAME not set or not a string, using default name.');
-    }
-    // Optionally update menu/UI if present
+    // Apply custom layer display name if set (from API config or fallback)
+    const customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME || 'Custom Source';
     if (window.updateCustomLayerMenuName) {
       window.updateCustomLayerMenuName(customLayerDisplayName);
     }

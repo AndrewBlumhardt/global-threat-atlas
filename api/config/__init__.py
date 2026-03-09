@@ -65,6 +65,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         'azureMapsKey': os.environ.get('AZURE_MAPS_SUBSCRIPTION_KEY', ''),
         'storageAccountUrl': os.environ.get('STORAGE_ACCOUNT_URL', ''),
         'datasetsContainer': os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets'),
+        # Optional: custom display name for the custom source layer (set via SWA/Function app settings)
+        'customLayerDisplayName': os.environ.get('CUSTOM_LAYER_DISPLAY_NAME', ''),
         'configSource': 'swa-fallback'
     }
     
