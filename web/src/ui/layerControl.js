@@ -165,6 +165,7 @@ export function initLayerControl(toggleCallback) {
   if (customSourceCheckbox) {
     // Set display name from global variable if present
     const labelSpan = customSourceCheckbox.parentElement.querySelector('.layer-name');
+    // Set display name from global variable only once during initial validation
     if (labelSpan) {
       labelSpan.textContent = window.CUSTOM_LAYER_DISPLAY_NAME || 'Custom Source';
     }
