@@ -196,10 +196,12 @@ async function enable(map) {
     }
 
     if (geometryTypes.has('LineString') || geometryTypes.has('MultiLineString')) {
+      // Use data-driven styling: read 'stroke' and 'stroke-width' from each feature's properties
+      // if present (simplestyle-spec), otherwise fall back to defaults.
       const lineLayer = new atlas.layer.LineLayer(dataSource, CUSTOM_LINE_LAYER_ID, {
-        strokeColor: "#9333ea",
-        strokeWidth: 2,
-        opacity: 0.8
+        strokeColor: ['coalesce', ['get', 'stroke'], '#9333ea'],
+        strokeWidth: ['coalesce', ['get', 'stroke-width'], 2],
+        opacity: ['coalesce', ['get', 'stroke-opacity'], 0.8]
       });
       map.layers.add(lineLayer);
     }
