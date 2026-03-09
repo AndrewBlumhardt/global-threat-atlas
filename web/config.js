@@ -1,8 +1,16 @@
 // Set the display name for the custom source layer (UI label only)
-// Read CUSTOM_LAYER_DISPLAY_NAME from SEA environment variables if available
-window.CUSTOM_LAYER_DISPLAY_NAME = typeof SEA !== 'undefined' && SEA.CUSTOM_LAYER_DISPLAY_NAME
-    ? SEA.CUSTOM_LAYER_DISPLAY_NAME
-    : 'Custom Source';
+// Read CUSTOM_LAYER_DISPLAY_NAME from SEA environment variables if available, with detailed logging
+console.log('[config.js] SEA:', typeof SEA !== 'undefined' ? SEA : 'SEA is undefined');
+if (typeof SEA !== 'undefined') {
+    console.log('[config.js] SEA.CUSTOM_LAYER_DISPLAY_NAME:', SEA.CUSTOM_LAYER_DISPLAY_NAME);
+}
+if (typeof SEA !== 'undefined' && SEA.CUSTOM_LAYER_DISPLAY_NAME) {
+    window.CUSTOM_LAYER_DISPLAY_NAME = SEA.CUSTOM_LAYER_DISPLAY_NAME;
+    console.log('[config.js] Using SEA.CUSTOM_LAYER_DISPLAY_NAME:', window.CUSTOM_LAYER_DISPLAY_NAME);
+} else {
+    window.CUSTOM_LAYER_DISPLAY_NAME = 'Custom Source';
+    console.log('[config.js] SEA.CUSTOM_LAYER_DISPLAY_NAME not set, using fallback:', window.CUSTOM_LAYER_DISPLAY_NAME);
+}
 // Azure Maps and Storage configuration
 // This file is auto-generated during deployment
 
