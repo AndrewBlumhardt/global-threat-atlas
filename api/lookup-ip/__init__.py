@@ -52,51 +52,62 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             no_match=True
         )
 
-    # Read MaxMind credentials from app settings
-    account_id = os.environ.get('MAXMIND_ACCOUNT_ID', '')
-    license_key = os.environ.get('MAXMIND_LICENSE_KEY', '')
+    # Read MaxMind credentials from app settings — strip any accidental whitespace
+    account_id = os.environ.get('MAXMIND_ACCOUNT_ID', '').strip()
+    license_key = os.environ.get('MAXMIND_LICENSE_KEY', '').strip()
 
     if not account_id or not license_key:
         logger.error('MaxMind credentials not configured (MAXMIND_ACCOUNT_ID / MAXMIND_LICENSE_KEY)')
         return _error_response('MaxMind credentials not configured on server', 503)
 
-    url = MAXMIND_BASE_URL.format(ip=ip)
     credentials = base64.b64encode(f"{account_id}:{license_key}".encode()).decode()
+    headers = {'Authorization': f'Basic {credentials}', 'Accept': 'application/json'}
+
+    # Try Insights endpoint first; fall back to City if account lacks Insights tier
+    endpoints = [
+        f"https://geoip.maxmind.com/geoip/v2.1/insights/{ip}",
+        f"https://geoip.maxmind.com/geoip/v2.1/city/{ip}",
+    ]
+    data = None
+    last_error = None
+    for url in endpoints:
+        try:
+            req_obj = Request(url, headers=headers)
+            with urllib_request.urlopen(req_obj, timeout=10) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+            logger.info(f'MaxMind lookup succeeded via {url.split("/")[-2]}')
+            break  # success
+        except urllib_error.HTTPError as e:
+            status = e.code
+            body = e.read().decode('utf-8')
+            logger.warning(f'MaxMind HTTP {status} at {url.split("/")[-2]} for {ip}: {body[:200]}')
+            if status == 404:
+                return _error_response(
+                    f'No geolocation data found for {ip}. The IP may be unregistered or newly allocated.',
+                    404, no_match=True
+                )
+            if status == 400:
+                return _error_response(f'Invalid IP address format: {ip}', 400, no_match=True)
+            if status in (401, 402, 403):
+                last_error = f'MaxMind auth failed (HTTP {status}) for endpoint {url.split("/")[-2]} — account_id={account_id}'
+                logger.error(last_error)
+                # Try next endpoint (e.g. City may work if Insights is not subscribed)
+                continue
+            return _error_response(f'MaxMind returned error {status}', 502)
+
+    if data is None:
+        return _error_response(
+            'MaxMind authentication failed on all endpoints. Verify MAXMIND_ACCOUNT_ID and MAXMIND_LICENSE_KEY.',
+            503
+        )
 
     try:
-        req_obj = Request(url, headers={
-            'Authorization': f'Basic {credentials}',
-            'Accept': 'application/json'
-        })
-        with urllib_request.urlopen(req_obj, timeout=10) as resp:
-            body = resp.read().decode('utf-8')
-            data = json.loads(body)
-
         result = _parse_maxmind_response(ip, data)
         return func.HttpResponse(
             body=json.dumps(result),
             mimetype='application/json',
             headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'}
         )
-
-    except urllib_error.HTTPError as e:
-        status = e.code
-        body = e.read().decode('utf-8')
-        logger.warning(f'MaxMind HTTP {status} for {ip}: {body}')
-
-        if status == 404:
-            # IP not found in MaxMind database - not necessarily an error
-            return _error_response(
-                f'No geolocation data found for {ip}. The IP may be unregistered or newly allocated.',
-                404,
-                no_match=True
-            )
-        if status == 400:
-            return _error_response(f'Invalid IP address format: {ip}', 400, no_match=True)
-        if status in (401, 402, 403):
-            return _error_response('MaxMind authentication failed - check MAXMIND_ACCOUNT_ID and MAXMIND_LICENSE_KEY', 503)
-
-        return _error_response(f'MaxMind returned error {status}', 502)
 
     except Exception as e:
         logger.error(f'IP lookup failed for {ip}: {e}')

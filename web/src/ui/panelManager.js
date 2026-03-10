@@ -683,31 +683,36 @@ export function showIPLookupDetails(data) {
   listEl.innerHTML = "";
   metaEl.innerHTML = "";
 
-  const ip = data.ip || "Unknown";
-  const loc = data.location || {};
-  const net = data.network || {};
-  const risk = data.risk || {};
+  // API returns a flat object — map fields directly
+  const ip   = data.ip   || "Unknown";
+  const city = data.city || "";
+  const state = data.state || "";
+  const country = data.country || "";
+  const isp  = data.isp  || "";
+  const org  = data.organization || "";
+  const asn  = data.autonomous_system_number;
+  const asnOrg = data.autonomous_system_organization || "";
 
   // Title
   titleEl.textContent = `IP Lookup: ${ip}`;
 
   // Build risk flag badges
   const riskFlags = [];
-  if (risk.is_tor)       riskFlags.push({ label: "TOR",       bg: "#991b1b" });
-  if (risk.is_vpn)       riskFlags.push({ label: "VPN",       bg: "#b45309" });
-  if (risk.is_proxy)     riskFlags.push({ label: "Proxy",     bg: "#b45309" });
-  if (risk.is_hosting)   riskFlags.push({ label: "Hosting",   bg: "#1d4ed8" });
-  if (risk.is_anonymous) riskFlags.push({ label: "Anonymous", bg: "#4b5563" });
+  if (data.is_tor_exit_node)   riskFlags.push({ label: "TOR Exit",     bg: "#7c3aed" });
+  if (data.is_anonymous_vpn)   riskFlags.push({ label: "VPN",          bg: "#7c3aed" });
+  if (data.is_public_proxy)    riskFlags.push({ label: "Proxy",        bg: "#ef4444" });
+  if (data.is_anonymous_proxy) riskFlags.push({ label: "Anon Proxy",   bg: "#ef4444" });
+  if (data.is_hosting_provider)riskFlags.push({ label: "Hosting",      bg: "#f59e0b" });
+  if (data.is_anonymous)       riskFlags.push({ label: "Anonymous",    bg: "#f59e0b" });
+  if (data.is_residential_proxy) riskFlags.push({ label: "Res. Proxy", bg: "#f59e0b" });
 
   const badgesHtml = riskFlags.length > 0
     ? riskFlags.map(f =>
-        `<span style="display: inline-block; padding: 2px 8px; background: ${f.bg}; border-radius: 4px; font-size: 11px; font-weight: 600; color: #fff; margin-right: 4px;">${f.label}</span>`
+        `<span style="display: inline-block; padding: 2px 8px; background: ${f.bg}; border-radius: 4px; font-size: 11px; font-weight: 600; color: #fff; margin-right: 4px; margin-bottom: 4px;">${f.label}</span>`
       ).join("")
     : `<span style="display: inline-block; padding: 2px 8px; background: rgba(16, 185, 129, 0.2); border-radius: 4px; font-size: 11px; color: #10b981;">No risk flags</span>`;
 
-  // Location string
-  const locationParts = [loc.city, loc.subdivision, loc.country].filter(Boolean);
-  const locationStr = locationParts.join(", ");
+  const locationStr = [city, state, country].filter(Boolean).join(", ");
 
   metaEl.innerHTML = `
     <div style="margin-bottom: 12px;">
@@ -726,21 +731,23 @@ export function showIPLookupDetails(data) {
     </div>
   `;
 
-  // Build detail rows
+  // Build detail rows from flat fields
   const rows = [];
-
-  if (loc.latitude != null && loc.longitude != null) {
-    rows.push({ label: "Coordinates", value: `${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}` });
+  if (data.latitude != null && data.longitude != null) {
+    rows.push({ label: "Coordinates", value: `${Number(data.latitude).toFixed(4)}, ${Number(data.longitude).toFixed(4)}` });
   }
-  if (loc.accuracy_radius) {
-    rows.push({ label: "Accuracy Radius", value: `±${loc.accuracy_radius} km` });
+  if (data.accuracy_radius)  rows.push({ label: "Accuracy Radius",  value: `±${data.accuracy_radius} km` });
+  if (data.time_zone)        rows.push({ label: "Time Zone",        value: data.time_zone });
+  if (data.postal_code)      rows.push({ label: "Postal Code",      value: data.postal_code });
+  if (isp)                   rows.push({ label: "ISP",              value: isp });
+  if (org)                   rows.push({ label: "Organization",     value: org });
+  if (asn)                   rows.push({ label: "ASN",              value: `AS${asn}${asnOrg ? " — " + asnOrg : ""}` });
+  if (data.domain)           rows.push({ label: "Domain",          value: data.domain });
+  if (data.connection_type)  rows.push({ label: "Connection Type", value: data.connection_type });
+  if (data.user_type)        rows.push({ label: "User Type",       value: data.user_type });
+  if (data.registered_country && data.registered_country !== country) {
+    rows.push({ label: "Registered In", value: data.registered_country });
   }
-  if (loc.time_zone)        rows.push({ label: "Time Zone",       value: loc.time_zone });
-  if (net.isp)              rows.push({ label: "ISP",             value: net.isp });
-  if (net.organization)     rows.push({ label: "Organization",    value: net.organization });
-  if (net.asn)              rows.push({ label: "ASN",             value: `AS${net.asn}${net.asn_org ? " — " + net.asn_org : ""}` });
-  if (net.connection_type)  rows.push({ label: "Connection Type", value: net.connection_type });
-  if (net.user_type)        rows.push({ label: "User Type",       value: net.user_type });
 
   const rowsHtml = rows.map(r => `
     <div style="padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: baseline; gap: 12px;">
@@ -760,9 +767,9 @@ export function showIPLookupDetails(data) {
 
 1. Current threat classification and reputation
 2. Geographic location: ${locationStr || "unknown"}
-3. Network info: ISP = ${net.isp || "unknown"}, Organization = ${net.organization || "unknown"}, ASN = ${net.asn ? "AS" + net.asn : "unknown"}
+3. Network info: ISP = ${isp || "unknown"}, Organization = ${org || "unknown"}, ASN = ${asn ? "AS" + asn : "unknown"}
 4. Risk flags detected: ${riskList}
-5. Connection type: ${net.connection_type || "unknown"}, User type: ${net.user_type || "unknown"}
+5. Connection type: ${data.connection_type || "unknown"}, User type: ${data.user_type || "unknown"}
 6. MITRE ATT&CK techniques associated with this type of IP infrastructure
 7. Historical activity and known campaigns using this IP, ASN, or hosting provider
 8. Recommended blocking, monitoring, and detection strategies

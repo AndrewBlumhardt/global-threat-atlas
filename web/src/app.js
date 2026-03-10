@@ -192,11 +192,28 @@ async function main() {
       ipInput.classList.add('ip-input-error');
     }
 
+    // Basic IPv4/IPv6 format check (private/reserved filtered server-side)
+    function isPlausibleIP(str) {
+      // IPv4: four octets 0-255
+      const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/;
+      // IPv6: at least two colons or one :: pattern
+      const ipv6 = /^[0-9a-fA-F:]{2,39}$/.test(str) && str.includes(':');
+      if (ipv4.test(str)) {
+        return str.split('.').every(o => parseInt(o, 10) <= 255);
+      }
+      return ipv6;
+    }
+
     async function handleIPLookup() {
       const ip = ipInput ? ipInput.value.trim() : '';
       if (!ip) {
         blinkInputRed();
         if (ipStatus) ipStatus.textContent = 'Enter a public IP address.';
+        return;
+      }
+      if (!isPlausibleIP(ip)) {
+        blinkInputRed();
+        if (ipStatus) ipStatus.textContent = 'Not a valid IP address format.';
         return;
       }
       if (ipStatus) ipStatus.textContent = 'Looking up…';
