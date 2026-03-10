@@ -4,6 +4,7 @@ import { toggleThreatIntelOverlay } from "./overlays/threatIntelOverlay.js";
 import { toggleSignInActivityOverlay } from "./overlays/signInActivityOverlay.js";
 import { toggleDeviceLocationsOverlay } from "./overlays/deviceLocationsOverlay.js";
 import { toggleCustomSourceOverlay } from "./overlays/customSourceOverlay.js";
+import { toggleDayNightOverlay } from "./overlays/dayNightOverlay.js";
 import { toggleWeatherRadar, toggleWeatherInfrared } from "./ui/weatherControl.js";
 import { initLayerControl, updateLayerAvailability } from "./ui/layerControl.js";
 import { showCountryDetails, initPanelControls } from "./ui/panelManager.js";
@@ -139,6 +140,9 @@ async function main() {
         case 'customSource':
           await toggleCustomSourceOverlay(map, enabled);
           break;
+        case 'dayNight':
+          toggleDayNightOverlay(map, enabled);
+          break;
       }
     });
     
@@ -147,6 +151,7 @@ async function main() {
     updateLayerAvailability('ThreatIntel', true);
     updateLayerAvailability('WeatherRadar', true);
     updateLayerAvailability('WeatherInfrared', true);
+    updateLayerAvailability('DayNight', true);
     // Future layers start disabled (enabled when data is available)
     updateLayerAvailability('DeviceLocations', false);
     

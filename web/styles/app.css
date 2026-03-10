@@ -381,10 +381,6 @@ body {
   line-height: 1.4;
 }
 
-.ip-lookup-label {
-  font-weight: 600;
-}
-
 .ip-lookup-row {
   display: flex;
   gap: 5px;

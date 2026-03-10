@@ -24,7 +24,8 @@ let currentState = {
   weatherInfrared: false,
   signInActivity: false,
   deviceLocations: false,
-  customSource: false
+  customSource: false,
+  dayNight: false,
 };
 
 let onLayerToggle = null;
@@ -195,6 +196,17 @@ export function initLayerControl(toggleCallback) {
       currentState.deviceLocations = e.target.checked;
       if (onLayerToggle) {
         await onLayerToggle('deviceLocations', e.target.checked);
+      }
+    });
+  }
+
+  // Day / Night terminator toggle
+  const dnCheckbox = document.getElementById('layerDayNight');
+  if (dnCheckbox) {
+    dnCheckbox.addEventListener('change', async (e) => {
+      currentState.dayNight = e.target.checked;
+      if (onLayerToggle) {
+        await onLayerToggle('dayNight', e.target.checked);
       }
     });
   }
