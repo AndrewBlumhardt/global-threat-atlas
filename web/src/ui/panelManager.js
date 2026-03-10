@@ -666,6 +666,136 @@ export function showDeviceDetails(deviceData) {
 }
 
 /**
+ * Populate the left panel with MaxMind GeoIP2 IP lookup details
+ */
+export function showIPLookupDetails(data) {
+  const panel = document.getElementById("leftPanel");
+  const titleEl = document.getElementById("panelTitle");
+  const metaEl = document.getElementById("panelMeta");
+  const listEl = document.getElementById("panelList");
+
+  if (!panel || !titleEl || !metaEl || !listEl) {
+    console.warn("Panel elements not found");
+    return;
+  }
+
+  // Clear any existing content
+  listEl.innerHTML = "";
+  metaEl.innerHTML = "";
+
+  const ip = data.ip || "Unknown";
+  const loc = data.location || {};
+  const net = data.network || {};
+  const risk = data.risk || {};
+
+  // Title
+  titleEl.textContent = `IP Lookup: ${ip}`;
+
+  // Build risk flag badges
+  const riskFlags = [];
+  if (risk.is_tor)       riskFlags.push({ label: "TOR",       bg: "#991b1b" });
+  if (risk.is_vpn)       riskFlags.push({ label: "VPN",       bg: "#b45309" });
+  if (risk.is_proxy)     riskFlags.push({ label: "Proxy",     bg: "#b45309" });
+  if (risk.is_hosting)   riskFlags.push({ label: "Hosting",   bg: "#1d4ed8" });
+  if (risk.is_anonymous) riskFlags.push({ label: "Anonymous", bg: "#4b5563" });
+
+  const badgesHtml = riskFlags.length > 0
+    ? riskFlags.map(f =>
+        `<span style="display: inline-block; padding: 2px 8px; background: ${f.bg}; border-radius: 4px; font-size: 11px; font-weight: 600; color: #fff; margin-right: 4px;">${f.label}</span>`
+      ).join("")
+    : `<span style="display: inline-block; padding: 2px 8px; background: rgba(16, 185, 129, 0.2); border-radius: 4px; font-size: 11px; color: #10b981;">No risk flags</span>`;
+
+  // Location string
+  const locationParts = [loc.city, loc.subdivision, loc.country].filter(Boolean);
+  const locationStr = locationParts.join(", ");
+
+  metaEl.innerHTML = `
+    <div style="margin-bottom: 12px;">
+      ${locationStr ? `<div style="font-size: 13px; color: rgba(255,255,255,0.8); margin-bottom: 8px;">📍 ${escapeHtml(locationStr)}</div>` : ""}
+      <div style="margin-bottom: 4px;">${badgesHtml}</div>
+    </div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <a href="https://www.virustotal.com/gui/ip-address/${encodeURIComponent(ip)}" target="_blank" rel="noopener noreferrer"
+        style="padding: 7px 12px; background: #0078d4; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; text-decoration: none; display: inline-block;">
+        VT Search
+      </a>
+      <button id="ipLookupAiPromptBtn"
+        style="padding: 7px 12px; background: #10b981; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600;">
+        AI Prompt
+      </button>
+    </div>
+  `;
+
+  // Build detail rows
+  const rows = [];
+
+  if (loc.latitude != null && loc.longitude != null) {
+    rows.push({ label: "Coordinates", value: `${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}` });
+  }
+  if (loc.accuracy_radius) {
+    rows.push({ label: "Accuracy Radius", value: `±${loc.accuracy_radius} km` });
+  }
+  if (loc.time_zone)        rows.push({ label: "Time Zone",       value: loc.time_zone });
+  if (net.isp)              rows.push({ label: "ISP",             value: net.isp });
+  if (net.organization)     rows.push({ label: "Organization",    value: net.organization });
+  if (net.asn)              rows.push({ label: "ASN",             value: `AS${net.asn}${net.asn_org ? " — " + net.asn_org : ""}` });
+  if (net.connection_type)  rows.push({ label: "Connection Type", value: net.connection_type });
+  if (net.user_type)        rows.push({ label: "User Type",       value: net.user_type });
+
+  const rowsHtml = rows.map(r => `
+    <div style="padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: baseline; gap: 12px;">
+      <span style="font-size: 12px; color: rgba(255,255,255,0.5); white-space: nowrap; flex-shrink: 0;">${escapeHtml(r.label)}</span>
+      <span style="font-size: 13px; color: rgba(255,255,255,0.9); text-align: right; word-break: break-word;">${escapeHtml(String(r.value))}</span>
+    </div>
+  `).join("");
+
+  listEl.innerHTML = rowsHtml || `<div style="padding: 12px; color: rgba(255,255,255,0.5);">No additional details available</div>`;
+
+  // Wire up AI Prompt button
+  const aiBtn = document.getElementById("ipLookupAiPromptBtn");
+  if (aiBtn) {
+    aiBtn.addEventListener("click", () => {
+      const riskList = riskFlags.length > 0 ? riskFlags.map(f => f.label).join(", ") : "none";
+      const prompt = `Provide a comprehensive threat intelligence analysis for IP address ${ip}. Include:
+
+1. Current threat classification and reputation
+2. Geographic location: ${locationStr || "unknown"}
+3. Network info: ISP = ${net.isp || "unknown"}, Organization = ${net.organization || "unknown"}, ASN = ${net.asn ? "AS" + net.asn : "unknown"}
+4. Risk flags detected: ${riskList}
+5. Connection type: ${net.connection_type || "unknown"}, User type: ${net.user_type || "unknown"}
+6. MITRE ATT&CK techniques associated with this type of IP infrastructure
+7. Historical activity and known campaigns using this IP, ASN, or hosting provider
+8. Recommended blocking, monitoring, and detection strategies
+9. Relevant IOCs and detection signatures for SOC use
+
+Please provide detailed, actionable intelligence suitable for security operations and incident response teams.`;
+
+      navigator.clipboard.writeText(prompt).then(() => {
+        const orig = aiBtn.textContent;
+        aiBtn.textContent = "✓ Copied!";
+        aiBtn.style.background = "#059669";
+        setTimeout(() => {
+          aiBtn.textContent = orig;
+          aiBtn.style.background = "#10b981";
+        }, 2000);
+      }).catch(() => {
+        alert("Copy this prompt:\n\n" + prompt);
+      });
+    });
+  }
+
+  // Show panel
+  panel.classList.remove("hidden");
+  panel.setAttribute("aria-hidden", "false");
+
+  // Hide floating threat map button
+  const floatingThreatBtn = document.getElementById("showControlPanel");
+  if (floatingThreatBtn) {
+    floatingThreatBtn.style.display = "none";
+  }
+}
+
+/**
  * Hide the left panel
  */
 export function hidePanel() {

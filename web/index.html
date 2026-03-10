@@ -159,6 +159,27 @@
             <div class="layer-note">
               GeoJSON Drag & Drop Supported
             </div>
+
+            <!-- IP Lookup -->
+            <div class="layer-section-divider"></div>
+            <div class="layer-section-header">IP Lookup</div>
+            <div class="layer-ip-lookup">
+              <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                <input
+                  type="text"
+                  id="ipLookupInput"
+                  placeholder="Enter public IP"
+                  autocomplete="off"
+                  spellcheck="false"
+                  style="flex: 1; padding: 6px 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; color: #fff; font-size: 13px; outline: none;"
+                />
+                <button id="ipLookupBtn" style="padding: 6px 10px; background: #0078d4; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap;">Lookup</button>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button id="ipLookupClearBtn" style="display: none; padding: 4px 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; color: rgba(255,255,255,0.7); cursor: pointer; font-size: 11px;">Clear Pins</button>
+                <div id="ipLookupStatus" style="font-size: 11px; color: rgba(255,255,255,0.5);"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

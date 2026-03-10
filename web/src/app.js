@@ -11,6 +11,7 @@ import { addAutoScrollControl } from "./ui/autoScroll.js";
 import { addDownloadControl } from "./ui/downloadControl.js";
 import { enableDragAndDrop } from "./ui/dragDropGeoJSON.js";
 import { setDemoMode, getDataUrl, isDemoMode } from "./shared/demoMode.js";
+import { lookupAndPlaceIP, clearAllLookups, getLookupCount } from "./overlays/ipLookupOverlay.js";
 
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
@@ -153,8 +154,52 @@ async function main() {
     
     // Enable drag and drop for GeoJSON files
     enableDragAndDrop(map);
-    
-    console.log('All features initialized: auto-scroll, download, weather (radar/infrared), drag-and-drop');
+
+    // --- IP Lookup wiring ---
+    const ipInput = document.getElementById('ipLookupInput');
+    const ipBtn = document.getElementById('ipLookupBtn');
+    const ipClearBtn = document.getElementById('ipLookupClearBtn');
+    const ipStatus = document.getElementById('ipLookupStatus');
+
+    async function handleIPLookup() {
+      const ip = ipInput ? ipInput.value.trim() : '';
+      if (!ip) {
+        if (ipStatus) ipStatus.textContent = 'Please enter an IP address.';
+        return;
+      }
+      if (ipStatus) ipStatus.textContent = 'Looking up…';
+      if (ipBtn) ipBtn.disabled = true;
+      try {
+        const result = await lookupAndPlaceIP(map, ip);
+        if (result && result.success) {
+          if (ipStatus) ipStatus.textContent = result.message || 'Placed on map';
+        } else {
+          if (ipStatus) ipStatus.textContent = result && result.message ? result.message : 'Lookup failed';
+        }
+      } catch (err) {
+        if (ipStatus) ipStatus.textContent = 'Error: ' + (err.message || 'Unknown error');
+      } finally {
+        if (ipBtn) ipBtn.disabled = false;
+        if (ipClearBtn) ipClearBtn.style.display = getLookupCount() > 0 ? 'inline-block' : 'none';
+      }
+    }
+
+    if (ipBtn) ipBtn.addEventListener('click', handleIPLookup);
+    if (ipInput) {
+      ipInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleIPLookup();
+      });
+    }
+    if (ipClearBtn) {
+      ipClearBtn.addEventListener('click', () => {
+        clearAllLookups(map);
+        ipClearBtn.style.display = 'none';
+        if (ipStatus) ipStatus.textContent = '';
+        if (ipInput) ipInput.value = '';
+      });
+    }
+
+    console.log('All features initialized: auto-scroll, download, weather (radar/infrared), drag-and-drop, IP lookup');
   });
 
   map.events.add("error", (e) => {
