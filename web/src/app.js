@@ -11,7 +11,7 @@ import { addAutoScrollControl } from "./ui/autoScroll.js";
 import { addDownloadControl } from "./ui/downloadControl.js";
 import { enableDragAndDrop } from "./ui/dragDropGeoJSON.js";
 import { setDemoMode, getDataUrl, isDemoMode } from "./shared/demoMode.js";
-import { lookupAndPlaceIP, clearAllLookups, getLookupCount } from "./overlays/ipLookupOverlay.js";
+import { lookupAndPlaceIP, clearAllLookups } from "./overlays/ipLookupOverlay.js";
 
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
@@ -22,7 +22,14 @@ async function main() {
     const configResp = await fetch('/api/config');
     if (configResp.ok) {
       const appConfig = await configResp.json();
-      console.log('[config] /api/config response:', JSON.stringify(appConfig));
+      // Log only non-sensitive config fields
+      console.log('[config] /api/config response:', JSON.stringify({
+        customLayerDisplayName: appConfig.customLayerDisplayName,
+        configSource: appConfig.configSource,
+        hasStorageUrl: !!appConfig.storageAccountUrl,
+        hasMapsKey: !!appConfig.azureMapsKey,
+        datasetsContainer: appConfig.datasetsContainer,
+      }));
       // Apply custom layer display name if set via app settings
       if (appConfig.customLayerDisplayName) {
         window.CUSTOM_LAYER_DISPLAY_NAME = appConfig.customLayerDisplayName;
@@ -156,15 +163,40 @@ async function main() {
     enableDragAndDrop(map);
 
     // --- IP Lookup wiring ---
-    const ipInput = document.getElementById('ipLookupInput');
-    const ipBtn = document.getElementById('ipLookupBtn');
-    const ipClearBtn = document.getElementById('ipLookupClearBtn');
-    const ipStatus = document.getElementById('ipLookupStatus');
+    const ipCheckbox = document.getElementById('layerIPLookup');
+    const ipPanel    = document.getElementById('ipLookupPanel');
+    const ipInput    = document.getElementById('ipLookupInput');
+    const ipBtn      = document.getElementById('ipLookupBtn');
+    const ipStatus   = document.getElementById('ipLookupStatus');
+
+    // Toggle lookup panel when checkbox changes; uncheck clears all pins
+    if (ipCheckbox) {
+      ipCheckbox.addEventListener('change', () => {
+        if (ipPanel) ipPanel.style.display = ipCheckbox.checked ? 'block' : 'none';
+        if (!ipCheckbox.checked) {
+          clearAllLookups(map);
+          if (ipInput)  ipInput.value = '';
+          if (ipStatus) ipStatus.textContent = '';
+        } else {
+          // Focus input when panel opens
+          if (ipInput) setTimeout(() => ipInput.focus(), 50);
+        }
+      });
+    }
+
+    function blinkInputRed() {
+      if (!ipInput) return;
+      ipInput.classList.remove('ip-input-error');
+      // Force reflow so re-adding the class restarts the animation
+      void ipInput.offsetWidth;
+      ipInput.classList.add('ip-input-error');
+    }
 
     async function handleIPLookup() {
       const ip = ipInput ? ipInput.value.trim() : '';
       if (!ip) {
-        if (ipStatus) ipStatus.textContent = 'Please enter an IP address.';
+        blinkInputRed();
+        if (ipStatus) ipStatus.textContent = 'Enter a public IP address.';
         return;
       }
       if (ipStatus) ipStatus.textContent = 'Looking up…';
@@ -172,15 +204,17 @@ async function main() {
       try {
         const result = await lookupAndPlaceIP(map, ip);
         if (result && result.success) {
-          if (ipStatus) ipStatus.textContent = result.message || 'Placed on map';
+          if (ipStatus) ipStatus.textContent = result.message || 'Located';
+          if (ipInput) ipInput.value = ''; // clear for next entry
         } else {
-          if (ipStatus) ipStatus.textContent = result && result.message ? result.message : 'Lookup failed';
+          blinkInputRed();
+          if (ipStatus) ipStatus.textContent = (result && result.message) ? result.message : 'No result';
         }
       } catch (err) {
-        if (ipStatus) ipStatus.textContent = 'Error: ' + (err.message || 'Unknown error');
+        blinkInputRed();
+        if (ipStatus) ipStatus.textContent = 'Error: ' + (err.message || 'Unknown');
       } finally {
         if (ipBtn) ipBtn.disabled = false;
-        if (ipClearBtn) ipClearBtn.style.display = getLookupCount() > 0 ? 'inline-block' : 'none';
       }
     }
 
@@ -189,14 +223,8 @@ async function main() {
       ipInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') handleIPLookup();
       });
-    }
-    if (ipClearBtn) {
-      ipClearBtn.addEventListener('click', () => {
-        clearAllLookups(map);
-        ipClearBtn.style.display = 'none';
-        if (ipStatus) ipStatus.textContent = '';
-        if (ipInput) ipInput.value = '';
-      });
+      // Remove error highlight once user starts typing again
+      ipInput.addEventListener('input', () => ipInput.classList.remove('ip-input-error'));
     }
 
     console.log('All features initialized: auto-scroll, download, weather (radar/infrared), drag-and-drop, IP lookup');
