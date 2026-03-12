@@ -176,22 +176,20 @@
                 <input type="checkbox" id="layerIPLookup">
                 <span class="layer-name">IP Lookup</span>
               </label>
-              <div id="ipLookupPanel" style="display: none; margin-top: 8px; margin-left: 24px;">
+              <div id="ipLookupPanel" style="display: none; margin-top: 5px; margin-left: 4px;">
                 <div class="ip-lookup-row">
                   <input
                     type="text"
                     id="ipLookupInput"
                     class="ip-lookup-input"
-                    placeholder="Enter public IP"
+                    placeholder="x.x.x.x"
                     autocomplete="off"
                     spellcheck="false"
                   />
-                  <button id="ipLookupBtn" class="ip-lookup-btn">Lookup</button>
+                  <button id="ipLookupBtn" class="ip-lookup-btn">Go</button>
+                  <button id="ipFindMyIPBtn" class="ip-find-btn" title="Detect and look up your current public IP">📍</button>
                 </div>
                 <div id="ipLookupStatus" class="ip-lookup-status"></div>
-                <div class="ip-find-row">
-                  <button id="ipFindMyIPBtn" class="ip-find-btn" title="Detect and look up your current public IP">📍 Find My IP</button>
-                </div>
               </div>
             </div>
             
