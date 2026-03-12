@@ -21,12 +21,18 @@ async function main() {
   // so we don't pay a full round-trip delay here.
   let appConfig = null;
   try {
-    // Race the config fetch against a 10s timeout so a cold-starting Function App
-    // doesn't block map initialisation indefinitely.
     const configFetch = window._configPromise ||
       fetch('/api/config').then(r => r.ok ? r.json() : null).catch(() => null);
-    const configTimeout = new Promise(resolve => setTimeout(() => resolve(null), 10000));
-    appConfig = await Promise.race([configFetch, configTimeout]);
+
+    // After 5s show a status update so the user knows a cold start is in progress,
+    // then keep waiting — the Azure Maps key must come from the API.
+    const slowNotice = setTimeout(() => {
+      const text = document.querySelector('#loadingOverlay .loading-text');
+      if (text) text.textContent = 'Waiting for API (cold start, please wait…)';
+    }, 5000);
+
+    appConfig = await configFetch;
+    clearTimeout(slowNotice);
     if (appConfig) {
       // Apply custom layer display name if set via app settings
       if (appConfig.customLayerDisplayName) {
@@ -46,7 +52,7 @@ async function main() {
     containerId: "map",
     initialView: { center: [-20, 25], zoom: 2 },
     style: "road",
-    subscriptionKey: appConfig?.azureMapsKey || window.mapConfig?.azureMapsKey
+    subscriptionKey: appConfig?.azureMapsKey
   });
 
   map.events.add("ready", () => {
