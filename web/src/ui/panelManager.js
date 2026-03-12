@@ -748,6 +748,14 @@ export function showIPLookupDetails(data) {
   if (data.registered_country && data.registered_country !== country) {
     rows.push({ label: "Registered In", value: data.registered_country });
   }
+  if (data.source) {
+    const sourceLabel = data.source.startsWith('maxmind')
+      ? `MaxMind GeoIP2 (${data.source.split('/')[1] || 'web service'})`
+      : data.source === 'ipinfo.io'
+        ? 'ipinfo.io (free tier — upgrade MaxMind plan for full details)'
+        : data.source;
+    rows.push({ label: "Data Source", value: sourceLabel });
+  }
 
   const rowsHtml = rows.map(r => `
     <div style="padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: baseline; gap: 12px;">

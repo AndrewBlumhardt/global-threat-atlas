@@ -19,11 +19,12 @@ async function main() {
 
   // Fetch app config from the API to apply server-side settings (e.g. custom layer name, keys).
   // This runs before the map loads so all config is ready when layers are initialized.
+  let appConfig = null;
   try {
     const configResp = await fetch('/api/config');
     if (configResp.ok) {
-      const appConfig = await configResp.json();
-      // Log only non-sensitive config fields
+      appConfig = await configResp.json();
+      // Log only non-sensitive config fields 
       console.log('[config] /api/config response:', JSON.stringify({
         customLayerDisplayName: appConfig.customLayerDisplayName,
         configSource: appConfig.configSource,
@@ -51,7 +52,8 @@ async function main() {
   const { map, subscriptionKey } = await createMap({
     containerId: "map",
     initialView: { center: [-20, 25], zoom: 2 },
-    style: "road"
+    style: "road",
+    subscriptionKey: appConfig?.azureMapsKey
   });
 
   map.events.add("ready", () => {
@@ -155,10 +157,12 @@ async function main() {
     // Future layers start disabled (enabled when data is available)
     updateLayerAvailability('DeviceLocations', false);
     
-    // Check if custom source, sign-in activity, and device locations files exist
-    checkCustomSourceAvailability();
-    checkSignInActivityAvailability();
-    checkDeviceLocationsAvailability();
+    // Check if custom source, sign-in activity, and device locations files exist (in parallel)
+    Promise.all([
+      checkCustomSourceAvailability(),
+      checkSignInActivityAvailability(),
+      checkDeviceLocationsAvailability()
+    ]);
     
     // Add map controls
     addAutoScrollControl(map);

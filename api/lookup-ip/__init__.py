@@ -7,7 +7,6 @@ import azure.functions as func
 import json
 import os
 import logging
-import re
 import ipaddress
 from urllib import request as urllib_request
 from urllib import error as urllib_error
@@ -15,10 +14,6 @@ from urllib.request import Request
 import base64
 
 logger = logging.getLogger(__name__)
-
-# MaxMind GeoIP2 Precision Insights endpoint
-# Falls back to City endpoint if Insights not available (same URL structure)
-MAXMIND_BASE_URL = "https://geoip.maxmind.com/geoip/v2.1/insights/{ip}"
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -41,17 +36,6 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     ip = req.params.get('ip', '').strip()
     logger.info(f'IP lookup requested for: {ip}')
 
-    # ── TEMPORARY DIAGNOSTIC: log full credential values to confirm what was read ──
-    # Remove this block once credentials are confirmed working
-    maxmind_keys = {k: v for k, v in os.environ.items() if 'MAXMIND' in k.upper()}
-    if maxmind_keys:
-        for k, v in maxmind_keys.items():
-            logger.warning(f'[DIAG] {k} = "{v}"')
-    else:
-        logger.warning('[DIAG] No MAXMIND_* environment variables found.')
-        logger.warning(f'[DIAG] All env var names present: {sorted(os.environ.keys())}')
-    # ── END TEMPORARY DIAGNOSTIC ──
-
     # Validate IP address format
     if not ip:
         return _error_response('No IP address provided', 400)
@@ -66,13 +50,6 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     # Read MaxMind credentials from app settings — strip any accidental whitespace
     account_id  = os.environ.get('MAXMIND_ACCOUNT_ID',  '').strip()
     license_key = os.environ.get('MAXMIND_LICENSE_KEY', '').strip()
-
-    # Diagnostic: log credential shape without exposing the full values
-    logger.info(
-        f'MaxMind creds — account_id: "{account_id[:4]}…" (len={len(account_id)}) | '
-        f'license_key: "{license_key[:4]}…{license_key[-4:]}" (len={len(license_key)}) | '
-        f'account_id_raw_repr: {repr(os.environ.get("MAXMIND_ACCOUNT_ID","<missing>")[:8])}'
-    )
 
     if not account_id or not license_key:
         logger.error('MaxMind credentials not configured (MAXMIND_ACCOUNT_ID / MAXMIND_LICENSE_KEY)')
@@ -90,26 +67,31 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     credentials = base64.b64encode(f"{account_id}:{license_key}".encode()).decode()
     headers = {'Authorization': f'Basic {credentials}', 'Accept': 'application/json'}
 
-    # Try Insights endpoint first; fall back to City if account lacks Insights tier
-    endpoints = [
-        f"https://geoip.maxmind.com/geoip/v2.1/insights/{ip}",
-        f"https://geoip.maxmind.com/geoip/v2.1/city/{ip}",
+    # Try MaxMind endpoints in order: Insights → City → Country
+    # 403 PERMISSION_REQUIRED means the account plan doesn't include that web service tier —
+    # collect these and fall through to the free ipinfo.io fallback.
+    mm_endpoints = [
+        ("insights", f"https://geoip.maxmind.com/geoip/v2.1/insights/{ip}"),
+        ("city",     f"https://geoip.maxmind.com/geoip/v2.1/city/{ip}"),
+        ("country",  f"https://geoip.maxmind.com/geoip/v2.1/country/{ip}"),
     ]
     data = None
+    data_source = None
+    all_permission_denied = True   # flip to False if we get any non-403 auth error
     auth_errors = []
-    for url in endpoints:
-        endpoint_name = url.split('/')[-2]
+
+    for endpoint_name, url in mm_endpoints:
         try:
             logger.info(f'Trying MaxMind {endpoint_name} endpoint for {ip}')
             req_obj = Request(url, headers=headers)
             with urllib_request.urlopen(req_obj, timeout=10) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
+            data_source = f'maxmind/{endpoint_name}'
             logger.info(f'MaxMind lookup succeeded via {endpoint_name}')
             break  # success
         except urllib_error.HTTPError as e:
             status = e.code
             body = e.read().decode('utf-8')
-            # MaxMind returns JSON error bodies — try to parse the code/message
             mm_code = ''
             mm_msg  = body
             try:
@@ -118,9 +100,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 mm_msg  = mm_json.get('error', body)
             except Exception:
                 pass
-            logger.warning(
-                f'MaxMind HTTP {status} [{mm_code}] at {endpoint_name} for {ip}: {mm_msg}'
-            )
+            logger.warning(f'MaxMind HTTP {status} [{mm_code}] at {endpoint_name} for {ip}: {mm_msg}')
+
             if status == 404:
                 return _error_response(
                     f'No geolocation data found for {ip}. The IP may be unregistered or newly allocated.',
@@ -129,18 +110,39 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             if status == 400:
                 return _error_response(f'MaxMind rejected IP format: {mm_msg}', 400, no_match=True)
             if status in (401, 402, 403):
-                detail = (
-                    f'MaxMind auth failed on {endpoint_name} '
-                    f'(HTTP {status}, code={mm_code}): {mm_msg} — '
-                    f'account_id used: {account_id[:4]}… (len={len(account_id)}), '
-                    f'license_key len={len(license_key)}'
-                )
-                logger.error(detail)
                 auth_errors.append(f'{endpoint_name}: HTTP {status} [{mm_code}] — {mm_msg}')
+                if mm_code != 'PERMISSION_REQUIRED':
+                    all_permission_denied = False  # actual auth failure, not a plan limitation
                 continue
             return _error_response(f'MaxMind error {status}: {mm_msg}', 502)
 
-    if data is None:
+    # If MaxMind succeeded, parse and return
+    if data is not None:
+        pass  # handled below
+
+    # All MaxMind endpoints returned PERMISSION_REQUIRED — the account doesn't have web
+    # service access (common with free GeoLite2 accounts). Fall back to ipinfo.io (free).
+    elif all_permission_denied and auth_errors:
+        logger.warning(
+            f'MaxMind PERMISSION_REQUIRED on all endpoints for {ip} — '
+            'account does not have GeoIP2 web service access (free GeoLite2 plan). '
+            'Falling back to ipinfo.io.'
+        )
+        fallback_result = _lookup_ipinfo(ip)
+        if fallback_result is not None:
+            return func.HttpResponse(
+                body=json.dumps(fallback_result),
+                mimetype='application/json',
+                headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache'}
+            )
+        return _error_response(
+            'MaxMind account does not have GeoIP2 web service access '
+            '(PERMISSION_REQUIRED — upgrade to a paid GeoIP2 plan). '
+            'ipinfo.io fallback also failed.',
+            503
+        )
+
+    else:
         combined = ' | '.join(auth_errors) if auth_errors else 'unknown'
         logger.error(f'MaxMind auth failed on all endpoints for {ip}: {combined}')
         return _error_response(
@@ -151,6 +153,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
     try:
         result = _parse_maxmind_response(ip, data)
+        result['source'] = data_source or 'maxmind'
         return func.HttpResponse(
             body=json.dumps(result),
             mimetype='application/json',
@@ -160,6 +163,79 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logger.error(f'IP lookup failed for {ip}: {e}')
         return _error_response(f'Lookup failed: {str(e)}', 500)
+
+
+def _lookup_ipinfo(ip):
+    """
+    Free fallback geo-lookup via ipinfo.io (no key required, 50k req/month).
+    Returns a dict in the same shape as _parse_maxmind_response, or None on failure.
+    """
+    try:
+        url = f"https://ipinfo.io/{ip}/json"
+        req_obj = Request(url, headers={'Accept': 'application/json', 'User-Agent': 'sentinel-activity-maps/1.0'})
+        with urllib_request.urlopen(req_obj, timeout=10) as resp:
+            d = json.loads(resp.read().decode('utf-8'))
+
+        if d.get('bogon'):
+            logger.warning(f'ipinfo.io returned bogon for {ip}')
+            return None
+
+        # loc is "lat,lon"
+        lat, lon = None, None
+        loc = d.get('loc', '')
+        if loc and ',' in loc:
+            try:
+                lat, lon = float(loc.split(',')[0]), float(loc.split(',')[1])
+            except ValueError:
+                pass
+
+        # org field is usually "AS701 Verizon Business" — split ASN from name
+        org_raw = d.get('org', '')
+        asn_num = None
+        org_name = org_raw
+        if org_raw.upper().startswith('AS'):
+            parts = org_raw.split(' ', 1)
+            try:
+                asn_num = int(parts[0][2:])
+                org_name = parts[1] if len(parts) > 1 else ''
+            except (ValueError, IndexError):
+                pass
+
+        logger.info(f'ipinfo.io lookup succeeded for {ip}: city={d.get("city")}, country={d.get("country")}')
+        return {
+            'ip': ip,
+            'latitude': lat,
+            'longitude': lon,
+            'accuracy_radius': None,
+            'time_zone': d.get('timezone', ''),
+            'city': d.get('city', ''),
+            'state': d.get('region', ''),
+            'postal_code': d.get('postal', ''),
+            'country': d.get('country', ''),   # ISO code e.g. "US" (ipinfo free tier)
+            'country_code': d.get('country', ''),
+            'continent': '',
+            'registered_country': '',
+            'isp': org_name,
+            'organization': org_name,
+            'domain': d.get('hostname', ''),
+            'connection_type': '',
+            'user_type': '',
+            'autonomous_system_number': asn_num,
+            'autonomous_system_organization': org_name,
+            'is_anonymous': False,
+            'is_anonymous_proxy': False,
+            'is_anonymous_vpn': False,
+            'is_hosting_provider': False,
+            'is_legitimate_proxy': False,
+            'is_public_proxy': False,
+            'is_residential_proxy': False,
+            'is_satellite_provider': False,
+            'is_tor_exit_node': False,
+            'source': 'ipinfo.io',
+        }
+    except Exception as exc:
+        logger.error(f'ipinfo.io fallback failed for {ip}: {exc}')
+        return None
 
 
 def _is_valid_public_ip(ip_str):
