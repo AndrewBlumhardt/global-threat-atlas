@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Global Threat Intelligence Atlas</title>
 
+  <!-- Preconnect to Azure Maps CDN so TCP/TLS is ready when tiles are requested -->
+  <link rel="preconnect" href="https://atlas.microsoft.com" crossorigin />
+  <link rel="dns-prefetch" href="https://atlas.microsoft.com" />
+  <link rel="dns-prefetch" href="https://atlas.azure.com" />
+
   <link rel="stylesheet" href="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.css" />
   <script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js"></script>
   
@@ -16,6 +21,8 @@
 <body>
   <!-- Load config.js FIRST so global vars are available -->
   <script src="./config.js"></script>
+  <!-- Kick off /api/config fetch immediately so it is already in-flight when app.js runs -->
+  <script>window._configPromise = fetch('/api/config').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });</script>
   <link rel="stylesheet" href="./styles/app.css" />
 </head>
 <body>
@@ -182,6 +189,9 @@
                   <button id="ipLookupBtn" class="ip-lookup-btn">Lookup</button>
                 </div>
                 <div id="ipLookupStatus" class="ip-lookup-status"></div>
+                <div class="ip-find-row">
+                  <button id="ipFindMyIPBtn" class="ip-find-btn" title="Detect and look up your current public IP">📍 Find My IP</button>
+                </div>
               </div>
             </div>
             

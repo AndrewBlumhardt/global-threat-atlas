@@ -17,14 +17,16 @@ import { lookupAndPlaceIP, clearAllLookups } from "./overlays/ipLookupOverlay.js
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
 
-  // Fetch app config from the API to apply server-side settings (e.g. custom layer name, keys).
-  // This runs before the map loads so all config is ready when layers are initialized.
+  // Resolve app config — use the promise started early in index.html (already in-flight)
+  // so we don't pay a full round-trip delay here.
   let appConfig = null;
   try {
-    const configResp = await fetch('/api/config');
-    if (configResp.ok) {
-      appConfig = await configResp.json();
-      // Log only non-sensitive config fields 
+    appConfig = await (
+      window._configPromise ||
+      fetch('/api/config').then(r => r.ok ? r.json() : null).catch(() => null)
+    );
+    if (appConfig) {
+      // Log only non-sensitive config fields
       console.log('[config] /api/config response:', JSON.stringify({
         customLayerDisplayName: appConfig.customLayerDisplayName,
         configSource: appConfig.configSource,
@@ -43,7 +45,7 @@ async function main() {
       if (appConfig.storageAccountUrl) window.STORAGE_ACCOUNT_URL = appConfig.storageAccountUrl;
       if (appConfig.datasetsContainer) window.DATASETS_CONTAINER = appConfig.datasetsContainer;
     } else {
-      console.warn('[config] /api/config returned status:', configResp.status);
+      console.warn('[config] /api/config returned null or could not be reached, using defaults.');
     }
   } catch (e) {
     console.warn('[config] Could not fetch /api/config, using defaults:', e.message);
@@ -257,7 +259,36 @@ async function main() {
       ipInput.addEventListener('input', () => ipInput.classList.remove('ip-input-error'));
     }
 
-    console.log('All features initialized: auto-scroll, download, weather (radar/infrared), drag-and-drop, IP lookup');
+    // --- Find My IP button ---
+    const ipFindBtn = document.getElementById('ipFindMyIPBtn');
+    if (ipFindBtn) {
+      ipFindBtn.addEventListener('click', async () => {
+        if (ipStatus) ipStatus.textContent = 'Detecting your IP…';
+        ipFindBtn.disabled = true;
+        if (ipBtn) ipBtn.disabled = true;
+        try {
+          const resp = await fetch('https://api.ipify.org?format=json');
+          if (!resp.ok) throw new Error(`ipify returned ${resp.status}`);
+          const { ip } = await resp.json();
+          if (ipInput) ipInput.value = ip;
+          if (ipStatus) ipStatus.textContent = 'Looking up…';
+          const result = await lookupAndPlaceIP(map, ip);
+          if (result && result.success) {
+            if (ipStatus) ipStatus.textContent = result.message || 'Located';
+          } else {
+            blinkInputRed();
+            if (ipStatus) ipStatus.textContent = (result && result.message) ? result.message : 'No result';
+          }
+        } catch (err) {
+          if (ipStatus) ipStatus.textContent = 'Could not detect IP: ' + (err.message || 'Network error');
+        } finally {
+          ipFindBtn.disabled = false;
+          if (ipBtn) ipBtn.disabled = false;
+        }
+      });
+    }
+
+    console.log('All features initialized: auto-scroll, download, weather (radar/infrared), drag-and-drop, IP lookup, Find My IP');
   });
 
   map.events.add("error", (e) => {

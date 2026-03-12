@@ -444,6 +444,33 @@ body {
   cursor: not-allowed;
 }
 
+.ip-find-row {
+  margin-top: 5px;
+}
+
+.ip-find-btn {
+  width: 100%;
+  padding: 5px 10px;
+  background: rgba(0, 0, 0, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  color: #83888D;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-align: center;
+}
+
+.ip-find-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.14);
+  color: #555;
+}
+
+.ip-find-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .ip-lookup-status {
   font-size: 11px;
   color: #83888D;
