@@ -21,10 +21,12 @@ async function main() {
   // so we don't pay a full round-trip delay here.
   let appConfig = null;
   try {
-    appConfig = await (
-      window._configPromise ||
-      fetch('/api/config').then(r => r.ok ? r.json() : null).catch(() => null)
-    );
+    // Race the config fetch against a 10s timeout so a cold-starting Function App
+    // doesn't block map initialisation indefinitely.
+    const configFetch = window._configPromise ||
+      fetch('/api/config').then(r => r.ok ? r.json() : null).catch(() => null);
+    const configTimeout = new Promise(resolve => setTimeout(() => resolve(null), 10000));
+    appConfig = await Promise.race([configFetch, configTimeout]);
     if (appConfig) {
       // Apply custom layer display name if set via app settings
       if (appConfig.customLayerDisplayName) {
@@ -359,4 +361,13 @@ async function checkDeviceLocationsAvailability() {
 
 main().catch((e) => {
   console.error("Startup failed:", e?.message || String(e));
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  if (loadingOverlay) {
+    const spinner = loadingOverlay.querySelector('.spinner');
+    const text = loadingOverlay.querySelector('.loading-text');
+    if (spinner) spinner.style.display = 'none';
+    if (text) text.textContent = e?.message?.includes('subscriptionKey')
+      ? 'Azure Maps key not configured. Check app settings and refresh.'
+      : 'Failed to start. Check the console for details and try refreshing.';
+  }
 });
