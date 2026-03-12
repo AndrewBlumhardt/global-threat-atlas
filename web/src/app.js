@@ -26,20 +26,9 @@ async function main() {
       fetch('/api/config').then(r => r.ok ? r.json() : null).catch(() => null)
     );
     if (appConfig) {
-      // Log only non-sensitive config fields
-      console.log('[config] /api/config response:', JSON.stringify({
-        customLayerDisplayName: appConfig.customLayerDisplayName,
-        configSource: appConfig.configSource,
-        hasStorageUrl: !!appConfig.storageAccountUrl,
-        hasMapsKey: !!appConfig.azureMapsKey,
-        datasetsContainer: appConfig.datasetsContainer,
-      }));
       // Apply custom layer display name if set via app settings
       if (appConfig.customLayerDisplayName) {
         window.CUSTOM_LAYER_DISPLAY_NAME = appConfig.customLayerDisplayName;
-        console.log('[config] Custom layer display name from API:', window.CUSTOM_LAYER_DISPLAY_NAME);
-      } else {
-        console.log('[config] customLayerDisplayName not in API response, using default:', window.CUSTOM_LAYER_DISPLAY_NAME);
       }
       // Apply storage config if returned
       if (appConfig.storageAccountUrl) window.STORAGE_ACCOUNT_URL = appConfig.storageAccountUrl;
@@ -122,8 +111,6 @@ async function main() {
     
     // Initialize layer control with toggle callback
     initLayerControl(async (layerType, enabled, mode) => {
-      console.log(`Layer toggle: ${layerType} = ${enabled}`, mode);
-      
       switch (layerType) {
         case 'threatActors':
           await toggleThreatActorsHeatmap(map, enabled, mode, (countryProps) => {
@@ -304,13 +291,11 @@ async function checkCustomSourceAvailability() {
     // Try direct blob access first
     let response = await fetch(getDataUrl("custom-source.geojson"), { method: 'HEAD' });
     if (!response.ok) {
-      console.log('Direct blob access failed, falling back to Function API.');
       // Fallback to Function API
       const fallbackUrl = `/api/data/custom-source.geojson`;
       response = await fetch(fallbackUrl, { method: 'HEAD' });
     }
     const isAvailable = response.ok;
-    console.log(`Custom source file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
     // Apply custom layer display name if set (from API config or fallback)
     const customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME || 'Custom Source';
     if (window.updateCustomLayerMenuName) {
@@ -318,7 +303,7 @@ async function checkCustomSourceAvailability() {
     }
     updateLayerAvailability('CustomSource', isAvailable);
   } catch (error) {
-    console.log('Custom source not available:', error);
+    console.error('Custom source not available:', error);
     updateLayerAvailability('CustomSource', false);
   }
 }
@@ -331,16 +316,14 @@ async function checkSignInActivityAvailability() {
     // Try direct blob access first
     let response = await fetch(getDataUrl("signin-activity.geojson"), { method: 'HEAD' });
     if (!response.ok) {
-      console.log('Direct blob access failed, falling back to Function API.');
       // Fallback to Function API
       const fallbackUrl = `/api/data/signin-activity.geojson`;
       response = await fetch(fallbackUrl, { method: 'HEAD' });
     }
     const isAvailable = response.ok;
-    console.log(`Sign-in activity file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
     updateLayerAvailability('SignInActivity', isAvailable);
   } catch (error) {
-    console.log('Sign-in activity not available:', error);
+    console.error('Sign-in activity not available:', error);
     updateLayerAvailability('SignInActivity', false);
   }
 }
@@ -355,16 +338,14 @@ async function checkDeviceLocationsAvailability() {
     let deviceFile = getDataUrl(isDemoMode() ? "device-locations.geojson" : "mde-devices.geojson");
     let response = await fetch(deviceFile, { method: 'HEAD' });
     if (!response.ok) {
-      console.log('Direct blob access failed, falling back to Function API.');
       // Fallback to Function API
       const fallbackUrl = `/api/data/mde-devices.geojson`;
       response = await fetch(fallbackUrl, { method: 'HEAD' });
     }
     const isAvailable = response.ok;
-    console.log(`Device locations file ${isAvailable ? 'found' : 'not found'} - layer ${isAvailable ? 'enabled' : 'disabled'}`);
     updateLayerAvailability('DeviceLocations', isAvailable);
   } catch (error) {
-    console.log('Device locations not available:', error);
+    console.error('Device locations not available:', error);
     updateLayerAvailability('DeviceLocations', false);
   }
 }

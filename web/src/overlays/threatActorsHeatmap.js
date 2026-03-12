@@ -1,6 +1,3 @@
-  console.log("[threatActorsHeatmap] STORAGE_ACCOUNT_URL:", window.STORAGE_ACCOUNT_URL);
-  console.log("[threatActorsHeatmap] DATASETS_CONTAINER:", window.DATASETS_CONTAINER);
-  console.log("[threatActorsHeatmap] getDataUrl result:", getDataUrl("threat-actors.tsv"));
 /* global atlas */
 import { parseTSV } from "../data/tsv.js";
 import { getDataUrl } from "../shared/demoMode.js";
@@ -61,57 +58,6 @@ const COUNTRY_CENTROIDS = {
   "Türkiye": [35.2, 39.0],
   "Gaza": [34.3, 31.35],
   "Korea": [127.8, 36.5]
-};
-
-// ISO 3166-1 alpha-2 country codes for fetching boundaries
-const COUNTRY_ISO_CODES = {
-  "Russia": "RU",
-  "China": "CN",
-  "Iran": "IR",
-  "Iraq": "IQ",
-  "Lebanon": "LB",
-  "North Korea": "KP",
-  "Vietnam": "VN",
-  "Pakistan": "PK",
-  "India": "IN",
-  "Turkey": "TR",
-  "Türkiye": "TR",
-  "Italy": "IT",
-  "Belarus": "BY",
-  "Ukraine": "UA",
-  "Brazil": "BR",
-  "Mexico": "MX",
-  "Nigeria": "NG",
-  "Israel": "IL",
-  "United Arab Emirates": "AE",
-  "Austria": "AT",
-  "France": "FR",
-  "Spain": "ES",
-  "Tunisia": "TN",
-  "Algeria": "DZ",
-  "Saudi Arabia": "SA",
-  "Libya": "LY",
-  "Georgia": "GE",
-  "Armenia": "AM",
-  "Taiwan": "TW",
-  "Indonesia": "ID",
-  "Kazakhstan": "KZ",
-  "Syria": "SY",
-  "Venezuela": "VE",
-  "Philippines": "PH",
-  "Singapore": "SG",
-  "Romania": "RO",
-  "Uzbekistan": "UZ",
-  "Canada": "CA",
-  "United States of America": "US",
-  "United States": "US",
-  "Gaza": "PS",
-  "Korea": "KR",
-  "South Korea": "KR",
-  "Germany": "DE",
-  "Poland": "PL",
-  "United Kingdom": "GB",
-  "The Netherlands": "NL"
 };
 
 // Local bounding box coordinates for countries (to avoid API calls)
@@ -226,16 +172,11 @@ async function enable(map, mode, onCountryClick) {
   const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
   const datasetsContainer = window.DATASETS_CONTAINER;
   if (!storageAccountUrl || !datasetsContainer) {
-    console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in global window scope", {
-      STORAGE_ACCOUNT_URL: storageAccountUrl,
-      DATASETS_CONTAINER: datasetsContainer
-    });
-    throw new Error("Missing required storage config");
+    console.error('[threatActorsHeatmap] Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER');
+    throw new Error('Missing required storage config');
   }
-  // Use getDataUrl for threat actors TSV (supports demo mode and blob storage)
-  const dataUrl = getDataUrl("threat-actors.tsv");
-  console.log(`Loading threat actors from: ${dataUrl}`);
-  let resp = await fetch(dataUrl, { cache: "no-store" });
+  const dataUrl = getDataUrl('threat-actors.tsv');
+  let resp = await fetch(dataUrl, { cache: 'no-store' });
   if (!resp.ok) {
     console.error(`Error: Failed to load threat actors from: ${dataUrl} (status: ${resp.status})`);
     resp = await fetch("/api/data/threat-actors.tsv", { cache: "no-store" });

@@ -1,6 +1,3 @@
-  console.log("[customSourceOverlay] STORAGE_ACCOUNT_URL:", window.STORAGE_ACCOUNT_URL);
-  console.log("[customSourceOverlay] DATASETS_CONTAINER:", window.DATASETS_CONTAINER);
-  console.log("[customSourceOverlay] getDataUrl result:", getDataUrl("custom-source.geojson"));
 /* global atlas */
 
 /**
@@ -10,7 +7,7 @@
  */
 
 import { showCustomSourceDetails } from "../ui/panelManager.js";
-import { getDataUrl, isDemoMode } from "../shared/demoMode.js";
+import { getDataUrl } from "../shared/demoMode.js";
 
 const CUSTOM_SOURCE_ID = "custom-source";
 const CUSTOM_BUBBLE_LAYER_ID = "custom-bubble-layer";
@@ -23,7 +20,6 @@ let isEnabled = false;
  * Toggle the custom source overlay on or off
  */
 export async function toggleCustomSourceOverlay(map, turnOn) {
-  console.log("toggleCustomSourceOverlay called with turnOn =", turnOn);
   if (turnOn) {
     await enable(map);
   } else {
@@ -35,58 +31,40 @@ export async function toggleCustomSourceOverlay(map, turnOn) {
  * Enable the overlay - fetch and display custom GeoJSON from blob storage
  */
 async function enable(map) {
-  console.log("enable() called, isEnabled =", isEnabled);
   if (isEnabled) return;
 
   try {
     const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
     const datasetsContainer = window.DATASETS_CONTAINER;
     if (!storageAccountUrl || !datasetsContainer) {
-      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in global window scope", {
-        STORAGE_ACCOUNT_URL: storageAccountUrl,
-        DATASETS_CONTAINER: datasetsContainer
-      });
-      throw new Error("Missing required storage config");
+      console.error('[customSourceOverlay] Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER');
+      throw new Error('Missing required storage config');
     }
-      // Always use custom-source.geojson for custom layer
-      const customLayerFilename = "custom-source.geojson";
-      console.log('[customSourceOverlay] Using customLayerFilename:', customLayerFilename);
-      const dataUrl = getDataUrl(customLayerFilename);
+    const dataUrl = getDataUrl('custom-source.geojson');
 
-    // ...existing code...
-    console.log(`Loading custom source from blob: ${dataUrl}`);
     let resp;
     try {
-      resp = await fetch(dataUrl, { cache: "no-store" });
+      resp = await fetch(dataUrl, { cache: 'no-store' });
     } catch (fetchErr) {
-      console.error("Fetch error for custom source:", fetchErr);
       throw new Error(`Network error fetching custom source: ${fetchErr}`);
     }
-    if (resp.ok) {
-      console.log(`Success: Loaded custom source from blob: ${dataUrl}`);
-    } else {
-      console.error(`Error: Failed to load custom source from blob: ${dataUrl} (status: ${resp.status})`);
+    if (!resp.ok) {
       try {
-        resp = await fetch("/api/data/custom-source.geojson", { cache: "no-store" });
+        resp = await fetch('/api/data/custom-source.geojson', { cache: 'no-store' });
       } catch (apiErr) {
-        console.error("Function API fetch error for custom source:", apiErr);
         throw new Error(`Network error fetching custom source from API: ${apiErr}`);
       }
-      if (resp.ok) {
-        console.log("Success: Loaded custom source from Function API fallback.");
-      } else {
+      if (!resp.ok) {
         const errorText = await resp.text();
-        console.error("Failed to load custom source:", errorText);
-        throw new Error(`Could not load custom source: ${resp.status} ${resp.statusText}`);
+        throw new Error(`Could not load custom source: ${resp.status} ${resp.statusText}${errorText ? '\n\n' + errorText : ''}`);
       }
     }
 
     const geojson = await resp.json();
-    console.log("Custom GeoJSON loaded:", geojson);
 
     if (!geojson.features || geojson.features.length === 0) {
-      console.warn("No custom source features found");
-      throw new Error("No custom source data available");
+      console.warn('[customSourceOverlay] No features found in custom source dataset');
+      throw new Error('No custom source data available');
     }
 
     // Robustly sanitize null numeric properties
@@ -106,7 +84,7 @@ async function enable(map) {
       }
     });
 
-    console.log(`Loaded ${geojson.features.length} custom source features`);
+    console.log(`[customSourceOverlay] Loaded ${geojson.features.length} features from custom-source.geojson`);
 
     // Create data source
     const dataSource = new atlas.source.DataSource(CUSTOM_SOURCE_ID);
@@ -136,13 +114,11 @@ async function enable(map) {
       map.events.add("mousemove", bubbleLayer, (e) => {
         if (e.shapes && e.shapes.length > 0) {
           const props = e.shapes[0].getProperties();
-          console.log("Custom source hover - properties:", props);
-          
+
           let content = '<div style="padding:10px;width:250px;box-sizing:border-box;white-space:normal;word-wrap:break-word;overflow-wrap:break-word;">';
-          
-          // Prominent title from name property or "Custom Source"
-          // Use custom layer display name if no feature name
-          const title = props.name || props.Name || props.title || props.Title || customLayerDisplayName;
+
+          // Feature name, falling back to the configured layer display name
+          const title = props.name || props.Name || props.title || props.Title || window.CUSTOM_LAYER_DISPLAY_NAME || 'Custom Source';
           const safeTitle = String(title).replace(/</g, '&lt;').replace(/>/g, '&gt;');
           content += `<div style="font-weight:600;font-size:14px;margin-bottom:8px;">${safeTitle}</div>`;
           
@@ -217,10 +193,8 @@ async function enable(map) {
     }
 
     isEnabled = true;
-    console.log("Custom source overlay enabled");
   } catch (error) {
-    console.error("Failed to load custom source:", error);
-    alert(`Failed to load custom source:\n\n${error.message}\n\nPlease upload a 'custom-source.geojson' file to blob storage.`);
+    console.error('[customSourceOverlay] Failed to load custom source:', error);
   }
 }
 
@@ -228,7 +202,6 @@ async function enable(map) {
  * Disable the overlay
  */
 function disable(map) {
-  console.log("disable() called");
   if (!isEnabled) return;
 
   // Remove all custom source layers
@@ -245,7 +218,6 @@ function disable(map) {
   }
 
   isEnabled = false;
-  console.log("Custom source overlay disabled");
 }
 
 /**
@@ -319,13 +291,4 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
 
 function toRad(degrees) {
   return degrees * (Math.PI / 180);
-}
-
-/**
- * Simple HTML escape
- */
-function escapeHtml(text) {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
 }

@@ -1,6 +1,3 @@
-  console.log("[deviceLocationsOverlay] STORAGE_ACCOUNT_URL:", window.STORAGE_ACCOUNT_URL);
-  console.log("[deviceLocationsOverlay] DATASETS_CONTAINER:", window.DATASETS_CONTAINER);
-  console.log("[deviceLocationsOverlay] getDataUrl result:", getDataUrl("mde-devices-enriched.tsv"));
 /* global atlas */
 
 /**
@@ -20,49 +17,33 @@ let popup = null;
  * Enable the overlay - fetch and display GeoJSON as HTML markers with device icons
  */
 async function enable(azureMap) {
-  console.log("Device locations enable() called, isEnabled =", isEnabled);
   if (isEnabled) return;
 
   map = azureMap;
-  
+
   try {
     const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
     const datasetsContainer = window.DATASETS_CONTAINER;
     if (!storageAccountUrl || !datasetsContainer) {
-      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in global window scope", {
-        STORAGE_ACCOUNT_URL: storageAccountUrl,
-        DATASETS_CONTAINER: datasetsContainer
-      });
-      throw new Error("Missing required storage config");
+      console.error('[deviceLocationsOverlay] Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER');
+      throw new Error('Missing required storage config');
     }
-    // Use correct demo filename for device locations
-    // In demo mode, use mde-devices.geojson from demo_data; in main mode, use mde-devices.geojson
-    // Use device-locations.geojson in demo mode, mde-devices.geojson otherwise
-    const filename = isDemoMode() ? "device-locations.geojson" : "mde-devices.geojson";
+    // In demo mode, use device-locations.geojson; otherwise use mde-devices.geojson
+    const filename = isDemoMode() ? 'device-locations.geojson' : 'mde-devices.geojson';
     const dataUrl = getDataUrl(filename);
-    console.log(`Loading device locations from blob: ${dataUrl}`);
     let resp;
     try {
-      resp = await fetch(dataUrl, { cache: "no-store" });
+      resp = await fetch(dataUrl, { cache: 'no-store' });
     } catch (fetchErr) {
-      console.error("Fetch error for device locations:", fetchErr);
       throw new Error(`Network error fetching device locations: ${fetchErr}`);
     }
-    if (resp.ok) {
-      console.log(`Success: Loaded device locations from blob: ${dataUrl}`);
-    } else {
-      console.error(`Error: Failed to load device locations from blob: ${dataUrl} (status: ${resp.status})`);
+    if (!resp.ok) {
       try {
-        resp = await fetch("/api/data/mde-devices.geojson", { cache: "no-store" });
+        resp = await fetch('/api/data/mde-devices.geojson', { cache: 'no-store' });
       } catch (apiErr) {
-        console.error("Function API fetch error for device locations:", apiErr);
         throw new Error(`Network error fetching device locations from API: ${apiErr}`);
       }
-      if (resp.ok) {
-        console.log("Success: Loaded device locations from Function API fallback.");
-      } else {
-        const errorText = await resp.text();
-        console.error("Failed to load device locations:", errorText);
+      if (!resp.ok) {
         throw new Error(`Could not load device locations: ${resp.status} ${resp.statusText}`);
       }
     }
@@ -71,30 +52,19 @@ async function enable(azureMap) {
     try {
       geojsonData = await resp.json();
     } catch (jsonErr) {
-      const errorText = await resp.text();
-      console.error("Failed to parse device locations GeoJSON:", errorText);
-      alert("Device locations data is not valid GeoJSON or missing. Please check demo_data/mde-devices.geojson.");
+      console.error('[deviceLocationsOverlay] Device locations data is not valid GeoJSON:', jsonErr);
       return;
     }
-    console.log("Device locations GeoJSON loaded:", geojsonData.features?.length || 0, "features");
     if (!geojsonData.features || geojsonData.features.length === 0) {
-      console.warn("No device location features found in GeoJSON");
+      console.warn('[deviceLocationsOverlay] No device location features found in GeoJSON');
       return;
     }
-    
-    // Check for duplicate coordinates
+
+    // Warn if duplicate coordinates exist (devices sharing a location)
     const coordSet = new Set();
-    const duplicates = [];
-    geojsonData.features.forEach(f => {
-      const key = `${f.geometry.coordinates[0]},${f.geometry.coordinates[1]}`;
-      if (coordSet.has(key)) {
-        duplicates.push(key);
-      }
-      coordSet.add(key);
-    });
-    console.log(`Found ${coordSet.size} unique locations out of ${geojsonData.features.length} devices`);
-    if (duplicates.length > 0) {
-      console.warn(`${duplicates.length} duplicate coordinates detected`);
+    geojsonData.features.forEach(f => coordSet.add(`${f.geometry.coordinates[0]},${f.geometry.coordinates[1]}`));
+    if (coordSet.size < geojsonData.features.length) {
+      console.warn(`[deviceLocationsOverlay] ${geojsonData.features.length - coordSet.size} devices share coordinates with another device`);
     }
 
     // Create popup for hover events
@@ -145,13 +115,10 @@ async function enable(azureMap) {
       htmlMarkers.push(marker);
     });
 
-    console.log(`Added ${htmlMarkers.length} device markers to map`);
     isEnabled = true;
-    console.log("Device locations overlay enabled successfully");
 
   } catch (error) {
-    console.error("Failed to enable device locations overlay:", error);
-    alert(`Failed to load device locations data: ${error.message}`);
+    console.error('[deviceLocationsOverlay] Failed to enable overlay:', error);
   }
 }
 
@@ -224,14 +191,10 @@ function showDevicePopup(props, coords) {
  * Disable the overlay
  */
 function disable() {
-  console.log("Device locations disable() called, isEnabled =", isEnabled);
   if (!isEnabled || !map) return;
 
   try {
-    // Remove all HTML markers
-    htmlMarkers.forEach(marker => {
-      map.markers.remove(marker);
-    });
+    htmlMarkers.forEach(marker => map.markers.remove(marker));
     htmlMarkers = [];
 
     if (popup) {
@@ -239,9 +202,8 @@ function disable() {
     }
 
     isEnabled = false;
-    console.log("Device locations overlay disabled successfully");
   } catch (error) {
-    console.error("Error disabling device locations overlay:", error);
+    console.error('[deviceLocationsOverlay] Error disabling overlay:', error);
   }
 }
 
@@ -358,7 +320,6 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
  * Toggle the overlay on or off
  */
 export async function toggleDeviceLocationsOverlay(azureMap, enabled) {
-  console.log(`toggleDeviceLocationsOverlay(enabled = ${enabled})`);
   if (enabled) {
     await enable(azureMap);
   } else {

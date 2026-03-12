@@ -1,6 +1,3 @@
-  console.log("[signInActivityOverlay] STORAGE_ACCOUNT_URL:", window.STORAGE_ACCOUNT_URL);
-  console.log("[signInActivityOverlay] DATASETS_CONTAINER:", window.DATASETS_CONTAINER);
-  console.log("[signInActivityOverlay] getDataUrl result:", getDataUrl("signin-activity.tsv"));
 /* global atlas */
 
 /**
@@ -20,47 +17,31 @@ let popup = null;
  * Enable the overlay - fetch and display GeoJSON as HTML markers with lollipop pins
  */
 async function enable(azureMap) {
-  console.log("enable() called, isEnabled =", isEnabled);
   if (isEnabled) return;
 
   map = azureMap;
-  
+
   try {
     const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
     const datasetsContainer = window.DATASETS_CONTAINER;
     if (!storageAccountUrl || !datasetsContainer) {
-      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in global window scope", {
-        STORAGE_ACCOUNT_URL: storageAccountUrl,
-        DATASETS_CONTAINER: datasetsContainer
-      });
-      throw new Error("Missing required storage config");
+      console.error('[signInActivityOverlay] Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER');
+      throw new Error('Missing required storage config');
     }
-    // Use signin-activity.geojson in demo mode, signin-activity.geojson otherwise
-    const filename = "signin-activity.geojson";
-    const dataUrl = getDataUrl(filename);
-    console.log(`Loading sign-in activity from blob: ${dataUrl}`);
+    const dataUrl = getDataUrl('signin-activity.geojson');
     let resp;
     try {
-      resp = await fetch(dataUrl, { cache: "no-store" });
+      resp = await fetch(dataUrl, { cache: 'no-store' });
     } catch (fetchErr) {
-      console.error("Fetch error for sign-in activity:", fetchErr);
       throw new Error(`Network error fetching sign-in activity: ${fetchErr}`);
     }
-    if (resp.ok) {
-      console.log(`Success: Loaded sign-in activity from blob: ${dataUrl}`);
-    } else {
-      console.error(`Error: Failed to load sign-in activity from blob: ${dataUrl} (status: ${resp.status})`);
+    if (!resp.ok) {
       try {
-        resp = await fetch("/api/data/signin-activity.geojson", { cache: "no-store" });
+        resp = await fetch('/api/data/signin-activity.geojson', { cache: 'no-store' });
       } catch (apiErr) {
-        console.error("Function API fetch error for sign-in activity:", apiErr);
         throw new Error(`Network error fetching sign-in activity from API: ${apiErr}`);
       }
-      if (resp.ok) {
-        console.log("Success: Loaded sign-in activity from Function API fallback.");
-      } else {
-        const errorText = await resp.text();
-        console.error("Failed to load sign-in activity:", errorText);
+      if (!resp.ok) {
         throw new Error(`Could not load sign-in activity: ${resp.status} ${resp.statusText}`);
       }
     }
@@ -69,14 +50,11 @@ async function enable(azureMap) {
     try {
       geojsonData = await resp.json();
     } catch (jsonErr) {
-      const errorText = await resp.text();
-      console.error("Failed to parse sign-in activity GeoJSON:", errorText);
-      alert("Sign-in activity data is not valid GeoJSON or missing. Please check demo_data/signin-activity.geojson.");
+      console.error('[signInActivityOverlay] Sign-in activity data is not valid GeoJSON:', jsonErr);
       return;
     }
-    console.log("Sign-in activity GeoJSON loaded:", geojsonData.features?.length || 0, "features");
     if (!geojsonData.features || geojsonData.features.length === 0) {
-      console.warn("No sign-in activity features found in GeoJSON");
+      console.warn('[signInActivityOverlay] No sign-in activity features found in GeoJSON');
       return;
     }
 
@@ -127,13 +105,10 @@ async function enable(azureMap) {
       htmlMarkers.push(marker);
     });
 
-    console.log(`Added ${htmlMarkers.length} sign-in lollipop markers to map`);
     isEnabled = true;
-    console.log("Sign-in activity overlay enabled successfully");
 
   } catch (error) {
-    console.error("Failed to enable sign-in activity overlay:", error);
-    alert(`Failed to load sign-in activity data: ${error.message}`);
+    console.error('[signInActivityOverlay] Failed to enable overlay:', error);
   }
 }
 
@@ -201,25 +176,19 @@ function showSignInPopup(props, coords) {
  * Disable the overlay
  */
 function disable() {
-  console.log("disable() called, isEnabled =", isEnabled);
   if (!isEnabled || !map) return;
 
   try {
-    // Remove all HTML markers
-    htmlMarkers.forEach(marker => {
-      map.markers.remove(marker);
-    });
-      // Hard-coded Azure Blob Storage URL for sign-in activity
-      const dataUrl = "https://sentinelmapsstore.blob.core.windows.net/datasets/signin-activity.geojson";
+    htmlMarkers.forEach(marker => map.markers.remove(marker));
+    htmlMarkers.length = 0;
 
     if (popup) {
       popup.close();
     }
 
     isEnabled = false;
-    console.log("Sign-in activity overlay disabled successfully");
   } catch (error) {
-    console.error("Error disabling sign-in activity overlay:", error);
+    console.error('[signInActivityOverlay] Error disabling overlay:', error);
   }
 }
 
@@ -336,7 +305,6 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
  * Toggle the overlay on or off
  */
 export async function toggleSignInActivityOverlay(azureMap, enabled) {
-  console.log(`toggleSignInActivityOverlay(enabled = ${enabled})`);
   if (enabled) {
     await enable(azureMap);
   } else {

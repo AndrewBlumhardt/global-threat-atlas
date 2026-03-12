@@ -33,12 +33,10 @@ export async function toggleWeatherRadar(map, turnOn, subscriptionKey) {
 
     // Add layer on top of everything (no second parameter means topmost)
     map.layers.add(radarTileLayer);
-    console.log('Weather radar enabled');
   } else {
     if (radarTileLayer) {
       map.layers.remove(radarTileLayer);
       radarTileLayer = null;
-      console.log('Weather radar disabled');
     }
   }
 }
@@ -68,12 +66,10 @@ export async function toggleWeatherInfrared(map, turnOn, subscriptionKey) {
 
     // Add layer on top of everything (no second parameter means topmost)
     map.layers.add(infraredTileLayer);
-    console.log('Weather infrared enabled');
   } else {
     if (infraredTileLayer) {
       map.layers.remove(infraredTileLayer);
       infraredTileLayer = null;
-      console.log('Weather infrared disabled');
     }
   }
 }

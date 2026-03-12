@@ -1,6 +1,3 @@
-  console.log("[threatIntelOverlay] STORAGE_ACCOUNT_URL:", window.STORAGE_ACCOUNT_URL);
-  console.log("[threatIntelOverlay] DATASETS_CONTAINER:", window.DATASETS_CONTAINER);
-  console.log("[threatIntelOverlay] getDataUrl result:", getDataUrl("threat-intel-indicators.geojson"));
 /* global atlas */
 
 /**
@@ -20,89 +17,61 @@ let isEnabled = false;
  * Toggle the threat intel overlay on or off
  */
 export async function toggleThreatIntelOverlay(map, turnOn) {
-  console.log("toggleThreatIntelOverlay called with turnOn =", turnOn);
   if (turnOn) {
     await enable(map);
   } else {
     disable(map);
   }
+}
 
 /**
  * Enable the overlay - fetch and display GeoJSON from blob storage
  */
 async function enable(map) {
-  console.log("enable() called, isEnabled =", isEnabled);
   if (isEnabled) return;
 
   try {
-    // Use global variables set by config.js
     const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
     const datasetsContainer = window.DATASETS_CONTAINER;
     if (!storageAccountUrl || !datasetsContainer) {
-      console.error("Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER in global window scope", {
-        STORAGE_ACCOUNT_URL: storageAccountUrl,
-        DATASETS_CONTAINER: datasetsContainer
-      });
-      throw new Error("Missing required storage config");
+      console.error('[threatIntelOverlay] Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER');
+      throw new Error('Missing required storage config');
     }
-    console.log(`Using global config: STORAGE_ACCOUNT_URL='${storageAccountUrl}', DATASETS_CONTAINER='${datasetsContainer}'`);
-      const blobPath = `${storageAccountUrl}/${datasetsContainer}/threat-intel-indicators.geojson`;
-    const fetchUrl = getDataUrl("threat-intel-indicators.geojson");
-    console.log(`[threatIntelOverlay] Fetching threat intel indicators from:`, fetchUrl);
+
+    const fetchUrl = getDataUrl('threat-intel-indicators.geojson');
     let response;
     try {
       response = await fetch(fetchUrl);
     } catch (fetchErr) {
-      console.error(`[threatIntelOverlay] Fetch error:`, fetchErr);
       throw new Error(`Network error fetching threat intel indicators: ${fetchErr}`);
     }
-    console.log(`[threatIntelOverlay] Fetch response status:`, response.status, response.statusText);
-    if (response.ok) {
-      console.log(`[threatIntelOverlay] Success: Loaded threat intel indicators from blob: ${fetchUrl}`);
-    } else {
-      console.error(`[threatIntelOverlay] Error: Failed to load threat intel indicators from blob: ${fetchUrl} (status: ${response.status})`);
-      // Fallback to Function API (.geojson)
+
+    if (!response.ok) {
+      // Fallback to Function API
       try {
-        response = await fetch("/api/data/threat-intel-indicators.geojson");
+        response = await fetch('/api/data/threat-intel-indicators.geojson');
       } catch (apiErr) {
-        console.error(`[threatIntelOverlay] Function API fetch error:`, apiErr);
         throw new Error(`Network error fetching threat intel indicators from API: ${apiErr}`);
       }
-      console.log(`[threatIntelOverlay] Function API response status:`, response.status, response.statusText);
-      if (response.ok) {
-        console.log("Success: Loaded threat intel indicators from Function API fallback.");
-      } else {
+      if (!response.ok) {
         const errorText = await response.text();
-        console.error("API error response:", errorText);
         let errorMsg = `Failed to load threat intel: ${response.status} ${response.statusText}`;
         try {
           const errorData = JSON.parse(errorText);
-          if (errorData.error) {
-            errorMsg = errorData.error;
-          }
-          if (errorData.available_files) {
-            console.log("Available files in blob storage:", errorData.available_files);
-            errorMsg += `\n\nAvailable files: ${errorData.available_files.join(", ")}`;
-          }
+          if (errorData.error) errorMsg = errorData.error;
         } catch (e) {
-          // Not JSON, use text
-          if (errorText) {
-            errorMsg += `\n\n${errorText}`;
-          }
+          if (errorText) errorMsg += `\n\n${errorText}`;
         }
         throw new Error(errorMsg);
       }
     }
 
     const geojson = await response.json();
-    console.log("GeoJSON loaded:", geojson);
 
     if (!geojson.features || geojson.features.length === 0) {
-      console.warn("No threat intel indicators found");
-      throw new Error("No threat intelligence indicators available");
+      console.warn('[threatIntelOverlay] No threat intel indicators found in dataset');
+      throw new Error('No threat intelligence indicators available');
     }
-
-    console.log(`Loaded ${geojson.features.length} threat intel indicators`);
 
     // Create data source
     const dataSource = new atlas.source.DataSource(THREAT_INTEL_SOURCE_ID);
@@ -136,8 +105,9 @@ async function enable(map) {
           closeButton: false
         });
 
-        // Show details on hover
-        map.events.add("mousemove", bubbleLayer, (e) => {
+        // Show hover popup and update cursor
+        map.events.add('mousemove', bubbleLayer, (e) => {
+          map.getCanvasContainer().style.cursor = 'pointer';
           if (e.shapes && e.shapes.length > 0) {
             const props = e.shapes[0].getProperties();
 
@@ -200,17 +170,9 @@ async function enable(map) {
           }
         });
 
-        map.events.add("mouseleave", bubbleLayer, () => {
+        map.events.add('mouseleave', bubbleLayer, () => {
           popup.close();
-        });
-
-        // Change cursor on hover
-        map.events.add("mousemove", bubbleLayer, () => {
-          map.getCanvasContainer().style.cursor = "pointer";
-        });
-
-        map.events.add("mouseleave", bubbleLayer, () => {
-          map.getCanvasContainer().style.cursor = "grab";
+          map.getCanvasContainer().style.cursor = 'grab';
         });
 
         // Add click event to show nearby IPs in panel
@@ -222,7 +184,6 @@ async function enable(map) {
         });
 
         isEnabled = true;
-        console.log("Threat intel overlay enabled");
   } catch (error) {
     console.error("Error enabling threat intel overlay:", error);
     disable(map);
@@ -248,13 +209,11 @@ function disable(map) {
         }
       });
     }
-    map.getCanvasContainer().style.cursor = "grab";
+    map.getCanvasContainer().style.cursor = 'grab';
     isEnabled = false;
-    console.log("Threat intel overlay disabled");
   } catch (error) {
-    console.error("Error disabling threat intel overlay:", error);
+    console.error('[threatIntelOverlay] Error disabling overlay:', error);
   }
-}
 }
 
 /**

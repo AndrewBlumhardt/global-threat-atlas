@@ -34,8 +34,7 @@ export function isDemoMode() {
  */
 export function setDemoMode(enabled) {
   window.demoMode = enabled;
-  console.log(`Demo mode ${enabled ? 'enabled' : 'disabled'}`);
-  if (!enabled) console.trace('Demo mode disabled stack trace');
+}
 }
 
 /**
@@ -46,24 +45,13 @@ export function getDataUrl(filename) {
   const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
   const datasetsContainer = window.DATASETS_CONTAINER;
   if (demoMode) {
-    // Use demo_data subfolder in blob storage for demo mode
     if (storageAccountUrl && datasetsContainer) {
-      const demoBlobUrl = `${storageAccountUrl}/${datasetsContainer}/demo_data/${filename}`;
-      console.log(`[getDataUrl] Demo mode active, using blob: ${demoBlobUrl}`);
-      return demoBlobUrl;
+      return `${storageAccountUrl}/${datasetsContainer}/demo_data/${filename}`;
     }
-    // Fallback to Function API if config missing
-    const demoApiUrl = getApiUrl(`/api/data/demo_data/${filename}`);
-    console.log(`[getDataUrl] Demo mode active, using API fallback: ${demoApiUrl}`);
-    return demoApiUrl;
+    return getApiUrl(`/api/data/demo_data/${filename}`);
   }
   if (storageAccountUrl && datasetsContainer) {
-    const blobUrl = `${storageAccountUrl}/${datasetsContainer}/${filename}`;
-    console.log(`[getDataUrl] Blob path: ${blobUrl}, file: ${filename}`);
-    return blobUrl;
+    return `${storageAccountUrl}/${datasetsContainer}/${filename}`;
   }
-  // Fallback to Function API if config missing
-  const baseUrl = getApiUrl(`/api/data/${filename}`);
-  console.log(`[getDataUrl] Using Function API fallback for file: ${filename}`);
-  return baseUrl;
+  return getApiUrl(`/api/data/${filename}`);
 }
