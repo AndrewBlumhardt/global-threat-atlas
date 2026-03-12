@@ -280,6 +280,13 @@ async function main() {
 
   map.events.add("error", (e) => {
     console.error("Map error:", e);
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) {
+      const spinner = loadingOverlay.querySelector('.spinner');
+      const text = loadingOverlay.querySelector('.loading-text');
+      if (spinner) spinner.style.display = 'none';
+      if (text) text.textContent = 'Map failed to load. Check your Azure Maps key or try refreshing.';
+    }
   });
 }
 
