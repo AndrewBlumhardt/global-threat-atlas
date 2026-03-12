@@ -35,7 +35,6 @@ export function isDemoMode() {
 export function setDemoMode(enabled) {
   window.demoMode = enabled;
 }
-}
 
 /**
  * Build API data URL via Function App (uses Managed Identity)
@@ -44,7 +43,7 @@ export function setDemoMode(enabled) {
 export function getDataUrl(filename) {
   const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
   const datasetsContainer = window.DATASETS_CONTAINER;
-  if (demoMode) {
+  if (isDemoMode()) {
     if (storageAccountUrl && datasetsContainer) {
       return `${storageAccountUrl}/${datasetsContainer}/demo_data/${filename}`;
     }
