@@ -46,7 +46,7 @@ async function main() {
     containerId: "map",
     initialView: { center: [-20, 25], zoom: 2 },
     style: "road",
-    subscriptionKey: appConfig?.azureMapsKey
+    subscriptionKey: appConfig?.azureMapsKey || window.mapConfig?.azureMapsKey
   });
 
   map.events.add("ready", () => {
