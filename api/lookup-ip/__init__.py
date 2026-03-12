@@ -57,11 +57,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
     # Verify account_id is purely numeric (MaxMind account IDs are integers)
     if not account_id.isdigit():
-        logger.error(f'MAXMIND_ACCOUNT_ID does not look like a numeric ID: repr={repr(account_id[:12])}')
+        logger.error('MAXMIND_ACCOUNT_ID does not look like a numeric ID — expected digits only. Check the app setting value.')
         return _error_response(
-            f'MAXMIND_ACCOUNT_ID appears invalid — expected a numeric account ID, '
-            f'got something starting with {repr(account_id[:6])}. '
-            'Check the app setting value.', 503
+            'MAXMIND_ACCOUNT_ID appears invalid — expected a numeric account ID. '
+            'Check the app setting value.',
+            503
         )
 
     credentials = base64.b64encode(f"{account_id}:{license_key}".encode()).decode()
