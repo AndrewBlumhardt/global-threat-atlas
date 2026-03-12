@@ -41,6 +41,17 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     ip = req.params.get('ip', '').strip()
     logger.info(f'IP lookup requested for: {ip}')
 
+    # ── TEMPORARY DIAGNOSTIC: log full credential values to confirm what was read ──
+    # Remove this block once credentials are confirmed working
+    maxmind_keys = {k: v for k, v in os.environ.items() if 'MAXMIND' in k.upper()}
+    if maxmind_keys:
+        for k, v in maxmind_keys.items():
+            logger.warning(f'[DIAG] {k} = "{v}"')
+    else:
+        logger.warning('[DIAG] No MAXMIND_* environment variables found.')
+        logger.warning(f'[DIAG] All env var names present: {sorted(os.environ.keys())}')
+    # ── END TEMPORARY DIAGNOSTIC ──
+
     # Validate IP address format
     if not ip:
         return _error_response('No IP address provided', 400)
