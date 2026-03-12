@@ -59,6 +59,10 @@ async function main() {
   map.events.add("ready", () => {
     console.log("Map ready.");
     window.dispatchEvent(new Event('mapReady'));
+
+    // Dismiss the loading overlay now that tiles have rendered
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) loadingOverlay.classList.add('hidden');
     
     initPanelControls();
     
