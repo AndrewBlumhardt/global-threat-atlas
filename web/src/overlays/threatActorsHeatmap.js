@@ -117,7 +117,7 @@ const COUNTRY_ISO_CODES = {
 // Local bounding box coordinates for countries (to avoid API calls)
 // Format: [minLon, minLat, maxLon, maxLat]
 const COUNTRY_BOUNDS = {
-  "Russia": [19.25, 41.15, 190.0, 81.86],
+  "Russia": [19.25, 41.15, 180.0, 81.86],
   "China": [73.68, 18.16, 134.77, 53.56],
   "Iran": [44.03, 25.06, 63.33, 39.78],
   "Iraq": [38.79, 29.07, 48.57, 37.38],
@@ -389,7 +389,7 @@ async function enable(map, mode, onCountryClick) {
     const polygonLayer = new atlas.layer.PolygonLayer(dataSource, IDS.polygonLayer, {
       fillColor: [
         "step",
-        ["get", "count"],
+        ["coalesce", ["get", "count"], 0],
         "#0080ff",  // 1-5 actors: Blue
         6,  "#00ff00",  // 6-15 actors: Green
         16, "#ffff00",  // 16-30 actors: Yellow
@@ -489,7 +489,7 @@ async function enable(map, mode, onCountryClick) {
       weight: [
         "interpolate",
         ["linear"],
-        ["get", "weight"],
+        ["coalesce", ["get", "weight"], 1],
         1,   0.25,
         5,   0.45,
         10,  0.65,
