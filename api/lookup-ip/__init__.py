@@ -53,12 +53,28 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     # Read MaxMind credentials from app settings — strip any accidental whitespace
-    account_id = os.environ.get('MAXMIND_ACCOUNT_ID', '').strip()
+    account_id  = os.environ.get('MAXMIND_ACCOUNT_ID',  '').strip()
     license_key = os.environ.get('MAXMIND_LICENSE_KEY', '').strip()
+
+    # Diagnostic: log credential shape without exposing the full values
+    logger.info(
+        f'MaxMind creds — account_id: "{account_id[:4]}…" (len={len(account_id)}) | '
+        f'license_key: "{license_key[:4]}…{license_key[-4:]}" (len={len(license_key)}) | '
+        f'account_id_raw_repr: {repr(os.environ.get("MAXMIND_ACCOUNT_ID","<missing>")[:8])}'
+    )
 
     if not account_id or not license_key:
         logger.error('MaxMind credentials not configured (MAXMIND_ACCOUNT_ID / MAXMIND_LICENSE_KEY)')
         return _error_response('MaxMind credentials not configured on server', 503)
+
+    # Verify account_id is purely numeric (MaxMind account IDs are integers)
+    if not account_id.isdigit():
+        logger.error(f'MAXMIND_ACCOUNT_ID does not look like a numeric ID: repr={repr(account_id[:12])}')
+        return _error_response(
+            f'MAXMIND_ACCOUNT_ID appears invalid — expected a numeric account ID, '
+            f'got something starting with {repr(account_id[:6])}. '
+            'Check the app setting value.', 503
+        )
 
     credentials = base64.b64encode(f"{account_id}:{license_key}".encode()).decode()
     headers = {'Authorization': f'Basic {credentials}', 'Accept': 'application/json'}
@@ -69,35 +85,56 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         f"https://geoip.maxmind.com/geoip/v2.1/city/{ip}",
     ]
     data = None
-    last_error = None
+    auth_errors = []
     for url in endpoints:
+        endpoint_name = url.split('/')[-2]
         try:
+            logger.info(f'Trying MaxMind {endpoint_name} endpoint for {ip}')
             req_obj = Request(url, headers=headers)
             with urllib_request.urlopen(req_obj, timeout=10) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
-            logger.info(f'MaxMind lookup succeeded via {url.split("/")[-2]}')
+            logger.info(f'MaxMind lookup succeeded via {endpoint_name}')
             break  # success
         except urllib_error.HTTPError as e:
             status = e.code
             body = e.read().decode('utf-8')
-            logger.warning(f'MaxMind HTTP {status} at {url.split("/")[-2]} for {ip}: {body[:200]}')
+            # MaxMind returns JSON error bodies — try to parse the code/message
+            mm_code = ''
+            mm_msg  = body
+            try:
+                mm_json = json.loads(body)
+                mm_code = mm_json.get('code', '')
+                mm_msg  = mm_json.get('error', body)
+            except Exception:
+                pass
+            logger.warning(
+                f'MaxMind HTTP {status} [{mm_code}] at {endpoint_name} for {ip}: {mm_msg}'
+            )
             if status == 404:
                 return _error_response(
                     f'No geolocation data found for {ip}. The IP may be unregistered or newly allocated.',
                     404, no_match=True
                 )
             if status == 400:
-                return _error_response(f'Invalid IP address format: {ip}', 400, no_match=True)
+                return _error_response(f'MaxMind rejected IP format: {mm_msg}', 400, no_match=True)
             if status in (401, 402, 403):
-                last_error = f'MaxMind auth failed (HTTP {status}) for endpoint {url.split("/")[-2]} — account_id={account_id}'
-                logger.error(last_error)
-                # Try next endpoint (e.g. City may work if Insights is not subscribed)
+                detail = (
+                    f'MaxMind auth failed on {endpoint_name} '
+                    f'(HTTP {status}, code={mm_code}): {mm_msg} — '
+                    f'account_id used: {account_id[:4]}… (len={len(account_id)}), '
+                    f'license_key len={len(license_key)}'
+                )
+                logger.error(detail)
+                auth_errors.append(f'{endpoint_name}: HTTP {status} [{mm_code}] — {mm_msg}')
                 continue
-            return _error_response(f'MaxMind returned error {status}', 502)
+            return _error_response(f'MaxMind error {status}: {mm_msg}', 502)
 
     if data is None:
+        combined = ' | '.join(auth_errors) if auth_errors else 'unknown'
+        logger.error(f'MaxMind auth failed on all endpoints for {ip}: {combined}')
         return _error_response(
-            'MaxMind authentication failed on all endpoints. Verify MAXMIND_ACCOUNT_ID and MAXMIND_LICENSE_KEY.',
+            f'MaxMind authentication failed. Details: {combined}. '
+            'Verify MAXMIND_ACCOUNT_ID (numeric) and MAXMIND_LICENSE_KEY in Function App settings.',
             503
         )
 
