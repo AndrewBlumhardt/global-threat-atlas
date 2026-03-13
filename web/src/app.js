@@ -314,13 +314,7 @@ async function main() {
  */
 async function checkCustomSourceAvailability() {
   try {
-    // Try direct blob access first
-    let response = await fetch(getDataUrl("custom-source.geojson"), { method: 'HEAD' });
-    if (!response.ok) {
-      // Fallback to Function API
-      const fallbackUrl = `/api/data/custom-source.geojson`;
-      response = await fetch(fallbackUrl, { method: 'HEAD' });
-    }
+    const response = await fetch(getDataUrl("custom-source.geojson"), { method: 'HEAD' });
     const isAvailable = response.ok;
     // Apply custom layer display name if set (from API config or fallback)
     const customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME || 'Custom Source';
@@ -339,13 +333,7 @@ async function checkCustomSourceAvailability() {
  */
 async function checkSignInActivityAvailability() {
   try {
-    // Try direct blob access first
-    let response = await fetch(getDataUrl("signin-activity.geojson"), { method: 'HEAD' });
-    if (!response.ok) {
-      // Fallback to Function API
-      const fallbackUrl = `/api/data/signin-activity.geojson`;
-      response = await fetch(fallbackUrl, { method: 'HEAD' });
-    }
+    const response = await fetch(getDataUrl("signin-activity.geojson"), { method: 'HEAD' });
     const isAvailable = response.ok;
     updateLayerAvailability('SignInActivity', isAvailable);
   } catch (error) {
@@ -359,15 +347,8 @@ async function checkSignInActivityAvailability() {
  */
 async function checkDeviceLocationsAvailability() {
   try {
-    // Try direct blob access first
-    // Use device-locations.geojson in demo mode, mde-devices.geojson otherwise
-    let deviceFile = getDataUrl(isDemoMode() ? "device-locations.geojson" : "mde-devices.geojson");
-    let response = await fetch(deviceFile, { method: 'HEAD' });
-    if (!response.ok) {
-      // Fallback to Function API
-      const fallbackUrl = `/api/data/mde-devices.geojson`;
-      response = await fetch(fallbackUrl, { method: 'HEAD' });
-    }
+    const deviceFile = getDataUrl(isDemoMode() ? "device-locations.geojson" : "mde-devices.geojson");
+    const response = await fetch(deviceFile, { method: 'HEAD' });
     const isAvailable = response.ok;
     updateLayerAvailability('DeviceLocations', isAvailable);
   } catch (error) {

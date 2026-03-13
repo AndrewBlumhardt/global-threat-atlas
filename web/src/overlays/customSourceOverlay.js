@@ -34,14 +34,7 @@ async function enable(map) {
   if (isEnabled) return;
 
   try {
-    const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
-    const datasetsContainer = window.DATASETS_CONTAINER;
-    if (!storageAccountUrl || !datasetsContainer) {
-      console.error('[customSourceOverlay] Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER');
-      throw new Error('Missing required storage config');
-    }
     const dataUrl = getDataUrl('custom-source.geojson');
-
     let resp;
     try {
       resp = await fetch(dataUrl, { cache: 'no-store' });
@@ -49,15 +42,8 @@ async function enable(map) {
       throw new Error(`Network error fetching custom source: ${fetchErr}`);
     }
     if (!resp.ok) {
-      try {
-        resp = await fetch('/api/data/custom-source.geojson', { cache: 'no-store' });
-      } catch (apiErr) {
-        throw new Error(`Network error fetching custom source from API: ${apiErr}`);
-      }
-      if (!resp.ok) {
-        const errorText = await resp.text();
-        throw new Error(`Could not load custom source: ${resp.status} ${resp.statusText}${errorText ? '\n\n' + errorText : ''}`);
-      }
+      const errorText = await resp.text();
+      throw new Error(`Could not load custom source: ${resp.status} ${resp.statusText}${errorText ? '\n\n' + errorText : ''}`);
     }
 
     const geojson = await resp.json();

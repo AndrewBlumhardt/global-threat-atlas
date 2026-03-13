@@ -31,13 +31,6 @@ async function enable(map) {
   if (isEnabled) return;
 
   try {
-    const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
-    const datasetsContainer = window.DATASETS_CONTAINER;
-    if (!storageAccountUrl || !datasetsContainer) {
-      console.error('[threatIntelOverlay] Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER');
-      throw new Error('Missing required storage config');
-    }
-
     const fetchUrl = getDataUrl('threat-intel-indicators.geojson');
     let response;
     try {
@@ -47,23 +40,15 @@ async function enable(map) {
     }
 
     if (!response.ok) {
-      // Fallback to Function API
+      const errorText = await response.text();
+      let errorMsg = `Failed to load threat intel: ${response.status} ${response.statusText}`;
       try {
-        response = await fetch('/api/data/threat-intel-indicators.geojson');
-      } catch (apiErr) {
-        throw new Error(`Network error fetching threat intel indicators from API: ${apiErr}`);
+        const errorData = JSON.parse(errorText);
+        if (errorData.error) errorMsg = errorData.error;
+      } catch (e) {
+        if (errorText) errorMsg += `\n\n${errorText}`;
       }
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMsg = `Failed to load threat intel: ${response.status} ${response.statusText}`;
-        try {
-          const errorData = JSON.parse(errorText);
-          if (errorData.error) errorMsg = errorData.error;
-        } catch (e) {
-          if (errorText) errorMsg += `\n\n${errorText}`;
-        }
-        throw new Error(errorMsg);
-      }
+      throw new Error(errorMsg);
     }
 
     const geojson = await response.json();

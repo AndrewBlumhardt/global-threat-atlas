@@ -37,20 +37,11 @@ export function setDemoMode(enabled) {
 }
 
 /**
- * Build API data URL via Function App (uses Managed Identity)
- * This retrieves blobs from secure storage without exposing account keys
+ * Build API data URL via Function App (uses Managed Identity).
+ * All blob reads go through /api/data/ — no anonymous blob access required.
+ * Demo mode appends ?demo=true so the API reads from the demo_data/ prefix.
  */
 export function getDataUrl(filename) {
-  const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
-  const datasetsContainer = window.DATASETS_CONTAINER;
-  if (isDemoMode()) {
-    if (storageAccountUrl && datasetsContainer) {
-      return `${storageAccountUrl}/${datasetsContainer}/demo_data/${filename}`;
-    }
-    return getApiUrl(`/api/data/demo_data/${filename}`);
-  }
-  if (storageAccountUrl && datasetsContainer) {
-    return `${storageAccountUrl}/${datasetsContainer}/${filename}`;
-  }
-  return getApiUrl(`/api/data/${filename}`);
+  const demo = isDemoMode() ? '?demo=true' : '';
+  return getApiUrl(`/api/data/${filename}${demo}`);
 }

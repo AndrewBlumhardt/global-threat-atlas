@@ -22,12 +22,6 @@ async function enable(azureMap) {
   map = azureMap;
 
   try {
-    const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
-    const datasetsContainer = window.DATASETS_CONTAINER;
-    if (!storageAccountUrl || !datasetsContainer) {
-      console.error('[deviceLocationsOverlay] Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER');
-      throw new Error('Missing required storage config');
-    }
     // In demo mode, use device-locations.geojson; otherwise use mde-devices.geojson
     const filename = isDemoMode() ? 'device-locations.geojson' : 'mde-devices.geojson';
     const dataUrl = getDataUrl(filename);
@@ -38,14 +32,7 @@ async function enable(azureMap) {
       throw new Error(`Network error fetching device locations: ${fetchErr}`);
     }
     if (!resp.ok) {
-      try {
-        resp = await fetch('/api/data/mde-devices.geojson', { cache: 'no-store' });
-      } catch (apiErr) {
-        throw new Error(`Network error fetching device locations from API: ${apiErr}`);
-      }
-      if (!resp.ok) {
-        throw new Error(`Could not load device locations: ${resp.status} ${resp.statusText}`);
-      }
+      throw new Error(`Could not load device locations: ${resp.status} ${resp.statusText}`);
     }
 
     let geojsonData;

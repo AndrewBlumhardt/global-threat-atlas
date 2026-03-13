@@ -22,12 +22,6 @@ async function enable(azureMap) {
   map = azureMap;
 
   try {
-    const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
-    const datasetsContainer = window.DATASETS_CONTAINER;
-    if (!storageAccountUrl || !datasetsContainer) {
-      console.error('[signInActivityOverlay] Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER');
-      throw new Error('Missing required storage config');
-    }
     const dataUrl = getDataUrl('signin-activity.geojson');
     let resp;
     try {
@@ -36,14 +30,7 @@ async function enable(azureMap) {
       throw new Error(`Network error fetching sign-in activity: ${fetchErr}`);
     }
     if (!resp.ok) {
-      try {
-        resp = await fetch('/api/data/signin-activity.geojson', { cache: 'no-store' });
-      } catch (apiErr) {
-        throw new Error(`Network error fetching sign-in activity from API: ${apiErr}`);
-      }
-      if (!resp.ok) {
-        throw new Error(`Could not load sign-in activity: ${resp.status} ${resp.statusText}`);
-      }
+      throw new Error(`Could not load sign-in activity: ${resp.status} ${resp.statusText}`);
     }
 
     let geojsonData;

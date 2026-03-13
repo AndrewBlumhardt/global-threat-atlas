@@ -168,23 +168,11 @@ async function enable(map, mode, onCountryClick) {
     map.sources.add(dataSource);
   }
 
-  // Load threat actor data from blob storage via API
-  const storageAccountUrl = window.STORAGE_ACCOUNT_URL;
-  const datasetsContainer = window.DATASETS_CONTAINER;
-  if (!storageAccountUrl || !datasetsContainer) {
-    console.error('[threatActorsHeatmap] Missing STORAGE_ACCOUNT_URL or DATASETS_CONTAINER');
-    throw new Error('Missing required storage config');
-  }
+  // Load threat actor data from blob storage via API proxy
   const dataUrl = getDataUrl('threat-actors.tsv');
-  let resp = await fetch(dataUrl, { cache: 'no-store' });
+  const resp = await fetch(dataUrl, { cache: 'no-store' });
   if (!resp.ok) {
-    console.error(`Error: Failed to load threat actors from: ${dataUrl} (status: ${resp.status})`);
-    resp = await fetch("/api/data/threat-actors.tsv", { cache: "no-store" });
-    if (!resp.ok) {
-      const errorText = await resp.text();
-      console.error("Failed to load threat actors:", errorText);
-      throw new Error(`Could not load threat actors: ${resp.status} ${resp.statusText}`);
-    }
+    throw new Error(`Could not load threat actors: ${resp.status} ${resp.statusText}`);
   }
   const rows = parseTSV(await resp.text());
 
