@@ -7,7 +7,7 @@
  */
 
 import { showCustomSourceDetails } from "../ui/panelManager.js";
-import { getDataUrl } from "../shared/demoMode.js";
+import { resolveDataUrl } from "../shared/demoMode.js";
 
 const CUSTOM_SOURCE_ID = "custom-source";
 const CUSTOM_BUBBLE_LAYER_ID = "custom-bubble-layer";
@@ -34,7 +34,7 @@ async function enable(map) {
   if (isEnabled) return;
 
   try {
-    const dataUrl = getDataUrl('custom-source.geojson');
+    const dataUrl = await resolveDataUrl('custom-source.geojson');
     let resp;
     try {
       resp = await fetch(dataUrl, { cache: 'no-store' });

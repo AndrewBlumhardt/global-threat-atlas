@@ -5,7 +5,7 @@
  * Displays last known location for each device from pre-generated GeoJSON
  */
 
-import { getDataUrl, isDemoMode } from "../shared/demoMode.js";
+import { resolveDataUrl, isDemoMode } from "../shared/demoMode.js";
 import { showDeviceDetails } from "../ui/panelManager.js";
 
 let isEnabled = false;
@@ -24,7 +24,7 @@ async function enable(azureMap) {
   try {
     // In demo mode, use device-locations.geojson; otherwise use mde-devices.geojson
     const filename = isDemoMode() ? 'device-locations.geojson' : 'mde-devices.geojson';
-    const dataUrl = getDataUrl(filename);
+    const dataUrl = await resolveDataUrl(filename);
     let resp;
     try {
       resp = await fetch(dataUrl, { cache: 'no-store' });

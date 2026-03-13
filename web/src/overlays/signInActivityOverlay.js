@@ -5,7 +5,7 @@
  * Displays sign-in activity events from pre-generated GeoJSON
  */
 
-import { getDataUrl, isDemoMode } from "../shared/demoMode.js";
+import { resolveDataUrl, isDemoMode } from "../shared/demoMode.js";
 import { showSignInDetails } from "../ui/panelManager.js";
 
 let isEnabled = false;
@@ -22,7 +22,7 @@ async function enable(azureMap) {
   map = azureMap;
 
   try {
-    const dataUrl = getDataUrl('signin-activity.geojson');
+    const dataUrl = await resolveDataUrl('signin-activity.geojson');
     let resp;
     try {
       resp = await fetch(dataUrl, { cache: 'no-store' });

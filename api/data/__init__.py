@@ -98,16 +98,44 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
         logger.info('Starting blob access logic (managed identity only)')
         if BlobServiceClient is None:
-            logger.error(f'Storage SDK unavailable: {STORAGE_SDK_IMPORT_ERROR}')
-            return func.HttpResponse(
-                json.dumps({
-                    'error': 'Storage SDK unavailable in SWA data function',
-                    'details': str(STORAGE_SDK_IMPORT_ERROR)
-                }),
-                status_code=500,
-                mimetype='application/json',
-                headers={'Access-Control-Allow-Origin': '*'}
-            )
+            logger.warning(f'Storage SDK unavailable ({STORAGE_SDK_IMPORT_ERROR}), attempting anonymous blob fetch')
+            # Fallback: try a direct anonymous HTTP GET — works when the container has public blob access
+            blob_url = f"{storage_account_url.rstrip('/')}/{container_name}/{blob_name}"
+            try:
+                anon_req = urllib_request.Request(blob_url, method=req.method if req.method in ('GET', 'HEAD') else 'GET')
+                with urllib_request.urlopen(anon_req) as anon_resp:
+                    if req.method == 'HEAD':
+                        return func.HttpResponse(
+                            status_code=200,
+                            headers={'Access-Control-Allow-Origin': '*', 'Content-Type': content_type}
+                        )
+                    content = anon_resp.read()
+                logger.info(f'Anonymous blob fetch succeeded for {blob_name} ({len(content)} bytes)')
+                return func.HttpResponse(
+                    body=content,
+                    mimetype=content_type,
+                    headers={
+                        'Access-Control-Allow-Origin': '*',
+                        'Cache-Control': 'public, max-age=300',
+                        'Content-Type': content_type
+                    }
+                )
+            except urllib_error.HTTPError as http_err:
+                logger.error(f'Anonymous blob fetch failed: {http_err.code} {http_err.reason}')
+                return func.HttpResponse(
+                    json.dumps({'error': 'Storage SDK unavailable and anonymous blob access failed', 'details': f'{http_err.code} {http_err.reason}'}),
+                    status_code=500,
+                    mimetype='application/json',
+                    headers={'Access-Control-Allow-Origin': '*'}
+                )
+            except Exception as anon_err:
+                logger.error(f'Anonymous blob fetch error: {anon_err}')
+                return func.HttpResponse(
+                    json.dumps({'error': 'Storage SDK unavailable and anonymous blob access failed', 'details': str(anon_err)}),
+                    status_code=500,
+                    mimetype='application/json',
+                    headers={'Access-Control-Allow-Origin': '*'}
+                )
 
         if DefaultAzureCredential is None:
             logger.error(f'Identity SDK unavailable: {IDENTITY_SDK_IMPORT_ERROR}')

@@ -11,7 +11,7 @@ import { showCountryDetails, initPanelControls } from "./ui/panelManager.js";
 import { addAutoScrollControl } from "./ui/autoScroll.js";
 import { addDownloadControl } from "./ui/downloadControl.js";
 import { enableDragAndDrop } from "./ui/dragDropGeoJSON.js";
-import { setDemoMode, getDataUrl, isDemoMode } from "./shared/demoMode.js";
+import { setDemoMode, resolveDataUrl, isDemoMode } from "./shared/demoMode.js";
 import { lookupAndPlaceIP, clearAllLookups } from "./overlays/ipLookupOverlay.js";
 
 async function main() {
@@ -314,7 +314,7 @@ async function main() {
  */
 async function checkCustomSourceAvailability() {
   try {
-    const response = await fetch(getDataUrl("custom-source.geojson"), { method: 'HEAD' });
+    const response = await fetch(await resolveDataUrl("custom-source.geojson"), { method: 'HEAD' });
     const isAvailable = response.ok;
     // Apply custom layer display name if set (from API config or fallback)
     const customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME || 'Custom Source';
@@ -333,7 +333,7 @@ async function checkCustomSourceAvailability() {
  */
 async function checkSignInActivityAvailability() {
   try {
-    const response = await fetch(getDataUrl("signin-activity.geojson"), { method: 'HEAD' });
+    const response = await fetch(await resolveDataUrl("signin-activity.geojson"), { method: 'HEAD' });
     const isAvailable = response.ok;
     updateLayerAvailability('SignInActivity', isAvailable);
   } catch (error) {
@@ -347,7 +347,7 @@ async function checkSignInActivityAvailability() {
  */
 async function checkDeviceLocationsAvailability() {
   try {
-    const deviceFile = getDataUrl(isDemoMode() ? "device-locations.geojson" : "mde-devices.geojson");
+    const deviceFile = await resolveDataUrl(isDemoMode() ? "device-locations.geojson" : "mde-devices.geojson");
     const response = await fetch(deviceFile, { method: 'HEAD' });
     const isAvailable = response.ok;
     updateLayerAvailability('DeviceLocations', isAvailable);

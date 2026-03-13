@@ -6,7 +6,7 @@
  */
 
 import { showIPDetails } from "../ui/panelManager.js";
-import { getDataUrl } from "../shared/demoMode.js";
+import { resolveDataUrl } from "../shared/demoMode.js";
 
 const THREAT_INTEL_SOURCE_ID = "threat-intel-source";
 const THREAT_INTEL_LAYER_ID = "threat-intel-layer";
@@ -31,7 +31,7 @@ async function enable(map) {
   if (isEnabled) return;
 
   try {
-    const fetchUrl = getDataUrl('threat-intel-indicators.geojson');
+    const fetchUrl = await resolveDataUrl('threat-intel-indicators.geojson');
     let response;
     try {
       response = await fetch(fetchUrl);

@@ -45,3 +45,50 @@ export function getDataUrl(filename) {
   const demo = isDemoMode() ? '?demo=true' : '';
   return getApiUrl(`/api/data/${filename}${demo}`);
 }
+
+// --- Anonymous blob probe (single attempt, cached for the session) ---
+let _probePromise = null;
+let _useDirectBlob = false;
+
+function buildDirectBlobUrl(filename) {
+  const base = (window.STORAGE_ACCOUNT_URL || '').replace(/\/$/, '');
+  const container = window.DATASETS_CONTAINER || 'datasets';
+  if (!base) return null;
+  const prefix = isDemoMode() ? 'demo_data/' : '';
+  return `${base}/${container}/${prefix}${filename}`;
+}
+
+async function _probeAnonymousAccess(filename) {
+  const base = (window.STORAGE_ACCOUNT_URL || '').replace(/\/$/, '');
+  const container = window.DATASETS_CONTAINER || 'datasets';
+  if (!base) return false;
+  try {
+    const resp = await fetch(`${base}/${container}/${filename}`, { method: 'HEAD' });
+    if (resp.ok) {
+      console.log('[demoMode] Anonymous blob access confirmed — using direct URLs');
+      return true;
+    }
+  } catch (_) {
+    // CORS block or network failure — anonymous not available
+  }
+  console.log('[demoMode] Anonymous blob access unavailable — routing through function API');
+  return false;
+}
+
+/**
+ * Resolve a data URL for the given filename.
+ * On the first call ever, fires a single HEAD probe against the blob container.
+ * If anonymous access succeeds → all requests go direct (zero function invocations).
+ * If not → falls through to the function API route as before.
+ */
+export async function resolveDataUrl(filename) {
+  if (_probePromise === null) {
+    _probePromise = _probeAnonymousAccess(filename);
+  }
+  _useDirectBlob = await _probePromise;
+  if (_useDirectBlob) {
+    return buildDirectBlobUrl(filename);
+  }
+  const demo = isDemoMode() ? '?demo=true' : '';
+  return getApiUrl(`/api/data/${filename}${demo}`);
+}
