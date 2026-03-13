@@ -8,6 +8,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'api/**'
+      - '.github/workflows/main_func-sentinel-activity-maps.yml'
   workflow_dispatch:
 
 env:
