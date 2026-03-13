@@ -77,6 +77,39 @@ Powered by [Leaflet.js](https://leafletjs.com).
 **Typical monthly cost:** $10–20 USD covers most demo or small production environments. For advanced security, add Microsoft Defender for Cloud (MDC) at $25–40 USD/month.
 **MaxMind:** IP geolocation uses a free GeoLite2 license. Business/commercial users must obtain a paid MaxMind license to comply with terms—see [MaxMind licensing](https://www.maxmind.com).
 
+### Function App — Consumption Plan Pricing
+
+The Function App runs on the **Consumption (serverless) plan**, which bills only when functions execute:
+
+| Meter | Free grant | Paid rate |
+|---|---|---|
+| Execution time | 400,000 GB-s / month | $0.000016 / GB-s |
+| Executions | 1,000,000 / month | $0.20 / million |
+
+**Important:** The free grant is **per Azure subscription per month**, shared across all function apps in that subscription — not per app. If you have other function apps in the same subscription they draw from the same pool.
+
+Each invocation in this app (a blob read or API call) is roughly 200 ms × 128–256 MB ≈ 0.03–0.05 GB-s. At that rate the free monthly grant covers several million calls before any charge appears.
+
+**Blob storage reads for map layers** (GeoJSON files) can bypass the function entirely if the storage container is configured for anonymous/public blob access — this reduces function invocations and the associated GB-s consumption to near zero for those requests.
+
+### Capping Spend with the Daily Usage Quota
+
+For public demo deployments you can set a hard daily ceiling in the Azure Portal:
+
+> **Function App → Configuration → Function runtime settings → Daily Usage Quota (GB-s)**
+
+When the quota is reached the function app stops for the rest of the UTC day and resumes automatically at midnight. Setting it to `0` disables the cap entirely.
+
+**Suggested values:**
+
+| Scenario | Quota | Why |
+|---|---|---|
+| Only app in the subscription | `12000` GB-s | ~90 % of the daily share of the free grant (~13,333 GB-s/day); leaves a buffer for other overhead |
+| Shared subscription | `2000`–`4000` GB-s | Reserves most of the free grant for other apps |
+| Public demo with strict abuse protection | `500`–`1000` GB-s | Still allows tens of thousands of calls; well within free tier; stops bots cold |
+
+> **Tip:** For a fully isolated public demo consider deploying to a separate Azure subscription so any quota or grant consumption cannot affect production workloads.
+
 ## 🚀 Quick Deploy
 Deploy the entire application to Azure in ~5 minutes:
 
