@@ -5,4 +5,5 @@
 azure-storage-blob
 azure-identity
 azure-functions
+azure-monitor-query
 requests

@@ -28,7 +28,6 @@ except Exception as import_error:
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
-    logger.info(f'Function environment: STORAGE_ACCOUNT_URL={os.environ.get("STORAGE_ACCOUNT_URL")}, STORAGE_CONTAINER_DATASETS={os.environ.get("STORAGE_CONTAINER_DATASETS")}')
     """
     Returns threat intelligence GeoJSON data from blob storage.
     Route parameter 'filename' determines which file to fetch.
@@ -155,26 +154,12 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         if not exists:
             logger.error(f'Blob not found: {blob_name}')
-            # List available blobs to help with debugging
-            logger.info('Blob not found, listing available blobs...')
-            try:
-                container_client = blob_service_client.get_container_client(container_name)
-                blobs = [blob.name for blob in container_client.list_blobs()]
-                logger.error(f'Blob not found: {blob_name}. Available blobs: {blobs}')
-                return func.HttpResponse(
-                    f'{{"error": "File not found: {blob_name}", "available_files": {json.dumps(blobs)}}}',
-                    status_code=404,
-                    mimetype='application/json',
-                    headers={'Access-Control-Allow-Origin': '*'}
-                )
-            except Exception as e:
-                logger.error(f'Failed to list blobs: {e}')
-                return func.HttpResponse(
-                    f'{{"error": "File not found: {blob_name}", "list_error": "{str(e)}"}}',
-                    status_code=404,
-                    mimetype='application/json',
-                    headers={'Access-Control-Allow-Origin': '*'}
-                )
+            return func.HttpResponse(
+                json.dumps({'error': f'File not found: {blob_name}'}),
+                status_code=404,
+                mimetype='application/json',
+                headers={'Access-Control-Allow-Origin': '*'}
+            )
 
         # Download the blob
         logger.info(f'Downloading blob: {container_name}/{blob_name} using managed identity')

@@ -17,6 +17,12 @@ import { lookupAndPlaceIP, clearAllLookups } from "./overlays/ipLookupOverlay.js
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
 
+  // Trigger a background data refresh immediately — fire-and-forget.
+  // The function checks blob staleness cheaply and only runs the full
+  // Sentinel → MaxMind → GeoJSON pipeline when data is older than REFRESH_INTERVAL_HOURS.
+  // The SWA reads current blob data right away; this updates it asynchronously.
+  fetch('/api/refresh').catch(() => {});
+
   // Resolve app config — use the promise started early in index.html (already in-flight)
   // so we don't pay a full round-trip delay here.
   let appConfig = null;
@@ -284,6 +290,12 @@ async function main() {
     }
 
     console.log('All features initialized: auto-scroll, download, weather (radar/infrared), drag-and-drop, IP lookup, Find My IP');
+
+    // Keep the function warm during active sessions to reduce cold-start latency.
+    // Pings /api/health every 14 minutes; skips when the tab is hidden.
+    setInterval(() => {
+      if (!document.hidden) fetch('/api/health').catch(() => {});
+    }, 14 * 60 * 1000);
   });
 
   map.events.add("error", (e) => {
