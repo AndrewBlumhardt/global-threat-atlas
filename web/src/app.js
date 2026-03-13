@@ -39,12 +39,11 @@ async function main() {
 
     appConfig = await configFetch;
     clearTimeout(slowNotice);
+
     if (appConfig) {
-      // Apply custom layer display name if set via app settings
       if (appConfig.customLayerDisplayName) {
         window.CUSTOM_LAYER_DISPLAY_NAME = appConfig.customLayerDisplayName;
       }
-      // Apply storage config if returned
       if (appConfig.storageAccountUrl) window.STORAGE_ACCOUNT_URL = appConfig.storageAccountUrl;
       if (appConfig.datasetsContainer) window.DATASETS_CONTAINER = appConfig.datasetsContainer;
     } else {
