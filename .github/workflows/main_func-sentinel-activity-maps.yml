@@ -78,12 +78,13 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_7019E05A2F694C20B817B4DC2F993FD2 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_9F12F2DB8A674FF3A416688A145F4BCE }}
 
-      - name: 'Deploy to Azure Functions'
-        uses: Azure/functions-action@v1
-        id: deploy-to-function
-        with:
-          app-name: 'func-sentinel-activity-maps'
-          slot-name: 'Production'
-          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-          scm-do-build-during-deployment: true
-          enable-oryx-build: true
+      - name: 'Zip and deploy to Azure Functions'
+        run: |
+          cd ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+          zip -r ../func-deploy.zip . -x "*.pyc" -x "__pycache__/*" -x ".venv/*"
+          cd ..
+          az functionapp deployment source config-zip \
+            --resource-group "rg-sentinel-activity-maps" \
+            --name "func-sentinel-activity-maps" \
+            --src func-deploy.zip \
+            --build-remote true
