@@ -226,6 +226,7 @@ else
         --kind StorageV2 \
         --allow-blob-public-access false \
         --min-tls-version TLS1_2 \
+        --allow-shared-key-access false \
         --output none
     print_success "Storage account created: $STORAGE_ACCOUNT_NAME"
 fi
