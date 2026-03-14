@@ -15,14 +15,13 @@ on:
 
 env:
   AZURE_FUNCTIONAPP_PACKAGE_PATH: './api'
-  PYTHON_VERSION: '3.11'
+  PYTHON_VERSION: '3.11' # set this to the python version to use (supports 3.6, 3.7, 3.8)
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # required for OIDC login
-      contents: read
+      contents: read #This is required for actions/checkout
 
     steps:
       - name: Checkout repository
@@ -33,15 +32,45 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install dependencies into package dir
+      - name: Create and start virtual environment
         run: |
-          pip install --target=${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/.python_packages/lib/site-packages -r ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/requirements.txt
+          python -m venv venv
+          source venv/bin/activate
 
-      - name: Zip package
+      - name: Install dependencies
+        run: cd api && pip install -r requirements.txt
+
+      # Optional: Add step to run tests here
+
+      - name: Zip artifact for deployment
+        run: zip release.zip ./* -r
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-app
+          path: |
+            release.zip
+            !venv/
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write #This is required for requesting the JWT
+      contents: read #This is required for actions/checkout
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: python-app
+
+      - name: Unzip artifact for deployment
         run: |
-          cd ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-          zip -r ../func-deploy.zip . -x "*.pyc" -x "*__pycache__*"
-
+          unzip release.zip
+          rm release.zip
+        
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -49,10 +78,12 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_7019E05A2F694C20B817B4DC2F993FD2 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_9F12F2DB8A674FF3A416688A145F4BCE }}
 
-      - name: Deploy to Azure Functions
-        run: |
-          az functionapp deploy \
-            --resource-group "rg-sentinel-activity-maps" \
-            --name "func-sentinel-activity-maps" \
-            --src-path func-deploy.zip \
-            --type zip
+      - name: 'Deploy to Azure Functions'
+        uses: Azure/functions-action@v1
+        id: deploy-to-function
+        with:
+          app-name: 'func-sentinel-activity-maps'
+          slot-name: 'Production'
+          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+
+          
