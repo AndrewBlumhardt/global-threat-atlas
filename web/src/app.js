@@ -27,17 +27,21 @@ async function main() {
   // so we don't pay a full round-trip delay here.
   let appConfig = null;
   try {
-    const configFetch = window._configPromise ||
+    const rawFetch = window._configPromise ||
       fetch('/api/config').then(r => r.ok ? r.json() : null).catch(() => null);
 
-    // After 5s show a status update so the user knows a cold start is in progress,
-    // then keep waiting — the Azure Maps key must come from the API.
+    // Race the config fetch against a 20-second timeout.
+    // If the function app is unresponsive (cold start > 20s, crash, etc.) we fall
+    // through gracefully and the map loads using window.MAP_CONFIG from config.js.
+    const timeout = new Promise(resolve => setTimeout(() => resolve(null), 20000));
+
+    // After 5s show a status update so the user knows a cold start is in progress.
     const slowNotice = setTimeout(() => {
       const text = document.querySelector('#loadingOverlay .loading-text');
       if (text) text.textContent = 'Waiting for API (cold start, please wait…)';
     }, 5000);
 
-    appConfig = await configFetch;
+    appConfig = await Promise.race([rawFetch, timeout]);
     clearTimeout(slowNotice);
 
     if (appConfig) {
@@ -47,17 +51,20 @@ async function main() {
       if (appConfig.storageAccountUrl) window.STORAGE_ACCOUNT_URL = appConfig.storageAccountUrl;
       if (appConfig.datasetsContainer) window.DATASETS_CONTAINER = appConfig.datasetsContainer;
     } else {
-      console.warn('[config] /api/config returned null or could not be reached, using defaults.');
+      console.warn('[config] /api/config returned null or timed out, using defaults.');
     }
   } catch (e) {
     console.warn('[config] Could not fetch /api/config, using defaults:', e.message);
   }
 
+  // Prefer key from API config; fall back to window.MAP_CONFIG (config.js) if API is down.
+  const mapsKey = appConfig?.azureMapsKey || window.MAP_CONFIG?.subscriptionKey;
+
   const { map, subscriptionKey } = await createMap({
     containerId: "map",
     initialView: { center: [-20, 25], zoom: 2 },
     style: "road",
-    subscriptionKey: appConfig?.azureMapsKey
+    subscriptionKey: mapsKey
   });
 
   map.events.add("ready", () => {
