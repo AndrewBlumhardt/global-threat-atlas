@@ -8,7 +8,6 @@ import json
 import os
 from urllib import request as urllib_request
 from urllib import error as urllib_error
-from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 
