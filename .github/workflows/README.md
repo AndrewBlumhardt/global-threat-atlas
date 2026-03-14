@@ -81,6 +81,15 @@ This directory contains CI/CD workflows for automated deployment and testing of 
 
 ## Troubleshooting
 
+**Start here — health check endpoint:**
+After any deployment, verify the function is healthy before debugging further:
+```
+https://<your-swa>.azurestaticapps.net/api/health
+```
+- `"azure.identity": "unavailable"` or `"azure.storage.blob": "unavailable"` → Python packages are missing from the deployment. Re-run the function deploy workflow.
+- `"data_freshness_hours": { "signin-activity.geojson": null }` → SDKs loaded but MI blob access failing. Check RBAC on the storage account.
+- `"storage_url": false` → `STORAGE_ACCOUNT_URL` app setting not set on the Function App.
+
 **Deployment fails with 401/403:**
 - Verify federated credentials are configured correctly
 - Check that managed identity has required permissions (Storage Blob Data Contributor, Log Analytics Reader)
@@ -91,4 +100,3 @@ This directory contains CI/CD workflows for automated deployment and testing of 
 
 **Cold start after deployment:**
 - Function apps may take 30-60 seconds to fully start after deployment
-- Health check endpoint: `https://YOUR-FUNCTION.azurewebsites.net/api/health`
