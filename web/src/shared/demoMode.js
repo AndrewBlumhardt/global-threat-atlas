@@ -59,6 +59,11 @@ function buildDirectBlobUrl(filename) {
 }
 
 async function _probeAnonymousAccess(filename) {
+  // Skip probe if caller has opted out (anonymous access is disabled on the storage account)
+  if (window.USE_FUNCTION_API_ONLY) {
+    console.log('[demoMode] USE_FUNCTION_API_ONLY set — skipping probe, routing through function API');
+    return false;
+  }
   const base = (window.STORAGE_ACCOUNT_URL || '').replace(/\/$/, '');
   const container = window.DATASETS_CONTAINER || 'datasets';
   if (!base) return false;
