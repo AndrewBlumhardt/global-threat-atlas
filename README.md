@@ -90,7 +90,33 @@ The Function App runs on the **Consumption (serverless) plan**, which bills only
 
 Each invocation in this app (a blob read or API call) is roughly 200 ms × 128–256 MB ≈ 0.03–0.05 GB-s. At that rate the free monthly grant covers several million calls before any charge appears.
 
-**Blob storage reads for map layers** (GeoJSON files) can bypass the function entirely if the storage container is configured for anonymous/public blob access — this reduces function invocations and the associated GB-s consumption to near zero for those requests.
+**Blob storage reads for map layers** (GeoJSON files) can bypass the function entirely if the storage container is configured for anonymous blob access — this reduces function invocations and the associated GB-s consumption to near zero for those requests. Whether that is appropriate depends on the sensitivity of the data and the environment; see below.
+
+### Blob Storage Access — Network vs. Authentication
+
+These are two independent controls that are often conflated:
+
+**Network Access** — controls whether blob storage is reachable from the internet at all.
+- **Enabled (default):** the storage endpoint is publicly routable. Authentication still controls what can be read; network exposure alone is low risk when anonymous access is disabled.
+- **Disabled:** requires a private endpoint (~$7–10/month) or VNET integration to reach blob storage. Eliminates network-level exposure but adds cost and infrastructure complexity.
+
+**Authentication** — controls who can read blobs once the account is reachable:
+
+| Option | How it works | Pros | Cons | Suitable for |
+|---|---|---|---|---|
+| **Anonymous** | No auth — URL is sufficient | Zero function calls; simplest setup | Security by obscurity only; blob URL pattern is predictable and could be guessed | Demo / dev / test only |
+| **SAS token** | Bearer token embedded in request URL; expiry up to 2 years | No function calls; time-limited | Token is a credential that must be secured and rotated; visible in browser network requests; cannot be stored as a plain SWA environment variable (exposed to browser) — must be served from the Function App or Key Vault; easy to overlook at renewal | Short-term or controlled sharing |
+| **Function App (Managed Identity)** | SWA cannot use Managed Identity directly; blob reads proxy through the Function App, which uses its own MI to authenticate to storage | No secrets to manage or rotate; most secure option without Key Vault | One function invocation per file read; adds to GB-s consumption (within free tier for normal usage) | Production |
+| **Private endpoint + disabled public access** | Disables public network access; only VNET-connected resources can reach storage | Strongest network isolation | ~$7–10/month for the endpoint; significant infrastructure complexity | High-security production |
+
+**Note on Key Vault:** KV was intentionally excluded from this project to reduce cost (~$5/month) and complexity. It could be added to securely store and serve a SAS token if the Function proxy approach is not desired.
+
+**Recommended by environment:**
+- **Demo / dev / test:** anonymous access enabled, public network access enabled
+- **Production:** anonymous access disabled, public network access enabled, reads proxied through the Function App with Managed Identity
+- **High-security production:** anonymous access disabled, public network access disabled, private endpoint added
+
+> **Important:** This application may display real threat intelligence, sign-in activity, and device location data sourced from Microsoft Sentinel. Anonymous blob access exposes that data to anyone who knows or guesses the URL. It should not be used outside of demo or test environments populated with synthetic data.
 
 ### Capping Spend with the Daily Usage Quota
 

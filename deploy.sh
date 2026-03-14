@@ -293,10 +293,20 @@ print_step "Configuring application settings..."
 
 STORAGE_URL="https://$STORAGE_ACCOUNT_NAME.blob.core.windows.net"
 
+# Switch AzureWebJobsStorage from key-based (set by functionapp create) to identity-based.
+# This allows the storage account to have shared key access disabled.
+print_info "Switching Function App runtime storage to identity-based (Managed Identity)..."
+az functionapp config appsettings delete \
+    --resource-group "$RESOURCE_GROUP_NAME" \
+    --name "$FUNCTION_APP_NAME" \
+    --setting-names AzureWebJobsStorage \
+    --output none 2>/dev/null || true
+
 az functionapp config appsettings set \
     --resource-group "$RESOURCE_GROUP_NAME" \
     --name "$FUNCTION_APP_NAME" \
     --settings \
+        AzureWebJobsStorage__accountName="$STORAGE_ACCOUNT_NAME" \
         LOG_ANALYTICS_WORKSPACE_ID="$WORKSPACE_ID" \
         STORAGE_ACCOUNT_URL="$STORAGE_URL" \
         STORAGE_CONTAINER_DATASETS=datasets \
@@ -306,7 +316,7 @@ az functionapp config appsettings set \
         INCREMENTAL_OVERLAP_MINUTES=10 \
     --output none
 
-print_success "Application settings configured"
+print_success "Application settings configured — runtime storage uses Managed Identity (no storage keys)"
 
 # 6. Get Managed Identity Principal ID
 print_step "Configuring managed identity..."
@@ -333,8 +343,26 @@ az role assignment create \
     --role "Storage Blob Data Contributor" \
     --scope "$STORAGE_ACCOUNT_ID" \
     --output none
-
 print_success "Assigned Storage Blob Data Contributor role"
+
+# Runtime storage roles — required for identity-based AzureWebJobsStorage
+print_info "Assigning Function App runtime storage roles (for identity-based AzureWebJobsStorage)..."
+az role assignment create \
+    --assignee "$PRINCIPAL_ID" \
+    --role "Storage Blob Data Owner" \
+    --scope "$STORAGE_ACCOUNT_ID" \
+    --output none
+az role assignment create \
+    --assignee "$PRINCIPAL_ID" \
+    --role "Storage Queue Data Contributor" \
+    --scope "$STORAGE_ACCOUNT_ID" \
+    --output none
+az role assignment create \
+    --assignee "$PRINCIPAL_ID" \
+    --role "Storage Table Data Contributor" \
+    --scope "$STORAGE_ACCOUNT_ID" \
+    --output none
+print_success "Assigned runtime storage roles (Blob Owner, Queue Contributor, Table Contributor)"
 
 print_info "Note: You may need to manually assign 'Log Analytics Reader' role to the Function App's managed identity on your Log Analytics Workspace"
 print_info "Principal ID: $PRINCIPAL_ID"
