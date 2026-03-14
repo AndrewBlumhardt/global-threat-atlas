@@ -270,15 +270,6 @@ $storageKey = az storage account keys list `
 
 Write-Success "Containers created: datasets, locks"
 
-# 3b. Secure storage account - disable shared key access, RBAC only
-Write-Info "Securing storage account (RBAC only, disabling shared key access)..."
-az storage account update `
-    --name $StorageAccountName `
-    --resource-group $ResourceGroupName `
-    --allow-shared-key-access false `
-    --output none
-Write-Success "Storage account secured: RBAC-only authentication enabled"
-
 # 3c. Grant Function App and SWA blob storage access via RBAC
 Write-Info "Getting storage account resource ID..."
 $storageId = az storage account show `
