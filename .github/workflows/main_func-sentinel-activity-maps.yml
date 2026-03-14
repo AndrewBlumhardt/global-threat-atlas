@@ -24,6 +24,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies into package folder
+        run: |
+          pip install --target=api/.python_packages/lib/site-packages -r api/requirements.txt
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -37,6 +46,5 @@ jobs:
           app-name: 'func-sentinel-activity-maps'
           slot-name: 'Production'
           package: './api'
-          scm-do-build-during-deployment: true
-          enable-oryx-build: true
+          scm-do-build-during-deployment: false
 
