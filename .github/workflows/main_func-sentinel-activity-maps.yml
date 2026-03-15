@@ -10,6 +10,7 @@ on:
       - main
     paths:
       - 'api/**'
+      - 'demo_data/**'
       - '.github/workflows/main_func-sentinel-activity-maps.yml'
   workflow_dispatch:
 
@@ -57,4 +58,13 @@ jobs:
           slot-name: 'Production'
           package: './api'
           scm-do-build-during-deployment: false
+
+      - name: Upload demo data to blob storage
+        run: |
+          az storage blob upload-batch \
+            --account-name sentinelmapsstore \
+            --destination datasets/demo_data \
+            --source demo_data \
+            --overwrite true \
+            --auth-mode login
 
