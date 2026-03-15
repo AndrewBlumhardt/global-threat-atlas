@@ -2,8 +2,8 @@
 # Ref: aka.ms/functions-azure-monitor-python
 # azure-monitor-opentelemetry  xx
 
-azure-functions
 azure-identity
 azure-storage-blob
 azure-monitor-query
+azure-functions
 requests
