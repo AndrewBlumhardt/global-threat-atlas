@@ -1,26 +1,30 @@
 """
 Data refresh pipeline for Sentinel Activity Maps.
 
-Queries Microsoft Sentinel (Log Analytics) for MDE device data and sign-in
-activity, enriches public IPs with MaxMind, and writes GeoJSON to blob storage
-for the SWA to consume.
+Three independent pipelines — each with its own frequency, lookback, and output files:
 
-The SWA calls this on page load as a fire-and-forget request. Returns immediately
-if data is already fresh or another refresh is already running — no wasted spend.
+  MDE Devices  : KQL → mde-devices.tsv → MaxMind → mde-devices.geojson
+  Sign-in      : KQL → signin-activity.tsv → Location field → signin-activity.geojson
+  Threat Intel : KQL → threat-intel-indicators.tsv → MaxMind → threat-intel-indicators.geojson
+
+Each pipeline checks its own freshness; stale pipelines run, fresh ones are skipped.
 
 Required app settings:
   STORAGE_ACCOUNT_URL         — https://<account>.blob.core.windows.net
   STORAGE_CONTAINER_DATASETS  — blob container name (default: datasets)
   SENTINEL_WORKSPACE_ID       — Log Analytics workspace GUID
-  MAXMIND_ACCOUNT_ID          — shared with the lookup-ip function
-  MAXMIND_LICENSE_KEY         — shared with the lookup-ip function
+  MAXMIND_ACCOUNT_ID          — MaxMind GeoIP account ID
+  MAXMIND_LICENSE_KEY         — MaxMind GeoIP license key
 
 Optional app settings:
-  REFRESH_INTERVAL_HOURS        — minimum hours between refreshes (default: 4)
-  REFRESH_DEVICE_LOOKBACK_HOURS — how far back to query MDE data (default: 24)
-  REFRESH_SIGNIN_LOOKBACK_HOURS — how far back to query sign-in data (default: 24)
-  SENTINEL_DEVICES_KQL          — override the default MDE KQL query
-  SENTINEL_SIGNIN_KQL           — override the default sign-in activity KQL query
+  REFRESH_DEVICE_FREQUENCY_MINUTES    — how often to refresh MDE devices (default: 15)
+  REFRESH_DEVICE_LOOKBACK_HOURS       — how far back to query MDE data (default: 168)
+  REFRESH_SIGNIN_FREQUENCY_MINUTES    — how often to refresh sign-in activity (default: 15)
+  REFRESH_SIGNIN_LOOKBACK_HOURS       — how far back to query sign-in data (default: 168)
+  REFRESH_THREATINTEL_FREQUENCY_HOURS — how often to refresh threat intel (default: 24)
+  SENTINEL_DEVICES_KQL                — override default MDE KQL query
+  SENTINEL_SIGNIN_KQL                 — override default sign-in KQL query
+  SENTINEL_THREATINTEL_KQL            — override default threat intel KQL query
 """
 import azure.functions as func
 import base64
@@ -33,10 +37,8 @@ from urllib import request as urllib_request
 
 logger = logging.getLogger(__name__)
 
-REFRESH_INTERVAL_HOURS = float(os.environ.get('REFRESH_INTERVAL_HOURS', '4'))
+_THREATINTEL_LOOKBACK_HOURS = 360  # 15 days — static, not configurable
 
-
-# ── Blob helpers ──────────────────────────────────────────────────────────────
 
 # ── Managed Identity helpers ──────────────────────────────────────────────────
 
@@ -137,9 +139,25 @@ def _upload(container, blob_name, data_bytes, content_type='application/json'):
     urllib_request.urlopen(req, timeout=60).close()
 
 
+# ── TSV helper ────────────────────────────────────────────────────────────────
+
+def _rows_to_tsv(rows):
+    """Serialize a list of dicts to TSV bytes (UTF-8), safe for blob upload."""
+    if not rows:
+        return b''
+    headers = list(rows[0].keys())
+    lines = ['\t'.join(headers)]
+    for row in rows:
+        lines.append('\t'.join(
+            str(row.get(h, '') or '').replace('\t', ' ').replace('\r', '').replace('\n', ' ')
+            for h in headers
+        ))
+    return '\n'.join(lines).encode('utf-8')
+
+
 # ── Sentinel ──────────────────────────────────────────────────────────────────
 
-def _query_sentinel(workspace_id, kql, lookback_hours=24):
+def _query_sentinel(workspace_id, kql, lookback_hours):
     """Run a KQL query against a Sentinel Log Analytics workspace via REST API."""
     token = _get_mi_token(_LA_RESOURCE)
     url = f'https://api.loganalytics.io/v1/workspaces/{workspace_id}/query'
@@ -161,27 +179,47 @@ def _query_sentinel(workspace_id, kql, lookback_hours=24):
     return [dict(zip(cols, row)) for row in t['rows']]
 
 
+def _devices_lookback():
+    return int(os.environ.get('REFRESH_DEVICE_LOOKBACK_HOURS', '168'))
+
+
+def _signin_lookback():
+    return int(os.environ.get('REFRESH_SIGNIN_LOOKBACK_HOURS', '168'))
+
+
 def _default_devices_kql():
-    hours = int(os.environ.get('REFRESH_DEVICE_LOOKBACK_HOURS', '480'))
+    hours = _devices_lookback()
     return (
-        f'DeviceInfo\n'
+        'DeviceInfo\n'
         f'| where TimeGenerated > ago({hours}h)\n'
-        f'| summarize arg_max(TimeGenerated, *) by DeviceId\n'
-        f'| where isnotempty(PublicIP)\n'
-        f'| project TimeGenerated, DeviceName, DeviceId, OSPlatform, DeviceType,\n'
-        f'          CloudPlatforms, OnboardingStatus, PublicIP, SensorHealthState, ExposureLevel\n'
+        '| summarize arg_max(TimeGenerated, *) by DeviceId\n'
+        '| where isnotempty(PublicIP)\n'
+        '| project TimeGenerated, DeviceName, DeviceId, OSPlatform, DeviceType,\n'
+        '          CloudPlatforms, OnboardingStatus, PublicIP, SensorHealthState, ExposureLevel\n'
     )
 
 
 def _default_signin_kql():
-    hours = int(os.environ.get('REFRESH_SIGNIN_LOOKBACK_HOURS', '24'))
+    hours = _signin_lookback()
     return (
-        f'SigninLogs\n'
+        'SigninLogs\n'
         f'| where TimeGenerated > ago({hours}h)\n'
-        f'| where isnotempty(IPAddress)\n'
-        f'| summarize arg_max(TimeGenerated, *) by IPAddress, UserPrincipalName\n'
-        f'| project TimeGenerated, UserPrincipalName, IPAddress, Location,\n'
-        f'          AppDisplayName, ClientAppUsed, ConditionalAccessStatus\n'
+        '| where isnotempty(IPAddress)\n'
+        '| summarize arg_max(TimeGenerated, *) by IPAddress, UserPrincipalName\n'
+        '| project TimeGenerated, UserPrincipalName, IPAddress, Location,\n'
+        '          AppDisplayName, ClientAppUsed, ConditionalAccessStatus\n'
+    )
+
+
+def _default_threatintel_kql():
+    return (
+        'ThreatIntelligenceIndicator\n'
+        f'| where TimeGenerated > ago({_THREATINTEL_LOOKBACK_HOURS}h)\n'
+        '| where ObservableType == "ip"\n'
+        '| where isnotempty(ObservableValue)\n'
+        '| summarize arg_max(TimeGenerated, *) by ObservableValue\n'
+        '| project TimeGenerated, ObservableValue, ThreatType, ConfidenceScore,\n'
+        '          Description, SourceSystem, Active\n'
     )
 
 
@@ -232,11 +270,33 @@ def _enrich_ips(ips, cache):
 
 # ── GeoJSON builders ──────────────────────────────────────────────────────────
 
+def _parse_signin_geo(location_val):
+    """
+    Extract (lat, lon, country, city) from the SigninLogs Location field.
+    Azure AD stores this as a nested dict/JSON with geoCoordinates.
+    Returns (None, None, '', '') if coordinates are absent.
+    """
+    try:
+        if isinstance(location_val, str):
+            loc = json.loads(location_val)
+        elif isinstance(location_val, dict):
+            loc = location_val
+        else:
+            return None, None, '', ''
+        geo     = loc.get('geoCoordinates') or {}
+        lat     = geo.get('latitude')
+        lon     = geo.get('longitude')
+        if lat is None or lon is None:
+            return None, None, '', ''
+        return float(lat), float(lon), loc.get('countryOrRegion', ''), loc.get('city', '')
+    except Exception:
+        return None, None, '', ''
+
+
 def _device_geojson(rows, geo_cache):
-    """Build a GeoJSON FeatureCollection from MDE device rows and a geo cache."""
     features = []
     for row in rows:
-        ip = (row.get('PublicIP') or '').strip()
+        ip  = (row.get('PublicIP') or '').strip()
         geo = geo_cache.get(ip, {})
         lat, lon = geo.get('latitude'), geo.get('longitude')
         if lat is None or lon is None:
@@ -262,11 +322,35 @@ def _device_geojson(rows, geo_cache):
     return {'type': 'FeatureCollection', 'features': features}
 
 
-def _signin_geojson(rows, geo_cache):
-    """Build a GeoJSON FeatureCollection from Sentinel sign-in rows and a geo cache."""
+def _signin_geojson(rows):
+    """Build GeoJSON from sign-in rows using the built-in Location field coordinates."""
     features = []
     for row in rows:
-        ip = (row.get('IPAddress') or '').strip()
+        lat, lon, country, city = _parse_signin_geo(row.get('Location'))
+        if lat is None:
+            continue
+        features.append({
+            'type': 'Feature',
+            'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
+            'properties': {
+                'TimeGenerated':           str(row.get('TimeGenerated', '')),
+                'UserPrincipalName':       row.get('UserPrincipalName', ''),
+                'IPAddress':               (row.get('IPAddress') or '').strip(),
+                'Location':                str(row.get('Location', '')),
+                'AppDisplayName':          row.get('AppDisplayName', ''),
+                'ClientAppUsed':           row.get('ClientAppUsed', ''),
+                'ConditionalAccessStatus': row.get('ConditionalAccessStatus', ''),
+                'Country':                 country,
+                'City':                    city,
+            },
+        })
+    return {'type': 'FeatureCollection', 'features': features}
+
+
+def _threatintel_geojson(rows, geo_cache):
+    features = []
+    for row in rows:
+        ip  = (row.get('ObservableValue') or '').strip()
         geo = geo_cache.get(ip, {})
         lat, lon = geo.get('latitude'), geo.get('longitude')
         if lat is None or lon is None:
@@ -275,60 +359,75 @@ def _signin_geojson(rows, geo_cache):
             'type': 'Feature',
             'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
             'properties': {
-                'TimeGenerated':           str(row.get('TimeGenerated', '')),
-                'UserPrincipalName':       row.get('UserPrincipalName', ''),
-                'IPAddress':               ip,
-                'Location':                str(row.get('Location', '')),
-                'AppDisplayName':          row.get('AppDisplayName', ''),
-                'ClientAppUsed':           row.get('ClientAppUsed', ''),
-                'ConditionalAccessStatus': row.get('ConditionalAccessStatus', ''),
-                'Country':                 geo.get('country', ''),
-                'City':                    geo.get('city', ''),
+                'TimeGenerated':   str(row.get('TimeGenerated', '')),
+                'ObservableValue': ip,
+                'ThreatType':      row.get('ThreatType', ''),
+                'Confidence':      row.get('ConfidenceScore', ''),
+                'Description':     row.get('Description', ''),
+                'SourceSystem':    row.get('SourceSystem', ''),
+                'Active':          row.get('Active', ''),
+                'Country':         geo.get('country', ''),
+                'City':            geo.get('city', ''),
             },
         })
     return {'type': 'FeatureCollection', 'features': features}
 
 
-# ── Pipeline orchestrator ─────────────────────────────────────────────────────
+# ── Per-pipeline frequency helpers ───────────────────────────────────────────
 
-def _run_pipeline(workspace_id, container):
-    """
-    Full pipeline: Sentinel KQL → deduplicate IPs → MaxMind enrich → GeoJSON → blob.
-    A single geo_cache is shared across both datasets so IPs appearing in both
-    device and sign-in data are only looked up once.
-    """
+def _device_frequency_hours():
+    return float(os.environ.get('REFRESH_DEVICE_FREQUENCY_MINUTES', '15')) / 60.0
+
+
+def _signin_frequency_hours():
+    return float(os.environ.get('REFRESH_SIGNIN_FREQUENCY_MINUTES', '15')) / 60.0
+
+
+def _threatintel_frequency_hours():
+    return float(os.environ.get('REFRESH_THREATINTEL_FREQUENCY_HOURS', '24'))
+
+
+# ── Individual pipeline runners ───────────────────────────────────────────────
+
+def _run_devices(workspace_id, container):
+    """KQL → TSV → MaxMind → GeoJSON → blob."""
+    kql      = os.environ.get('SENTINEL_DEVICES_KQL') or _default_devices_kql()
+    lookback = _devices_lookback()
+    rows     = _query_sentinel(workspace_id, kql, lookback)
+    _upload(container, 'mde-devices.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
     geo_cache = {}
-    results = {}
+    ips = list({r.get('PublicIP', '').strip() for r in rows if r.get('PublicIP', '').strip()})
+    _enrich_ips(ips, geo_cache)
+    gj = _device_geojson(rows, geo_cache)
+    _upload(container, 'mde-devices.geojson', json.dumps(gj).encode())
+    logger.info(f"mde-devices — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
+    return {'rows': len(rows), 'features': len(gj['features']), 'ips_enriched': len(ips)}
 
-    # MDE device locations
-    kql = os.environ.get('SENTINEL_DEVICES_KQL') or _default_devices_kql()
-    try:
-        rows = _query_sentinel(workspace_id, kql)
-        ips = list({r.get('PublicIP', '').strip() for r in rows if r.get('PublicIP', '').strip()})
-        _enrich_ips(ips, geo_cache)
-        gj = _device_geojson(rows, geo_cache)
-        _upload(container, 'mde-devices.geojson', json.dumps(gj).encode())
-        results['mde_devices'] = {'features': len(gj['features']), 'ips_enriched': len(ips)}
-        logger.info(f"mde-devices.geojson — {len(gj['features'])} features from {len(rows)} rows")
-    except Exception as e:
-        logger.error(f'MDE pipeline step failed: {e}', exc_info=True)
-        results['mde_devices'] = {'error': str(e)}
 
-    # Sign-in activity (reuses geo_cache — avoids duplicate MaxMind calls)
-    kql = os.environ.get('SENTINEL_SIGNIN_KQL') or _default_signin_kql()
-    try:
-        rows = _query_sentinel(workspace_id, kql)
-        ips = list({r.get('IPAddress', '').strip() for r in rows if r.get('IPAddress', '').strip()})
-        _enrich_ips(ips, geo_cache)
-        gj = _signin_geojson(rows, geo_cache)
-        _upload(container, 'signin-activity.geojson', json.dumps(gj).encode())
-        results['signin_activity'] = {'features': len(gj['features']), 'ips_enriched': len(ips)}
-        logger.info(f"signin-activity.geojson — {len(gj['features'])} features from {len(rows)} rows")
-    except Exception as e:
-        logger.error(f'Sign-in pipeline step failed: {e}', exc_info=True)
-        results['signin_activity'] = {'error': str(e)}
+def _run_signin(workspace_id, container):
+    """KQL → TSV → Location field geo → GeoJSON → blob."""
+    kql      = os.environ.get('SENTINEL_SIGNIN_KQL') or _default_signin_kql()
+    lookback = _signin_lookback()
+    rows     = _query_sentinel(workspace_id, kql, lookback)
+    _upload(container, 'signin-activity.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
+    gj = _signin_geojson(rows)
+    _upload(container, 'signin-activity.geojson', json.dumps(gj).encode())
+    logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features")
+    return {'rows': len(rows), 'features': len(gj['features'])}
 
-    return results
+
+def _run_threatintel(workspace_id, container):
+    """KQL → TSV → MaxMind → GeoJSON → blob."""
+    kql  = os.environ.get('SENTINEL_THREATINTEL_KQL') or _default_threatintel_kql()
+    rows = _query_sentinel(workspace_id, kql, _THREATINTEL_LOOKBACK_HOURS)
+    _upload(container, 'threat-intel-indicators.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
+    geo_cache = {}
+    ips = list({r.get('ObservableValue', '').strip() for r in rows if r.get('ObservableValue', '').strip()})
+    _enrich_ips(ips, geo_cache)
+    gj = _threatintel_geojson(rows, geo_cache)
+    _upload(container, 'threat-intel-indicators.geojson', json.dumps(gj).encode())
+    logger.info(f"threat-intel-indicators — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
+    return {'rows': len(rows), 'features': len(gj['features']), 'ips_enriched': len(ips)}
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -344,12 +443,13 @@ def _ok(data, status_code=200):
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Refresh pipeline entry point. Called by the SWA on page load (fire-and-forget)
-    and can also be triggered manually for testing or forced refreshes.
+    Refresh pipeline entry point. Each pipeline checks its own freshness threshold
+    independently — a single request may refresh some datasets and skip others.
 
     Query params:
-      check=true  — report data freshness only, do not run the pipeline
-      force=true  — bypass the freshness check and always run the pipeline
+      check=true                          — report freshness only, run nothing
+      force=true                          — bypass all freshness checks, run all pipelines
+      pipeline=devices|signin|threatintel — run only the named pipeline
     """
     if req.method == 'OPTIONS':
         return func.HttpResponse(status_code=200, headers={
@@ -358,53 +458,73 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             'Access-Control-Allow-Headers': 'Content-Type',
         })
 
-    container = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
-    check_only = req.params.get('check', '').lower() == 'true'
-    force = req.params.get('force', '').lower() == 'true'
+    container    = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
+    check_only   = req.params.get('check', '').lower() == 'true'
+    force        = req.params.get('force', '').lower() == 'true'
+    only         = req.params.get('pipeline', '').lower()
+    workspace_id = os.environ.get('SENTINEL_WORKSPACE_ID', '')
 
-    # Staleness check uses only blob metadata — no Sentinel queries or data transfer
-    tracked = ['mde-devices.geojson', 'signin-activity.geojson']
-    ages = {b: _blob_age_hours(container, b) for b in tracked}
-    known_ages = [h for h in ages.values() if h is not None]
-    oldest = max(known_ages, default=None)
-    is_fresh = oldest is not None and oldest < REFRESH_INTERVAL_HOURS
+    # Per-pipeline freshness — keyed by TSV blob (written first, most accurate timestamp)
+    pipelines = {
+        'devices':     ('mde-devices.tsv',             _device_frequency_hours()),
+        'signin':      ('signin-activity.tsv',          _signin_frequency_hours()),
+        'threatintel': ('threat-intel-indicators.tsv',  _threatintel_frequency_hours()),
+    }
+
+    freshness = {}
+    for name, (tsv_blob, freq_h) in pipelines.items():
+        age_h = _blob_age_hours(container, tsv_blob)
+        freshness[name] = {
+            'tsv_blob':        tsv_blob,
+            'age_hours':       round(age_h, 3) if age_h is not None else None,
+            'frequency_hours': round(freq_h, 4),
+            'fresh':           age_h is not None and age_h < freq_h,
+        }
 
     if check_only:
-        return _ok({
-            'status': 'fresh' if is_fresh else 'stale',
-            'blob_ages_hours': {k: round(v, 2) if v is not None else None for k, v in ages.items()},
-            'refresh_interval_hours': REFRESH_INTERVAL_HOURS,
-        })
+        overall = 'fresh' if all(v['fresh'] for v in freshness.values()) else 'stale'
+        return _ok({'status': overall, 'pipelines': freshness})
 
-    if is_fresh and not force:
-        return _ok({
-            'status': 'fresh',
-            'message': f'Data is current — oldest blob is {oldest:.1f}h old. No refresh needed.',
-            'blob_ages_hours': {k: round(v, 2) if v is not None else None for k, v in ages.items()},
-        })
+    if not workspace_id:
+        return _ok({'status': 'skipped', 'message': 'SENTINEL_WORKSPACE_ID is not configured.'})
 
-    if _is_locked(container) and not force:
+    if _is_locked(container) and not force and not only:
         return _ok({'status': 'running', 'message': 'A refresh is already in progress.'})
 
-    workspace_id = os.environ.get('SENTINEL_WORKSPACE_ID', '')
-    if not workspace_id:
-        return _ok({
-            'status': 'skipped',
-            'message': (
-                'SENTINEL_WORKSPACE_ID is not configured. '
-                'Set this app setting to enable automatic data refresh.'
-            ),
-        })
+    # Decide which pipelines to run
+    if only:
+        to_run = [only] if only in pipelines else []
+    elif force:
+        to_run = list(pipelines.keys())
+    else:
+        to_run = [name for name, info in freshness.items() if not info['fresh']]
+
+    if not to_run:
+        return _ok({'status': 'fresh', 'message': 'All datasets are current.', 'pipelines': freshness})
+
+    runners = {
+        'devices':     _run_devices,
+        'signin':      _run_signin,
+        'threatintel': _run_threatintel,
+    }
 
     _set_lock(container, True)
     try:
         started = datetime.now(timezone.utc)
-        datasets = _run_pipeline(workspace_id, container)
+        results = {}
+        for name in to_run:
+            try:
+                results[name] = runners[name](workspace_id, container)
+            except Exception as e:
+                logger.error(f'{name} pipeline failed: {e}', exc_info=True)
+                results[name] = {'error': str(e)}
         elapsed = (datetime.now(timezone.utc) - started).total_seconds()
         return _ok({
-            'status': 'updated',
+            'status':          'updated',
             'elapsed_seconds': round(elapsed, 1),
-            'datasets': datasets,
+            'ran':             to_run,
+            'skipped':         [n for n in pipelines if n not in to_run],
+            'results':         results,
         })
     except Exception as e:
         logger.error(f'Pipeline error: {e}', exc_info=True)
