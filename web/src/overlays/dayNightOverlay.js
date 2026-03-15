@@ -157,28 +157,26 @@ function _computeTerminator(sunLatDeg, sunLonDeg) {
 /**
  * Build a closed GeoJSON Polygon covering the night side.
  * Closes via the dark pole so the polygon fills the correct hemisphere.
+ *
+ * IMPORTANT: the closing edge must trace many small steps from lon=180 to
+ * lon=-180 at the pole latitude.  A single jump between those two coordinates
+ * appears at opposite edges of a Mercator map, so the WebGL renderer draws it
+ * as a diagonal slash across the entire screen instead of a polar edge.
  */
 function _buildNightPolygon(terminatorPoints, sunLatDeg) {
-  // The dark pole is the one opposite the sun's hemisphere
   const darkPole = sunLatDeg >= 0 ? -90 : 90;
 
-  let coords;
-  if (Math.abs(sunLatDeg) < 0.1) {
-    // Equinox: night is exactly one hemisphere split by the terminator meridians
-    coords = [
-      ...terminatorPoints,
-      [180, darkPole],
-      [-180, darkPole],
-      terminatorPoints[0],
-    ];
-  } else {
-    coords = [
-      ...terminatorPoints,
-      [180, darkPole],
-      [-180, darkPole],
-      terminatorPoints[0],
-    ];
+  // Trace along the dark pole from lon=180 down to lon=-180 in 2° steps
+  const poleEdge = [];
+  for (let lon = 180; lon >= -180; lon -= 2) {
+    poleEdge.push([lon, darkPole]);
   }
+
+  const coords = [
+    ...terminatorPoints,   // terminator curve: lon -180 → 180
+    ...poleEdge,           // polar edge: lon 180 → -180 (many steps, no diagonal)
+    terminatorPoints[0],   // close back to start
+  ];
 
   return {
     type: 'Feature',
