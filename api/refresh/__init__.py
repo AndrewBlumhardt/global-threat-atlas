@@ -162,13 +162,13 @@ def _query_sentinel(workspace_id, kql, lookback_hours=24):
 
 
 def _default_devices_kql():
-    hours = int(os.environ.get('REFRESH_DEVICE_LOOKBACK_HOURS', '24'))
+    hours = int(os.environ.get('REFRESH_DEVICE_LOOKBACK_HOURS', '480'))
     return (
         f'DeviceInfo\n'
-        f'| where Timestamp > ago({hours}h)\n'
-        f'| summarize arg_max(Timestamp, *) by DeviceId\n'
+        f'| where TimeGenerated > ago({hours}h)\n'
+        f'| summarize arg_max(TimeGenerated, *) by DeviceId\n'
         f'| where isnotempty(PublicIP)\n'
-        f'| project Timestamp, DeviceName, DeviceId, OSPlatform, DeviceType,\n'
+        f'| project TimeGenerated, DeviceName, DeviceId, OSPlatform, DeviceType,\n'
         f'          CloudPlatforms, OnboardingStatus, PublicIP, SensorHealthState, ExposureLevel\n'
     )
 
@@ -178,7 +178,6 @@ def _default_signin_kql():
     return (
         f'SigninLogs\n'
         f'| where TimeGenerated > ago({hours}h)\n'
-        f'| where ResultType == 0\n'
         f'| where isnotempty(IPAddress)\n'
         f'| summarize arg_max(TimeGenerated, *) by IPAddress, UserPrincipalName\n'
         f'| project TimeGenerated, UserPrincipalName, IPAddress, Location,\n'
@@ -246,7 +245,7 @@ def _device_geojson(rows, geo_cache):
             'type': 'Feature',
             'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
             'properties': {
-                'TimeGenerated':     str(row.get('Timestamp', '')),
+                'TimeGenerated':     str(row.get('TimeGenerated', '')),
                 'DeviceName':        row.get('DeviceName', ''),
                 'DeviceId':          row.get('DeviceId', ''),
                 'OSPlatform':        row.get('OSPlatform', ''),
