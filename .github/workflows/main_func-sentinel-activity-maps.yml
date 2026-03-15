@@ -32,14 +32,16 @@ jobs:
       - name: Install dependencies into package folder
         run: |
           pip install --target=api/.python_packages/lib/site-packages -r api/requirements.txt
-          # Azure SDK packages all share the 'azure' namespace. When installed with
-          # --target, pip creates __init__.py files at every level of the azure.*
-          # hierarchy (azure/, azure/storage/, azure/monitor/, azure/core/, etc.).
-          # These make Python treat them as regular packages and break namespace
-          # package resolution across all azure.* sub-packages. Removing ALL
-          # __init__.py files from the azure namespace tree forces Python to treat
-          # each level as an implicit namespace package, resolving all collisions.
-          find api/.python_packages/lib/site-packages/azure -name "__init__.py" -delete
+          # Azure SDK packages share the 'azure' namespace. pip --target creates
+          # __init__.py at the namespace levels (azure/, azure/storage/,
+          # azure/monitor/) which makes Python treat them as regular packages and
+          # breaks cross-package namespace resolution. Remove only these three
+          # namespace-level files; the real module __init__.py files (e.g.
+          # azure/storage/blob/__init__.py, azure/identity/__init__.py) must
+          # be kept so their classes remain importable.
+          rm -f api/.python_packages/lib/site-packages/azure/__init__.py
+          rm -f api/.python_packages/lib/site-packages/azure/storage/__init__.py
+          rm -f api/.python_packages/lib/site-packages/azure/monitor/__init__.py
 
       - name: Login to Azure
         uses: azure/login@v2

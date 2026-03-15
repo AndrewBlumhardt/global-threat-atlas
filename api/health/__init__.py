@@ -55,14 +55,21 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         for blob in ('mde-devices.geojson', 'signin-activity.geojson', 'threat-intel-indicators.geojson'):
             data_freshness_hours[blob] = _blob_age_hours(storage_url, container, blob)
 
-    # SDK availability
+    # SDK availability — import the specific class so namespace-package false
+    # positives are avoided (__import__ alone succeeds for dirs without __init__.py)
+    sdk_checks = [
+        ('azure.identity',       'azure.identity',       'DefaultAzureCredential'),
+        ('azure.storage.blob',   'azure.storage.blob',   'BlobServiceClient'),
+        ('azure.monitor.query',  'azure.monitor.query',  'LogsQueryClient'),
+    ]
     sdk_status = {}
-    for module in ('azure.identity', 'azure.storage.blob', 'azure.monitor.query'):
+    for label, module, attr in sdk_checks:
         try:
-            __import__(module)
-            sdk_status[module] = 'available'
-        except ImportError:
-            sdk_status[module] = 'unavailable'
+            mod = __import__(module, fromlist=[attr])
+            getattr(mod, attr)
+            sdk_status[label] = 'available'
+        except Exception:
+            sdk_status[label] = 'unavailable'
 
     return func.HttpResponse(
         body=json.dumps({
