@@ -147,8 +147,12 @@ def _query_sentinel(workspace_id, kql, lookback_hours=24):
     req = urllib_request.Request(url, data=body, method='POST')
     req.add_header('Authorization', f'Bearer {token}')
     req.add_header('Content-Type', 'application/json')
-    with urllib_request.urlopen(req, timeout=120) as resp:
-        result = json.loads(resp.read())
+    try:
+        with urllib_request.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read())
+    except urllib_error.HTTPError as e:
+        body = e.read().decode('utf-8', errors='replace')
+        raise RuntimeError(f'Log Analytics query HTTP {e.code}: {body}') from e
     tables = result.get('tables', [])
     if not tables:
         return []
