@@ -6,4 +6,3 @@ azure-identity
 azure-storage-blob
 azure-monitor-query
 azure-functions
-requests
