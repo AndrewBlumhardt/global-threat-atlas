@@ -169,7 +169,7 @@ def _default_devices_kql():
         f'| summarize arg_max(Timestamp, *) by DeviceId\n'
         f'| where isnotempty(PublicIP)\n'
         f'| project Timestamp, DeviceName, DeviceId, OSPlatform, DeviceType,\n'
-        f'          CloudProvider, OnboardingStatus, PublicIP, SensorHealthState, ExposureLevel\n'
+        f'          CloudPlatforms, OnboardingStatus, PublicIP, SensorHealthState, ExposureLevel\n'
     )
 
 
@@ -251,7 +251,7 @@ def _device_geojson(rows, geo_cache):
                 'DeviceId':          row.get('DeviceId', ''),
                 'OSPlatform':        row.get('OSPlatform', ''),
                 'DeviceType':        row.get('DeviceType', ''),
-                'CloudPlatform':     row.get('CloudProvider', ''),
+                'CloudPlatform':     row.get('CloudPlatforms', ''),
                 'OnboardingStatus':  row.get('OnboardingStatus', ''),
                 'PublicIP':          ip,
                 'SensorHealthState': row.get('SensorHealthState', ''),
