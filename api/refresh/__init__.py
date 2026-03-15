@@ -133,15 +133,54 @@ def _set_lock(container, locked):
 
 
 def _upload(container, blob_name, data_bytes, content_type='application/json'):
+    """
+    Upload bytes to blob storage.
+    Uses block-blob staging for payloads > 4 MB to avoid the single-PUT 256 MB limit.
+    Handles files up to ~190 GB (50 000 blocks × 4 MB).
+    """
+    _BLOCK_SIZE = 4 * 1024 * 1024  # 4 MB
     token = _get_mi_token(_BLOB_RESOURCE)
-    url = _blob_url(container, blob_name)
-    req = urllib_request.Request(url, data=data_bytes, method='PUT')
-    req.add_header('Authorization', f'Bearer {token}')
-    req.add_header('x-ms-version', _BLOB_API_VER)
-    req.add_header('x-ms-blob-type', 'BlockBlob')
-    req.add_header('Content-Type', content_type)
-    req.add_header('Content-Length', str(len(data_bytes)))
+    url   = _blob_url(container, blob_name)
+
+    if len(data_bytes) <= _BLOCK_SIZE:
+        # Fast path — single PUT
+        req = urllib_request.Request(url, data=data_bytes, method='PUT')
+        req.add_header('Authorization',   f'Bearer {token}')
+        req.add_header('x-ms-version',     _BLOB_API_VER)
+        req.add_header('x-ms-blob-type',   'BlockBlob')
+        req.add_header('Content-Type',      content_type)
+        req.add_header('Content-Length',    str(len(data_bytes)))
+        urllib_request.urlopen(req, timeout=120).close()
+        return
+
+    # Staged block upload
+    block_ids = []
+    for i, offset in enumerate(range(0, len(data_bytes), _BLOCK_SIZE)):
+        chunk    = data_bytes[offset:offset + _BLOCK_SIZE]
+        block_id = base64.b64encode(f'{i:08d}'.encode()).decode()
+        block_ids.append(block_id)
+        put_url  = f'{url}?comp=block&blockid={urllib_request.quote(block_id)}'
+        req = urllib_request.Request(put_url, data=chunk, method='PUT')
+        req.add_header('Authorization',  f'Bearer {token}')
+        req.add_header('x-ms-version',    _BLOB_API_VER)
+        req.add_header('Content-Length',  str(len(chunk)))
+        urllib_request.urlopen(req, timeout=120).close()
+
+    # Commit block list
+    block_xml = (
+        '<?xml version="1.0" encoding="utf-8"?><BlockList>'
+        + ''.join(f'<Latest>{bid}</Latest>' for bid in block_ids)
+        + '</BlockList>'
+    ).encode()
+    commit_url = f'{url}?comp=blocklist'
+    req = urllib_request.Request(commit_url, data=block_xml, method='PUT')
+    req.add_header('Authorization',  f'Bearer {token}')
+    req.add_header('x-ms-version',    _BLOB_API_VER)
+    req.add_header('Content-Type',    content_type)
+    req.add_header('x-ms-blob-content-type', content_type)
+    req.add_header('Content-Length',  str(len(block_xml)))
     urllib_request.urlopen(req, timeout=60).close()
+    logger.info(f'Block-blob upload complete: {blob_name} ({len(data_bytes) // 1024 // 1024} MB, {len(block_ids)} blocks)')
 
 
 # ── GeoIP database (MaxMind GeoLite2) ────────────────────────────────────────
@@ -280,9 +319,12 @@ def _rows_to_tsv(rows):
 
 def _query_sentinel(workspace_id, kql, lookback_hours):
     """Run a KQL query against a Sentinel Log Analytics workspace via REST API."""
+    max_rows = int(os.environ.get('REFRESH_MAX_ROWS', '1000000'))
     token = _get_mi_token(_LA_RESOURCE)
     url = f'https://api.loganalytics.io/v1/workspaces/{workspace_id}/query'
-    body = json.dumps({'query': kql, 'timespan': f'PT{lookback_hours}H'}).encode()
+    # Inject a server-side row cap to avoid unbounded responses
+    capped_kql = f'{kql.rstrip()}\n| take {max_rows}'
+    body = json.dumps({'query': capped_kql, 'timespan': f'PT{lookback_hours}H'}).encode()
     req = urllib_request.Request(url, data=body, method='POST')
     req.add_header('Authorization', f'Bearer {token}')
     req.add_header('Content-Type', 'application/json')
@@ -295,9 +337,13 @@ def _query_sentinel(workspace_id, kql, lookback_hours):
     tables = result.get('tables', [])
     if not tables:
         return []
-    t = tables[0]
+    t    = tables[0]
     cols = [c['name'] for c in t['columns']]
-    return [dict(zip(cols, row)) for row in t['rows']]
+    rows = [dict(zip(cols, row)) for row in t['rows']]
+    if len(rows) >= max_rows:
+        logger.warning(f'Query returned {len(rows)} rows — hit REFRESH_MAX_ROWS cap ({max_rows}). '
+                       'Increase REFRESH_MAX_ROWS if data is being truncated.')
+    return rows
 
 
 def _devices_lookback():
@@ -334,13 +380,16 @@ def _default_signin_kql():
 
 def _default_threatintel_kql():
     return (
-        'ThreatIntelligenceIndicator\n'
-        f'| where TimeGenerated > ago({_THREATINTEL_LOOKBACK_HOURS}h)\n'
-        '| where ObservableType == "ip"\n'
-        '| where isnotempty(ObservableValue)\n'
+        'ThreatIntelIndicators\n'
+        '| where TimeGenerated > ago(15d)\n'
+        '| where IsActive == "true" and IsDeleted == "false"\n'
+        r'| where ObservableValue matches regex @"^\d{1,3}(\.\d{1,3}){3}$"' + '\n'
         '| summarize arg_max(TimeGenerated, *) by ObservableValue\n'
-        '| project TimeGenerated, ObservableValue, ThreatType, ConfidenceScore,\n'
-        '          Description, SourceSystem, Active\n'
+        '| extend TLPLevel = tostring(AdditionalFields.TLPLevel)\n'
+        '| extend Description = Data.description\n'
+        '| extend Type = parse_json(tostring(Data.indicator_types))[0]\n'
+        '| extend Method = Data.pattern_type\n'
+        '| project ObservableValue, Type, Description, Confidence, SourceSystem, TLPLevel, Method, ValidUntil\n'
     )
 
 
@@ -483,13 +532,14 @@ def _threatintel_geojson(rows, geo_cache):
             'type': 'Feature',
             'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
             'properties': {
-                'TimeGenerated':   str(row.get('TimeGenerated', '')),
                 'ObservableValue': ip,
-                'ThreatType':      row.get('ThreatType', ''),
-                'Confidence':      row.get('ConfidenceScore', ''),
-                'Description':     row.get('Description', ''),
+                'Type':            str(row.get('Type', '')),
+                'Description':     str(row.get('Description', '')),
+                'Confidence':      row.get('Confidence', ''),
                 'SourceSystem':    row.get('SourceSystem', ''),
-                'Active':          row.get('Active', ''),
+                'TLPLevel':        row.get('TLPLevel', ''),
+                'Method':          str(row.get('Method', '')),
+                'ValidUntil':      str(row.get('ValidUntil', '')),
                 'Country':         geo.get('country', ''),
                 'City':            geo.get('city', ''),
             },
@@ -523,7 +573,7 @@ def _run_devices(workspace_id, container, reader=None):
     ips = list({r.get('PublicIP', '').strip() for r in rows if r.get('PublicIP', '').strip()})
     _enrich_ips(ips, geo_cache, reader)
     gj = _device_geojson(rows, geo_cache)
-    _upload(container, 'mde-devices.geojson', json.dumps(gj).encode())
+    _upload(container, 'mde-devices.geojson', _geojson_bytes(gj['features']))
     logger.info(f"mde-devices — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
     return {'rows': len(rows), 'features': len(gj['features']), 'ips_enriched': len(ips)}
 
@@ -538,7 +588,7 @@ def _run_signin(workspace_id, container, reader=None):
     ips = list({r.get('IPAddress', '').strip() for r in rows if r.get('IPAddress', '').strip()})
     _enrich_ips(ips, geo_cache, reader)
     gj = _signin_geojson(rows, geo_cache)
-    _upload(container, 'signin-activity.geojson', json.dumps(gj).encode())
+    _upload(container, 'signin-activity.geojson', _geojson_bytes(gj['features']))
     logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
     return {'rows': len(rows), 'features': len(gj['features']), 'ips_enriched': len(ips)}
 
@@ -552,7 +602,7 @@ def _run_threatintel(workspace_id, container, reader=None):
     ips = list({r.get('ObservableValue', '').strip() for r in rows if r.get('ObservableValue', '').strip()})
     _enrich_ips(ips, geo_cache, reader)
     gj = _threatintel_geojson(rows, geo_cache)
-    _upload(container, 'threat-intel-indicators.geojson', json.dumps(gj).encode())
+    _upload(container, 'threat-intel-indicators.geojson', _geojson_bytes(gj['features']))
     logger.info(f"threat-intel-indicators — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
     return {'rows': len(rows), 'features': len(gj['features']), 'ips_enriched': len(ips)}
 
