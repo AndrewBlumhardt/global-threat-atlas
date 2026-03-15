@@ -373,8 +373,17 @@ def _default_signin_kql():
         f'| where TimeGenerated > ago({hours}h)\n'
         '| where isnotempty(IPAddress)\n'
         '| summarize arg_max(TimeGenerated, *) by IPAddress, UserPrincipalName\n'
-        '| project TimeGenerated, UserPrincipalName, IPAddress, Location,\n'
-        '          AppDisplayName, ClientAppUsed, ConditionalAccessStatus\n'
+        '| extend Latitude = parse_json(tostring(LocationDetails.geoCoordinates)).latitude\n'
+        '| extend Longitude = parse_json(tostring(LocationDetails.geoCoordinates)).longitude\n'
+        '| extend Details = Status.additionalDetails\n'
+        '| extend Browser = DeviceDetail.browser\n'
+        '| extend isManaged = DeviceDetail.isManaged\n'
+        '| extend OS = DeviceDetail.operatingSystem\n'
+        '| extend DeviceId = DeviceDetail.deviceId\n'
+        '| extend DisplayName = DeviceDetail.displayName\n'
+        '| project TimeGenerated, Identity, UserPrincipalName, IPAddress, Latitude, Longitude,\n'
+        '          DisplayName, DeviceId, AppDisplayName, ClientAppUsed, Browser, OS, isManaged,\n'
+        '          ConditionalAccessStatus, ResultSignature, RiskState, Details\n'
     )
 
 
@@ -455,30 +464,34 @@ def _device_geojson(rows, geo_cache):
     return {'type': 'FeatureCollection', 'features': features}
 
 
-def _signin_geojson(rows, geo_cache):
-    """Build GeoJSON from sign-in rows. Coordinates from MaxMind, metadata from Location field."""
+def _signin_geojson(rows):
+    """Build GeoJSON from sign-in rows. Lat/lon come directly from the KQL query."""
     features = []
     for row in rows:
-        ip  = (row.get('IPAddress') or '').strip()
-        geo = geo_cache.get(ip, {})
-        lat, lon = geo.get('latitude'), geo.get('longitude')
-        if lat is None or lon is None:
+        try:
+            lat = float(row.get('Latitude') or '')
+            lon = float(row.get('Longitude') or '')
+        except (TypeError, ValueError):
             continue
-        # Azure Location field has reliable country/city strings even when geoCoordinates is empty
-        loc = _parse_signin_location(row.get('Location'))
         features.append({
             'type': 'Feature',
             'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
             'properties': {
                 'TimeGenerated':           str(row.get('TimeGenerated', '')),
+                'Identity':                row.get('Identity', ''),
                 'UserPrincipalName':       row.get('UserPrincipalName', ''),
-                'IPAddress':               ip,
-                'Location':                str(row.get('Location', '')),
+                'IPAddress':               row.get('IPAddress', ''),
+                'DisplayName':             str(row.get('DisplayName', '')),
+                'DeviceId':                str(row.get('DeviceId', '')),
                 'AppDisplayName':          row.get('AppDisplayName', ''),
                 'ClientAppUsed':           row.get('ClientAppUsed', ''),
+                'Browser':                 str(row.get('Browser', '')),
+                'OS':                      str(row.get('OS', '')),
+                'isManaged':               str(row.get('isManaged', '')),
                 'ConditionalAccessStatus': row.get('ConditionalAccessStatus', ''),
-                'Country':                 loc.get('countryOrRegion') or geo.get('country', ''),
-                'City':                    loc.get('city')            or geo.get('city', ''),
+                'ResultSignature':         row.get('ResultSignature', ''),
+                'RiskState':               row.get('RiskState', ''),
+                'Details':                 str(row.get('Details', '')),
             },
         })
     return {'type': 'FeatureCollection', 'features': features}
@@ -543,18 +556,15 @@ def _run_devices(workspace_id, container, reader=None):
 
 
 def _run_signin(workspace_id, container, reader=None):
-    """KQL → TSV → MaxMind → GeoJSON → blob."""
+    """KQL → TSV → GeoJSON → blob. Lat/lon come from the KQL query; no MaxMind needed."""
     kql      = os.environ.get('SENTINEL_SIGNIN_KQL') or _default_signin_kql()
     lookback = _signin_lookback()
     rows     = _query_sentinel(workspace_id, kql, lookback)
     _upload(container, 'signin-activity.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
-    geo_cache = {}
-    ips = list({r.get('IPAddress', '').strip() for r in rows if r.get('IPAddress', '').strip()})
-    _enrich_ips(ips, geo_cache, reader)
-    gj = _signin_geojson(rows, geo_cache)
+    gj = _signin_geojson(rows)
     _upload(container, 'signin-activity.geojson', _geojson_bytes(gj['features']))
-    logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
-    return {'rows': len(rows), 'features': len(gj['features']), 'ips_enriched': len(ips)}
+    logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features")
+    return {'rows': len(rows), 'features': len(gj['features'])}
 
 
 def _run_threatintel(workspace_id, container, reader=None):
