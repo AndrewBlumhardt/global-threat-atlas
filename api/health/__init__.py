@@ -17,14 +17,35 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 
+def _get_mi_token(resource='https://storage.azure.com/'):
+    """Obtain a managed-identity token from IMDS (no SDK required)."""
+    from urllib import request as _req
+    import json as _json
+    url = (
+        'http://169.254.169.254/metadata/identity/oauth2/token'
+        f'?api-version=2018-02-01&resource={resource}'
+    )
+    r = _req.Request(url, headers={'Metadata': 'true'})
+    with _req.urlopen(r, timeout=5) as resp:
+        return _json.loads(resp.read())['access_token']
+
+
 def _blob_age_hours(storage_url, container, blob_name):
-    """Return hours since last modification, or None if inaccessible."""
+    """Return hours since last modification via blob REST HEAD, or None if inaccessible."""
+    from urllib import request as _req, error as _err
+    from email.utils import parsedate_to_datetime
     try:
-        from azure.identity import DefaultAzureCredential
-        from azure.storage.blob import BlobServiceClient
-        client = BlobServiceClient(account_url=storage_url, credential=DefaultAzureCredential())
-        props = client.get_blob_client(container=container, blob=blob_name).get_blob_properties()
-        return round((datetime.now(timezone.utc) - props['last_modified']).total_seconds() / 3600, 2)
+        token = _get_mi_token()
+        url = f"{storage_url.rstrip('/')}/{container}/{blob_name}"
+        req = _req.Request(url, method='HEAD')
+        req.add_header('Authorization', f'Bearer {token}')
+        req.add_header('x-ms-version', '2020-04-08')
+        with _req.urlopen(req) as resp:
+            last_mod = resp.headers.get('Last-Modified')
+            if not last_mod:
+                return None
+            dt = parsedate_to_datetime(last_mod)
+            return round((datetime.now(timezone.utc) - dt).total_seconds() / 3600, 2)
     except Exception:
         return None
 

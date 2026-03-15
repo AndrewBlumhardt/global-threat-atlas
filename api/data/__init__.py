@@ -1,6 +1,6 @@
 """
 Azure Static Web App API endpoint to serve threat intelligence data from blob storage.
-Uses managed identity to access blob storage.
+Uses managed identity via IMDS — no azure SDK packages required for this function.
 """
 import azure.functions as func
 import logging
@@ -11,237 +11,126 @@ from urllib import error as urllib_error
 
 logger = logging.getLogger(__name__)
 
-try:
-    from azure.storage.blob import BlobServiceClient
-    STORAGE_SDK_IMPORT_ERROR = None
-except Exception as import_error:
-    BlobServiceClient = None
-    STORAGE_SDK_IMPORT_ERROR = import_error
+_CORS_HEADERS = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+}
 
-try:
-    from azure.identity import DefaultAzureCredential
-    IDENTITY_SDK_IMPORT_ERROR = None
-except Exception as import_error:
-    DefaultAzureCredential = None
-    IDENTITY_SDK_IMPORT_ERROR = import_error
+
+def _get_mi_token(resource='https://storage.azure.com/'):
+    """
+    Obtain a managed-identity bearer token from the Azure IMDS endpoint.
+    Available on any Azure compute (Functions, App Service, VMs) with a
+    system-assigned or user-assigned managed identity enabled.
+    """
+    url = (
+        'http://169.254.169.254/metadata/identity/oauth2/token'
+        f'?api-version=2018-02-01&resource={resource}'
+    )
+    req = urllib_request.Request(url, headers={'Metadata': 'true'})
+    with urllib_request.urlopen(req, timeout=5) as resp:
+        return json.loads(resp.read())['access_token']
+
+
+def _blob_fetch(storage_url, container, blob_name, method='GET'):
+    """
+    Perform an authenticated GET or HEAD request against Azure Blob Storage
+    using a managed-identity token. Returns (http_status, body_bytes_or_None).
+    Raises RuntimeError if the token cannot be obtained.
+    """
+    token = _get_mi_token()
+    blob_url = f"{storage_url.rstrip('/')}/{container}/{blob_name}"
+    req = urllib_request.Request(blob_url, method=method)
+    req.add_header('Authorization', f'Bearer {token}')
+    req.add_header('x-ms-version', '2020-04-08')
+    try:
+        with urllib_request.urlopen(req) as resp:
+            return resp.status, (None if method == 'HEAD' else resp.read())
+    except urllib_error.HTTPError as exc:
+        return exc.code, None
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Returns threat intelligence GeoJSON data from blob storage.
-    Route parameter 'filename' determines which file to fetch.
+    Returns threat intelligence / map data from blob storage.
+    Route parameter 'filename' determines which blob to fetch.
     """
     logger.info(f'Data API endpoint called: {req.method}')
 
-    # Handle CORS preflight  
     if req.method == 'OPTIONS':
-        return func.HttpResponse(
-            status_code=200,
-            headers={
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type'
-            }
-        )
-    
-    # Get filename from route parameter
+        return func.HttpResponse(status_code=200, headers=_CORS_HEADERS)
+
     filename = req.route_params.get('filename')
-    logger.info(f'Received filename: {filename}')
     if not filename:
-        logger.error('No filename specified in route params')
         return func.HttpResponse(
-            '{"error": "No filename specified"}',
-            status_code=400,
-            mimetype='application/json',
-            headers={'Access-Control-Allow-Origin': '*'}
+            json.dumps({'error': 'No filename specified'}),
+            status_code=400, mimetype='application/json',
+            headers={'Access-Control-Allow-Origin': '*'},
         )
-    
-    # Check if demo mode is enabled via query parameter
+
     demo_mode = req.params.get('demo', '').lower() == 'true'
-    
-    # Determine blob name and content type based on file extension
+
     if filename.endswith('.tsv'):
-        blob_name = filename
-        content_type = 'text/tab-separated-values'
+        blob_name, content_type = filename, 'text/tab-separated-values'
     elif filename.endswith('.geojson'):
-        blob_name = filename
-        content_type = 'application/json'
+        blob_name, content_type = filename, 'application/json'
     else:
-        # Default: add .geojson extension
-        blob_name = f'{filename}.geojson'
-        content_type = 'application/json'
-    logger.info(f'Normalized blob name: {blob_name}, content_type: {content_type}')
-    
-    # Prepend demo_data/ folder if demo mode is enabled
+        blob_name, content_type = f'{filename}.geojson', 'application/json'
+
     if demo_mode:
         blob_name = f'demo_data/{blob_name}'
-        logger.info(f'Demo mode enabled - using demo data: {blob_name}')
-    
-    logger.info(f'Requesting blob: {blob_name}')
-    
+        logger.info(f'Demo mode — using blob: {blob_name}')
 
-    # Only use managed identity for blob access
-    storage_account_url = os.environ.get('STORAGE_ACCOUNT_URL', '')
-    container_name = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
-    logger.info(f'Using storage_account_url={storage_account_url}, container_name={container_name}')
+    storage_url = os.environ.get('STORAGE_ACCOUNT_URL', '')
+    container  = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
 
-    if not storage_account_url:
-        logger.error('STORAGE_ACCOUNT_URL not configured')
+    if not storage_url:
         return func.HttpResponse(
-            json.dumps({"error": "Storage not configured - STORAGE_ACCOUNT_URL missing"}),
-            status_code=500,
-            mimetype='application/json',
-            headers={'Access-Control-Allow-Origin': '*'}
+            json.dumps({'error': 'STORAGE_ACCOUNT_URL not configured'}),
+            status_code=500, mimetype='application/json',
+            headers={'Access-Control-Allow-Origin': '*'},
         )
 
     try:
-        logger.info('Starting blob access logic (managed identity only)')
-        if BlobServiceClient is None:
-            logger.warning(f'Storage SDK unavailable ({STORAGE_SDK_IMPORT_ERROR}), falling back to REST API')
-            blob_url = f"{storage_account_url.rstrip('/')}/{container_name}/{blob_name}"
-            method = req.method if req.method in ('GET', 'HEAD') else 'GET'
+        method = req.method if req.method in ('GET', 'HEAD') else 'GET'
+        status, body = _blob_fetch(storage_url, container, blob_name, method)
+        logger.info(f'Blob fetch {method} {blob_name} -> HTTP {status}')
 
-            # Prefer authenticated REST call via identity SDK (works even with key access disabled)
-            if DefaultAzureCredential is not None:
-                try:
-                    credential = DefaultAzureCredential()
-                    token = credential.get_token('https://storage.azure.com/.default')
-                    auth_req = urllib_request.Request(blob_url, method=method)
-                    auth_req.add_header('Authorization', f'Bearer {token.token}')
-                    auth_req.add_header('x-ms-version', '2020-04-08')
-                    with urllib_request.urlopen(auth_req) as auth_resp:
-                        if method == 'HEAD':
-                            return func.HttpResponse(
-                                status_code=200,
-                                headers={'Access-Control-Allow-Origin': '*', 'Content-Type': content_type}
-                            )
-                        content = auth_resp.read()
-                    logger.info(f'Authenticated REST fetch succeeded for {blob_name} ({len(content)} bytes)')
-                    return func.HttpResponse(
-                        body=content,
-                        mimetype=content_type,
-                        headers={
-                            'Access-Control-Allow-Origin': '*',
-                            'Cache-Control': 'public, max-age=300',
-                            'Content-Type': content_type
-                        }
-                    )
-                except Exception as auth_err:
-                    logger.warning(f'Authenticated REST fetch failed: {auth_err}, trying anonymous...')
-
-            # Last resort: anonymous fetch (only works if container has public blob access)
-            try:
-                anon_req = urllib_request.Request(blob_url, method=method)
-                with urllib_request.urlopen(anon_req) as anon_resp:
-                    if method == 'HEAD':
-                        return func.HttpResponse(
-                            status_code=200,
-                            headers={'Access-Control-Allow-Origin': '*', 'Content-Type': content_type}
-                        )
-                    content = anon_resp.read()
-                logger.info(f'Anonymous blob fetch succeeded for {blob_name} ({len(content)} bytes)')
-                return func.HttpResponse(
-                    body=content,
-                    mimetype=content_type,
-                    headers={
-                        'Access-Control-Allow-Origin': '*',
-                        'Cache-Control': 'public, max-age=300',
-                        'Content-Type': content_type
-                    }
-                )
-            except urllib_error.HTTPError as http_err:
-                logger.error(f'Anonymous blob fetch failed: {http_err.code} {http_err.reason}')
-                return func.HttpResponse(
-                    json.dumps({'error': 'Storage SDK unavailable and all blob access attempts failed', 'details': f'{http_err.code} {http_err.reason}'}),
-                    status_code=500,
-                    mimetype='application/json',
-                    headers={'Access-Control-Allow-Origin': '*'}
-                )
-            except Exception as anon_err:
-                logger.error(f'Anonymous blob fetch error: {anon_err}')
-                return func.HttpResponse(
-                    json.dumps({'error': 'Storage SDK unavailable and all blob access attempts failed', 'details': str(anon_err)}),
-                    status_code=500,
-                    mimetype='application/json',
-                    headers={'Access-Control-Allow-Origin': '*'}
-                )
-
-        if DefaultAzureCredential is None:
-            logger.error(f'Identity SDK unavailable: {IDENTITY_SDK_IMPORT_ERROR}')
-            return func.HttpResponse(
-                json.dumps({
-                    'error': 'Identity SDK unavailable',
-                    'details': str(IDENTITY_SDK_IMPORT_ERROR)
-                }),
-                status_code=500,
-                mimetype='application/json',
-                headers={'Access-Control-Allow-Origin': '*'}
-            )
-
-        credential = DefaultAzureCredential()
-        blob_service_client = BlobServiceClient(account_url=storage_account_url, credential=credential)
-        logger.info('✅ BlobServiceClient created using managed identity')
-
-        blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
-        logger.info(f'✅ Blob client created for {container_name}/{blob_name}')
-
-        # Check if blob exists
-        logger.info('Checking if blob exists...')
-        exists = blob_client.exists()
-        logger.info(f'✅ Blob exists: {exists}')
-
-        # For HEAD requests, just return existence status
-        if req.method == 'HEAD':
-            logger.info(f'HEAD request for blob: {blob_name}, exists={exists}')
-            if exists:
-                logger.info('HEAD request: blob exists, returning 200')
-                return func.HttpResponse(
-                    status_code=200,
-                    headers={
-                        'Access-Control-Allow-Origin': '*',
-                        'Content-Type': 'application/json'
-                    }
-                )
-            else:
-                logger.info('HEAD request: blob does not exist, returning 404')
-                return func.HttpResponse(
-                    status_code=404,
-                    headers={'Access-Control-Allow-Origin': '*'}
-                )
-
-        if not exists:
-            logger.error(f'Blob not found: {blob_name}')
+        if status == 404:
             return func.HttpResponse(
                 json.dumps({'error': f'File not found: {blob_name}'}),
-                status_code=404,
-                mimetype='application/json',
-                headers={'Access-Control-Allow-Origin': '*'}
+                status_code=404, mimetype='application/json',
+                headers={'Access-Control-Allow-Origin': '*'},
+            )
+        if status != 200:
+            return func.HttpResponse(
+                json.dumps({'error': f'Blob storage returned {status}'}),
+                status_code=502, mimetype='application/json',
+                headers={'Access-Control-Allow-Origin': '*'},
             )
 
-        # Download the blob
-        logger.info(f'Downloading blob: {container_name}/{blob_name} using managed identity')
-        blob_data = blob_client.download_blob()
-        content = blob_data.readall()
+        if method == 'HEAD':
+            return func.HttpResponse(
+                status_code=200,
+                headers={'Access-Control-Allow-Origin': '*', 'Content-Type': content_type},
+            )
 
-        logger.info(f'Successfully retrieved {len(content)} bytes from blob {blob_name} using managed identity')
-
+        logger.info(f'Returning {len(body)} bytes for {blob_name}')
         return func.HttpResponse(
-            body=content,
+            body=body,
             mimetype=content_type,
             headers={
                 'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=300',  # Cache for 5 minutes
-                'Content-Type': content_type
-            }
+                'Cache-Control': 'public, max-age=300',
+                'Content-Type': content_type,
+            },
         )
 
-    except Exception as e:
-        logger.error(f'Error retrieving blob data with managed identity: {e}', exc_info=True)
+    except Exception as exc:
+        logger.error(f'Error fetching blob {blob_name}: {exc}', exc_info=True)
         return func.HttpResponse(
-            f'{{"error": "Failed to retrieve data: {str(e)}"}}',
-            status_code=500,
-            mimetype='application/json',
-            headers={
-                'Access-Control-Allow-Origin': '*'
-            }
+            json.dumps({'error': str(exc)}),
+            status_code=500, mimetype='application/json',
+            headers={'Access-Control-Allow-Origin': '*'},
         )
