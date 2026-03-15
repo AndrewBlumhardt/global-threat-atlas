@@ -27,7 +27,7 @@ import base64
 import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
@@ -38,23 +38,58 @@ REFRESH_INTERVAL_HOURS = float(os.environ.get('REFRESH_INTERVAL_HOURS', '4'))
 
 # ── Blob helpers ──────────────────────────────────────────────────────────────
 
-def _blob_client(container, blob_name):
-    from azure.identity import DefaultAzureCredential
-    from azure.storage.blob import BlobServiceClient
-    url = os.environ.get('STORAGE_ACCOUNT_URL', '')
+# ── Managed Identity helpers ──────────────────────────────────────────────────
+
+_BLOB_RESOURCE   = 'https://storage.azure.com/'
+_LA_RESOURCE     = 'https://api.loganalytics.io/'
+_BLOB_API_VER    = '2020-04-08'
+
+
+def _get_mi_token(resource):
+    """Acquire a bearer token via the App Service MSI endpoint (IMDS fallback for local)."""
+    identity_endpoint = os.environ.get('IDENTITY_ENDPOINT')
+    identity_header   = os.environ.get('IDENTITY_HEADER')
+    if identity_endpoint and identity_header:
+        url = f'{identity_endpoint}?resource={resource}&api-version=2019-08-01'
+        req = urllib_request.Request(url)
+        req.add_header('X-IDENTITY-HEADER', identity_header)
+    else:
+        url = ('http://169.254.169.254/metadata/identity/oauth2/token'
+               f'?api-version=2018-02-01&resource={resource}')
+        req = urllib_request.Request(url, headers={'Metadata': 'true'})
+    with urllib_request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read())['access_token']
+
+
+# ── Blob helpers ──────────────────────────────────────────────────────────────
+
+def _blob_url(container, blob_name):
+    url = os.environ.get('STORAGE_ACCOUNT_URL', '').rstrip('/')
     if not url:
         raise EnvironmentError('STORAGE_ACCOUNT_URL not configured')
-    return BlobServiceClient(account_url=url, credential=DefaultAzureCredential()).get_blob_client(
-        container=container, blob=blob_name
-    )
+    return f'{url}/{container}/{blob_name}'
 
 
 def _blob_age_hours(container, blob_name):
     """Return hours since last modification, or None if the blob does not exist."""
+    from email.utils import parsedate_to_datetime
     try:
-        props = _blob_client(container, blob_name).get_blob_properties()
-        return (datetime.now(timezone.utc) - props['last_modified']).total_seconds() / 3600
-    except Exception:
+        token = _get_mi_token(_BLOB_RESOURCE)
+        req = urllib_request.Request(_blob_url(container, blob_name), method='HEAD')
+        req.add_header('Authorization', f'Bearer {token}')
+        req.add_header('x-ms-version', _BLOB_API_VER)
+        with urllib_request.urlopen(req, timeout=10) as resp:
+            last_mod = resp.headers.get('Last-Modified')
+            if not last_mod:
+                return None
+            return (datetime.now(timezone.utc) - parsedate_to_datetime(last_mod)).total_seconds() / 3600
+    except urllib_error.HTTPError as e:
+        if e.code == 404:
+            return None
+        logger.warning(f'Blob HEAD {blob_name}: HTTP {e.code}')
+        return None
+    except Exception as e:
+        logger.warning(f'Blob HEAD {blob_name}: {e}')
         return None
 
 
@@ -66,41 +101,60 @@ def _is_locked(container):
 
 def _set_lock(container, locked):
     try:
-        client = _blob_client(container, 'refresh.lock')
+        token = _get_mi_token(_BLOB_RESOURCE)
+        url = _blob_url(container, 'refresh.lock')
         if locked:
-            client.upload_blob(datetime.now(timezone.utc).isoformat().encode(), overwrite=True)
+            data = datetime.now(timezone.utc).isoformat().encode()
+            req = urllib_request.Request(url, data=data, method='PUT')
+            req.add_header('Authorization', f'Bearer {token}')
+            req.add_header('x-ms-version', _BLOB_API_VER)
+            req.add_header('x-ms-blob-type', 'BlockBlob')
+            req.add_header('Content-Type', 'text/plain')
+            req.add_header('Content-Length', str(len(data)))
+            urllib_request.urlopen(req, timeout=10).close()
         else:
+            req = urllib_request.Request(url, method='DELETE')
+            req.add_header('Authorization', f'Bearer {token}')
+            req.add_header('x-ms-version', _BLOB_API_VER)
             try:
-                client.delete_blob()
-            except Exception:
-                pass
+                urllib_request.urlopen(req, timeout=10).close()
+            except urllib_error.HTTPError as e:
+                if e.code != 404:
+                    raise
     except Exception as e:
         logger.warning(f'Lock update failed: {e}')
 
 
 def _upload(container, blob_name, data_bytes, content_type='application/json'):
-    from azure.storage.blob import ContentSettings
-    _blob_client(container, blob_name).upload_blob(
-        data=data_bytes,
-        overwrite=True,
-        content_settings=ContentSettings(content_type=content_type),
-    )
+    token = _get_mi_token(_BLOB_RESOURCE)
+    url = _blob_url(container, blob_name)
+    req = urllib_request.Request(url, data=data_bytes, method='PUT')
+    req.add_header('Authorization', f'Bearer {token}')
+    req.add_header('x-ms-version', _BLOB_API_VER)
+    req.add_header('x-ms-blob-type', 'BlockBlob')
+    req.add_header('Content-Type', content_type)
+    req.add_header('Content-Length', str(len(data_bytes)))
+    urllib_request.urlopen(req, timeout=60).close()
 
 
 # ── Sentinel ──────────────────────────────────────────────────────────────────
 
 def _query_sentinel(workspace_id, kql, lookback_hours=24):
-    """Run a KQL query against a Sentinel Log Analytics workspace."""
-    from azure.identity import DefaultAzureCredential
-    from azure.monitor.query import LogsQueryClient, LogsQueryStatus
-    client = LogsQueryClient(DefaultAzureCredential())
-    result = client.query_workspace(workspace_id, kql, timespan=timedelta(hours=lookback_hours))
-    if result.status != LogsQueryStatus.SUCCESS:
-        raise RuntimeError(f'KQL query failed: {result.partial_error}')
-    if not result.tables:
+    """Run a KQL query against a Sentinel Log Analytics workspace via REST API."""
+    token = _get_mi_token(_LA_RESOURCE)
+    url = f'https://api.loganalytics.io/v1/workspaces/{workspace_id}/query'
+    body = json.dumps({'query': kql, 'timespan': f'PT{lookback_hours}H'}).encode()
+    req = urllib_request.Request(url, data=body, method='POST')
+    req.add_header('Authorization', f'Bearer {token}')
+    req.add_header('Content-Type', 'application/json')
+    with urllib_request.urlopen(req, timeout=120) as resp:
+        result = json.loads(resp.read())
+    tables = result.get('tables', [])
+    if not tables:
         return []
-    t = result.tables[0]
-    return [dict(zip(t.columns, row)) for row in t.rows]
+    t = tables[0]
+    cols = [c['name'] for c in t['columns']]
+    return [dict(zip(cols, row)) for row in t['rows']]
 
 
 def _default_devices_kql():
