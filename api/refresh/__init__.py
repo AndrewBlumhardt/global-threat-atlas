@@ -4,7 +4,7 @@ Data refresh pipeline for Sentinel Activity Maps.
 Three independent pipelines — each with its own frequency, lookback, and output files:
 
   MDE Devices  : KQL → mde-devices.tsv → MaxMind → mde-devices.geojson
-  Sign-in      : KQL → signin-activity.tsv → Location field → signin-activity.geojson
+  Sign-in      : KQL → signin-activity.tsv → MaxMind → signin-activity.geojson
   Threat Intel : KQL → threat-intel-indicators.tsv → MaxMind → threat-intel-indicators.geojson
 
 Each pipeline checks its own freshness; stale pipelines run, fresh ones are skipped.
@@ -28,16 +28,21 @@ Optional app settings:
 """
 import azure.functions as func
 import base64
+import geoip2.database
+import io
 import json
 import logging
 import os
-from datetime import datetime, timezone
+import tarfile
+from datetime import datetime, timedelta, timezone
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
 logger = logging.getLogger(__name__)
 
 _THREATINTEL_LOOKBACK_HOURS = 360  # 15 days — static, not configurable
+_GEOIP_DB_PATH              = '/tmp/GeoLite2-City.mmdb'
+_GEOIP_DB_MAX_AGE_DAYS      = 7
 
 
 # ── Managed Identity helpers ──────────────────────────────────────────────────
@@ -139,7 +144,123 @@ def _upload(container, blob_name, data_bytes, content_type='application/json'):
     urllib_request.urlopen(req, timeout=60).close()
 
 
-# ── TSV helper ────────────────────────────────────────────────────────────────
+# ── GeoIP database (MaxMind GeoLite2) ────────────────────────────────────────
+
+def _get_geoip_reader():
+    """
+    Return a geoip2.database.Reader backed by a locally cached GeoLite2-City.mmdb.
+    Downloads the database from MaxMind on first call or when older than 7 days.
+    Returns None if credentials are missing or download fails.
+    """
+    needs_download = True
+    if os.path.exists(_GEOIP_DB_PATH):
+        age = datetime.now(timezone.utc) - datetime.fromtimestamp(
+            os.path.getmtime(_GEOIP_DB_PATH), tz=timezone.utc
+        )
+        if age < timedelta(days=_GEOIP_DB_MAX_AGE_DAYS):
+            needs_download = False
+
+    if needs_download:
+        account_id  = os.environ.get('MAXMIND_ACCOUNT_ID', '').strip()
+        license_key = os.environ.get('MAXMIND_LICENSE_KEY', '').strip()
+        if not account_id or not license_key:
+            logger.warning('MaxMind credentials not configured — geo enrichment unavailable')
+            return None
+        auth = base64.b64encode(f'{account_id}:{license_key}'.encode()).decode()
+        url  = 'https://download.maxmind.com/geoip/databases/GeoLite2-City/download?suffix=tar.gz'
+        req  = urllib_request.Request(url, headers={'Authorization': f'Basic {auth}'})
+        try:
+            logger.info('Downloading GeoLite2-City database from MaxMind…')
+            with urllib_request.urlopen(req, timeout=180) as resp:
+                data = resp.read()
+        except Exception as e:
+            logger.error(f'GeoLite2-City download failed: {e}')
+            return None
+        try:
+            with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as tar:
+                for member in tar.getmembers():
+                    if member.name.endswith('.mmdb'):
+                        f = tar.extractfile(member)
+                        with open(_GEOIP_DB_PATH, 'wb') as out:
+                            out.write(f.read())
+                        break
+            logger.info(f'GeoLite2-City.mmdb cached at {_GEOIP_DB_PATH}')
+        except Exception as e:
+            logger.error(f'GeoLite2-City extraction failed: {e}')
+            return None
+
+    try:
+        return geoip2.database.Reader(_GEOIP_DB_PATH)
+    except Exception as e:
+        logger.error(f'Failed to open GeoLite2-City.mmdb: {e}')
+        return None
+
+
+# ── MaxMind geo enrichment ────────────────────────────────────────────────────
+
+def _enrich_ips(ips, cache, reader=None):
+    """
+    Enrich unique IPs with MaxMind geolocation, storing results in cache.
+    Uses local GeoLite2-City database when reader is provided (handles 100k+ IPs).
+    Falls back to web API when reader is None.
+    """
+    new_ips = [ip for ip in ips if ip and ip not in cache]
+    if not new_ips:
+        return
+    logger.info(f'MaxMind: enriching {len(new_ips)} new IPs')
+    if reader is not None:
+        _enrich_ips_db(new_ips, cache, reader)
+    else:
+        _enrich_ips_api(new_ips, cache)
+
+
+def _enrich_ips_db(ips, cache, reader):
+    """Enrich IPs using local GeoLite2-City database — handles any volume instantly."""
+    for ip in ips:
+        try:
+            r = reader.city(ip)
+            cache[ip] = {
+                'latitude':  r.location.latitude,
+                'longitude': r.location.longitude,
+                'country':   r.country.iso_code or '',
+                'city':      r.city.name or '',
+            }
+        except Exception:
+            cache[ip] = {'latitude': None, 'longitude': None, 'country': '', 'city': ''}
+
+
+def _enrich_ips_api(ips, cache):
+    """Enrich IPs via MaxMind web API. Suitable for small datasets only (<1k IPs)."""
+    account_id  = os.environ.get('MAXMIND_ACCOUNT_ID', '').strip()
+    license_key = os.environ.get('MAXMIND_LICENSE_KEY', '').strip()
+    if not account_id or not license_key:
+        logger.warning('MaxMind credentials not configured — geo enrichment skipped')
+        return
+    auth    = base64.b64encode(f'{account_id}:{license_key}'.encode()).decode()
+    headers = {'Authorization': f'Basic {auth}', 'Accept': 'application/json'}
+    for ip in ips:
+        for tier in ('city', 'country'):
+            try:
+                req = urllib_request.Request(
+                    f'https://geoip.maxmind.com/geoip/v2.1/{tier}/{ip}', headers=headers
+                )
+                with urllib_request.urlopen(req, timeout=5) as resp:
+                    d = json.loads(resp.read().decode())
+                cache[ip] = {
+                    'latitude':  d.get('location', {}).get('latitude'),
+                    'longitude': d.get('location', {}).get('longitude'),
+                    'country':   d.get('country', {}).get('iso_code', ''),
+                    'city':      (d.get('city', {}).get('names') or {}).get('en', ''),
+                }
+                break
+            except urllib_error.HTTPError as e:
+                if e.code == 403:
+                    continue  # tier not available, try next
+                logger.warning(f'MaxMind {tier} lookup for {ip}: HTTP {e.code}')
+                break
+            except Exception as e:
+                logger.warning(f'MaxMind {tier} lookup for {ip}: {e}')
+                break
 
 def _rows_to_tsv(rows):
     """Serialize a list of dicts to TSV bytes (UTF-8), safe for blob upload."""
@@ -270,11 +391,11 @@ def _enrich_ips(ips, cache):
 
 # ── GeoJSON builders ──────────────────────────────────────────────────────────
 
-def _parse_signin_geo(location_val):
+def _parse_signin_location(location_val):
     """
-    Extract (lat, lon, country, city) from the SigninLogs Location field.
-    Azure AD stores this as a nested dict/JSON with geoCoordinates.
-    Returns (None, None, '', '') if coordinates are absent.
+    Extract country/city strings from the SigninLogs Location field.
+    Azure AD populates countryOrRegion/city but geoCoordinates is often empty,
+    so we only use this for metadata — coordinates come from MaxMind.
     """
     try:
         if isinstance(location_val, str):
@@ -282,15 +403,14 @@ def _parse_signin_geo(location_val):
         elif isinstance(location_val, dict):
             loc = location_val
         else:
-            return None, None, '', ''
-        geo     = loc.get('geoCoordinates') or {}
-        lat     = geo.get('latitude')
-        lon     = geo.get('longitude')
-        if lat is None or lon is None:
-            return None, None, '', ''
-        return float(lat), float(lon), loc.get('countryOrRegion', ''), loc.get('city', '')
+            return {}
+        return {
+            'countryOrRegion': loc.get('countryOrRegion', ''),
+            'city':            loc.get('city', ''),
+            'state':           loc.get('state', ''),
+        }
     except Exception:
-        return None, None, '', ''
+        return {}
 
 
 def _device_geojson(rows, geo_cache):
@@ -322,26 +442,30 @@ def _device_geojson(rows, geo_cache):
     return {'type': 'FeatureCollection', 'features': features}
 
 
-def _signin_geojson(rows):
-    """Build GeoJSON from sign-in rows using the built-in Location field coordinates."""
+def _signin_geojson(rows, geo_cache):
+    """Build GeoJSON from sign-in rows. Coordinates from MaxMind, metadata from Location field."""
     features = []
     for row in rows:
-        lat, lon, country, city = _parse_signin_geo(row.get('Location'))
-        if lat is None:
+        ip  = (row.get('IPAddress') or '').strip()
+        geo = geo_cache.get(ip, {})
+        lat, lon = geo.get('latitude'), geo.get('longitude')
+        if lat is None or lon is None:
             continue
+        # Azure Location field has reliable country/city strings even when geoCoordinates is empty
+        loc = _parse_signin_location(row.get('Location'))
         features.append({
             'type': 'Feature',
             'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
             'properties': {
                 'TimeGenerated':           str(row.get('TimeGenerated', '')),
                 'UserPrincipalName':       row.get('UserPrincipalName', ''),
-                'IPAddress':               (row.get('IPAddress') or '').strip(),
+                'IPAddress':               ip,
                 'Location':                str(row.get('Location', '')),
                 'AppDisplayName':          row.get('AppDisplayName', ''),
                 'ClientAppUsed':           row.get('ClientAppUsed', ''),
                 'ConditionalAccessStatus': row.get('ConditionalAccessStatus', ''),
-                'Country':                 country,
-                'City':                    city,
+                'Country':                 loc.get('countryOrRegion') or geo.get('country', ''),
+                'City':                    loc.get('city')            or geo.get('city', ''),
             },
         })
     return {'type': 'FeatureCollection', 'features': features}
@@ -389,7 +513,7 @@ def _threatintel_frequency_hours():
 
 # ── Individual pipeline runners ───────────────────────────────────────────────
 
-def _run_devices(workspace_id, container):
+def _run_devices(workspace_id, container, reader=None):
     """KQL → TSV → MaxMind → GeoJSON → blob."""
     kql      = os.environ.get('SENTINEL_DEVICES_KQL') or _default_devices_kql()
     lookback = _devices_lookback()
@@ -397,33 +521,36 @@ def _run_devices(workspace_id, container):
     _upload(container, 'mde-devices.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
     geo_cache = {}
     ips = list({r.get('PublicIP', '').strip() for r in rows if r.get('PublicIP', '').strip()})
-    _enrich_ips(ips, geo_cache)
+    _enrich_ips(ips, geo_cache, reader)
     gj = _device_geojson(rows, geo_cache)
     _upload(container, 'mde-devices.geojson', json.dumps(gj).encode())
     logger.info(f"mde-devices — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
     return {'rows': len(rows), 'features': len(gj['features']), 'ips_enriched': len(ips)}
 
 
-def _run_signin(workspace_id, container):
-    """KQL → TSV → Location field geo → GeoJSON → blob."""
+def _run_signin(workspace_id, container, reader=None):
+    """KQL → TSV → MaxMind → GeoJSON → blob."""
     kql      = os.environ.get('SENTINEL_SIGNIN_KQL') or _default_signin_kql()
     lookback = _signin_lookback()
     rows     = _query_sentinel(workspace_id, kql, lookback)
     _upload(container, 'signin-activity.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
-    gj = _signin_geojson(rows)
+    geo_cache = {}
+    ips = list({r.get('IPAddress', '').strip() for r in rows if r.get('IPAddress', '').strip()})
+    _enrich_ips(ips, geo_cache, reader)
+    gj = _signin_geojson(rows, geo_cache)
     _upload(container, 'signin-activity.geojson', json.dumps(gj).encode())
-    logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features")
-    return {'rows': len(rows), 'features': len(gj['features'])}
+    logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
+    return {'rows': len(rows), 'features': len(gj['features']), 'ips_enriched': len(ips)}
 
 
-def _run_threatintel(workspace_id, container):
+def _run_threatintel(workspace_id, container, reader=None):
     """KQL → TSV → MaxMind → GeoJSON → blob."""
     kql  = os.environ.get('SENTINEL_THREATINTEL_KQL') or _default_threatintel_kql()
     rows = _query_sentinel(workspace_id, kql, _THREATINTEL_LOOKBACK_HOURS)
     _upload(container, 'threat-intel-indicators.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
     geo_cache = {}
     ips = list({r.get('ObservableValue', '').strip() for r in rows if r.get('ObservableValue', '').strip()})
-    _enrich_ips(ips, geo_cache)
+    _enrich_ips(ips, geo_cache, reader)
     gj = _threatintel_geojson(rows, geo_cache)
     _upload(container, 'threat-intel-indicators.geojson', json.dumps(gj).encode())
     logger.info(f"threat-intel-indicators — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
@@ -509,12 +636,13 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     }
 
     _set_lock(container, True)
+    reader = _get_geoip_reader()
     try:
         started = datetime.now(timezone.utc)
         results = {}
         for name in to_run:
             try:
-                results[name] = runners[name](workspace_id, container)
+                results[name] = runners[name](workspace_id, container, reader)
             except Exception as e:
                 logger.error(f'{name} pipeline failed: {e}', exc_info=True)
                 results[name] = {'error': str(e)}
@@ -530,4 +658,6 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         logger.error(f'Pipeline error: {e}', exc_info=True)
         return _ok({'status': 'error', 'error': str(e)}, status_code=500)
     finally:
+        if reader:
+            reader.close()
         _set_lock(container, False)

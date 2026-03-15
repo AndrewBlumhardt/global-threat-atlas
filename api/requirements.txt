@@ -5,4 +5,5 @@
 azure-identity
 azure-storage-blob
 azure-monitor-query
+geoip2
 azure-functions
