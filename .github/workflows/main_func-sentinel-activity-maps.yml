@@ -29,6 +29,16 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install dependencies into package folder
+        run: |
+          pip install --target=api/.python_packages/lib/site-packages -r api/requirements.txt
+          # Azure SDK packages all share the 'azure' namespace. When installed with
+          # --target, pip creates azure/__init__.py which makes it a regular package
+          # and breaks other azure.* sub-packages. Removing these files lets Python
+          # treat 'azure' as an implicit namespace package, resolving the collision.
+          rm -f api/.python_packages/lib/site-packages/azure/__init__.py
+          rm -f api/.python_packages/lib/site-packages/azure/storage/__init__.py
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -42,5 +52,5 @@ jobs:
           app-name: 'func-sentinel-activity-maps'
           slot-name: 'Production'
           package: './api'
-          scm-do-build-during-deployment: true
+          scm-do-build-during-deployment: false
 
