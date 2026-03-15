@@ -498,11 +498,9 @@ if (-not $SkipFunctionApp) {
         --name $FunctionAppName `
         --settings `
             AzureWebJobsStorage__accountName=$StorageAccountName `
-            LOG_ANALYTICS_WORKSPACE_ID=$WorkspaceId `
+            SENTINEL_WORKSPACE_ID=$WorkspaceId `
             STORAGE_ACCOUNT_URL=$storageUrl `
             STORAGE_CONTAINER_DATASETS=datasets `
-            STORAGE_CONTAINER_LOCKS=locks `
-            DEFAULT_REFRESH_INTERVAL_SECONDS=300 `
             DEFAULT_QUERY_TIME_WINDOW_HOURS=24 `
             INCREMENTAL_OVERLAP_MINUTES=10 `
             AzureWebJobsFeatureFlags=EnableWorkerIndexing `

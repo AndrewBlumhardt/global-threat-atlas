@@ -307,11 +307,9 @@ az functionapp config appsettings set \
     --name "$FUNCTION_APP_NAME" \
     --settings \
         AzureWebJobsStorage__accountName="$STORAGE_ACCOUNT_NAME" \
-        LOG_ANALYTICS_WORKSPACE_ID="$WORKSPACE_ID" \
+        SENTINEL_WORKSPACE_ID="$WORKSPACE_ID" \
         STORAGE_ACCOUNT_URL="$STORAGE_URL" \
         STORAGE_CONTAINER_DATASETS=datasets \
-        STORAGE_CONTAINER_LOCKS=locks \
-        DEFAULT_REFRESH_INTERVAL_SECONDS=300 \
         DEFAULT_QUERY_TIME_WINDOW_HOURS=24 \
         INCREMENTAL_OVERLAP_MINUTES=10 \
     --output none
