@@ -57,7 +57,8 @@ const COUNTRY_CENTROIDS = {
   "United States": [-98.6, 39.8],
   "Türkiye": [35.2, 39.0],
   "Gaza": [34.3, 31.35],
-  "Korea": [127.8, 36.5]
+  "Korea": [127.8, 36.5],
+  "South Korea": [127.8, 36.5]
 };
 
 // Local bounding box coordinates for countries (to avoid API calls)
@@ -188,9 +189,21 @@ async function enable(map, mode, onCountryClick) {
 
     if (!country) continue;
 
+    // Strip surrounding quotes then extract only the part before any comma
+    // e.g. '"China, Financially motivated"' → 'China'
+    country = country.replace(/^"|"$/g, "").split(",")[0].trim();
+
+    // Normalize known encoding variants
+    if (country === "T\u00FCrkiye" || country === "T rkiye" || country === "Turkiye") {
+      country = "T\u00FCrkiye";
+    }
+
     if (country === "United States of America" || country === "USA" || country === "US" || country === "U.S.") {
       country = "United States";
     }
+
+    // Skip non-geographic categories
+    if (!COUNTRY_CENTROIDS[country] && !COUNTRY_BOUNDS[country]) continue;
 
     counts.set(country, (counts.get(country) || 0) + 1);
     
