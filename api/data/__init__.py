@@ -20,16 +20,25 @@ _CORS_HEADERS = {
 
 def _get_mi_token(resource='https://storage.azure.com/'):
     """
-    Obtain a managed-identity bearer token from the Azure IMDS endpoint.
-    Available on any Azure compute (Functions, App Service, VMs) with a
-    system-assigned or user-assigned managed identity enabled.
+    Obtain a managed-identity bearer token.
+    Azure Functions / App Service expose IDENTITY_ENDPOINT + IDENTITY_HEADER.
+    Falls back to the VM-level IMDS endpoint when those vars are absent.
     """
-    url = (
-        'http://169.254.169.254/metadata/identity/oauth2/token'
-        f'?api-version=2018-02-01&resource={resource}'
-    )
-    req = urllib_request.Request(url, headers={'Metadata': 'true'})
-    with urllib_request.urlopen(req, timeout=5) as resp:
+    identity_endpoint = os.environ.get('IDENTITY_ENDPOINT')
+    identity_header   = os.environ.get('IDENTITY_HEADER')
+    if identity_endpoint and identity_header:
+        # App Service / Azure Functions managed identity endpoint
+        url = f'{identity_endpoint}?resource={resource}&api-version=2019-08-01'
+        req = urllib_request.Request(url)
+        req.add_header('X-IDENTITY-HEADER', identity_header)
+    else:
+        # VM-level IMDS fallback
+        url = (
+            'http://169.254.169.254/metadata/identity/oauth2/token'
+            f'?api-version=2018-02-01&resource={resource}'
+        )
+        req = urllib_request.Request(url, headers={'Metadata': 'true'})
+    with urllib_request.urlopen(req, timeout=10) as resp:
         return json.loads(resp.read())['access_token']
 
 

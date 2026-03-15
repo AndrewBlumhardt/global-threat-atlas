@@ -18,15 +18,22 @@ logger = logging.getLogger(__name__)
 
 
 def _get_mi_token(resource='https://storage.azure.com/'):
-    """Obtain a managed-identity token from IMDS (no SDK required)."""
+    """Obtain a managed-identity token (App Service MSI or IMDS fallback)."""
     from urllib import request as _req
     import json as _json
-    url = (
-        'http://169.254.169.254/metadata/identity/oauth2/token'
-        f'?api-version=2018-02-01&resource={resource}'
-    )
-    r = _req.Request(url, headers={'Metadata': 'true'})
-    with _req.urlopen(r, timeout=5) as resp:
+    identity_endpoint = os.environ.get('IDENTITY_ENDPOINT')
+    identity_header   = os.environ.get('IDENTITY_HEADER')
+    if identity_endpoint and identity_header:
+        url = f'{identity_endpoint}?resource={resource}&api-version=2019-08-01'
+        r = _req.Request(url)
+        r.add_header('X-IDENTITY-HEADER', identity_header)
+    else:
+        url = (
+            'http://169.254.169.254/metadata/identity/oauth2/token'
+            f'?api-version=2018-02-01&resource={resource}'
+        )
+        r = _req.Request(url, headers={'Metadata': 'true'})
+    with _req.urlopen(r, timeout=10) as resp:
         return _json.loads(resp.read())['access_token']
 
 
