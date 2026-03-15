@@ -32,6 +32,10 @@ jobs:
       - name: Install dependencies into package folder
         run: |
           pip install --target=api/.python_packages/lib/site-packages -r api/requirements.txt
+          # Remove azure namespace __init__.py files that conflict when multiple azure-* packages
+          # are installed to a --target directory. Python will use implicit namespace resolution instead.
+          rm -f api/.python_packages/lib/site-packages/azure/__init__.py
+          rm -f api/.python_packages/lib/site-packages/azure/storage/__init__.py
 
       - name: Login to Azure
         uses: azure/login@v2
