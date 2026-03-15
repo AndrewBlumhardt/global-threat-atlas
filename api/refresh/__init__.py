@@ -393,52 +393,16 @@ def _default_threatintel_kql():
     )
 
 
-# ── MaxMind geo enrichment ────────────────────────────────────────────────────
-
-def _enrich_ips(ips, cache):
-    """
-    Enrich unique IPs with MaxMind geolocation, storing results in cache.
-    Skips IPs already in cache. Falls through city → country tiers to handle
-    accounts where only the lower tier is available.
-    """
-    account_id = os.environ.get('MAXMIND_ACCOUNT_ID', '').strip()
-    license_key = os.environ.get('MAXMIND_LICENSE_KEY', '').strip()
-    if not account_id or not license_key:
-        logger.warning('MaxMind credentials not configured — geo enrichment skipped')
-        return
-
-    auth = base64.b64encode(f'{account_id}:{license_key}'.encode()).decode()
-    headers = {'Authorization': f'Basic {auth}', 'Accept': 'application/json'}
-
-    new_ips = [ip for ip in ips if ip and ip not in cache]
-    logger.info(f'MaxMind: enriching {len(new_ips)} new IPs ({len(ips) - len(new_ips)} already cached)')
-
-    for ip in new_ips:
-        for tier in ('city', 'country'):
-            try:
-                req = urllib_request.Request(
-                    f'https://geoip.maxmind.com/geoip/v2.1/{tier}/{ip}', headers=headers
-                )
-                with urllib_request.urlopen(req, timeout=5) as resp:
-                    d = json.loads(resp.read().decode())
-                cache[ip] = {
-                    'latitude':  d.get('location', {}).get('latitude'),
-                    'longitude': d.get('location', {}).get('longitude'),
-                    'country':   d.get('country', {}).get('iso_code', ''),
-                    'city':      (d.get('city', {}).get('names') or {}).get('en', ''),
-                }
-                break
-            except urllib_error.HTTPError as e:
-                if e.code == 403:
-                    continue  # tier not available on this plan, try next
-                logger.warning(f'MaxMind {tier} lookup for {ip}: HTTP {e.code}')
-                break
-            except Exception as e:
-                logger.warning(f'MaxMind {tier} lookup for {ip}: {e}')
-                break
-
-
 # ── GeoJSON builders ──────────────────────────────────────────────────────────
+
+
+def _geojson_bytes(features):
+    """Serialize a features list to a GeoJSON FeatureCollection as UTF-8 bytes."""
+    return json.dumps(
+        {'type': 'FeatureCollection', 'features': features},
+        ensure_ascii=False,
+        default=str,
+    ).encode('utf-8')
 
 def _parse_signin_location(location_val):
     """
