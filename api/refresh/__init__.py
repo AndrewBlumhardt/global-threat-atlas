@@ -262,10 +262,11 @@ def _enrich_ips_db(ips, cache, reader):
                 'latitude':  r.location.latitude,
                 'longitude': r.location.longitude,
                 'country':   r.country.iso_code or '',
+                'state':     r.subdivisions.most_specific.name or '',
                 'city':      r.city.name or '',
             }
         except Exception:
-            cache[ip] = {'latitude': None, 'longitude': None, 'country': '', 'city': ''}
+            cache[ip] = {'latitude': None, 'longitude': None, 'country': '', 'state': '', 'city': ''}
 
 
 def _enrich_ips_api(ips, cache):
@@ -289,6 +290,7 @@ def _enrich_ips_api(ips, cache):
                     'latitude':  d.get('location', {}).get('latitude'),
                     'longitude': d.get('location', {}).get('longitude'),
                     'country':   d.get('country', {}).get('iso_code', ''),
+                    'state':     ((d.get('subdivisions') or [{}])[0].get('names') or {}).get('en', ''),
                     'city':      (d.get('city', {}).get('names') or {}).get('en', ''),
                 }
                 break
@@ -375,15 +377,21 @@ def _default_signin_kql():
         '| summarize arg_max(TimeGenerated, *) by IPAddress, UserPrincipalName\n'
         '| extend Latitude = parse_json(tostring(LocationDetails.geoCoordinates)).latitude\n'
         '| extend Longitude = parse_json(tostring(LocationDetails.geoCoordinates)).longitude\n'
-        '| extend Details = Status.additionalDetails\n'
-        '| extend Browser = DeviceDetail.browser\n'
-        '| extend isManaged = DeviceDetail.isManaged\n'
-        '| extend OS = DeviceDetail.operatingSystem\n'
-        '| extend DeviceId = DeviceDetail.deviceId\n'
-        '| extend DisplayName = DeviceDetail.displayName\n'
-        '| project TimeGenerated, Identity, UserPrincipalName, IPAddress, Latitude, Longitude,\n'
-        '          DisplayName, DeviceId, AppDisplayName, ClientAppUsed, Browser, OS, isManaged,\n'
-        '          ConditionalAccessStatus, ResultSignature, RiskState, Details\n'
+        '| extend CountryOrRegion = tostring(LocationDetails.countryOrRegion)\n'
+        '| extend State = tostring(LocationDetails.state)\n'
+        '| extend City = tostring(LocationDetails.city)\n'
+        '| extend Details = tostring(Status.additionalDetails)\n'
+        '| extend Browser = tostring(DeviceDetail.browser)\n'
+        '| extend isManaged = tostring(DeviceDetail.isManaged)\n'
+        '| extend isCompliant = tostring(DeviceDetail.isCompliant)\n'
+        '| extend OperatingSystem = tostring(DeviceDetail.operatingSystem)\n'
+        '| extend DeviceId = tostring(DeviceDetail.deviceId)\n'
+        '| extend UserDisplayName = tostring(Identity)\n'
+        '| project TimeGenerated, UserDisplayName, UserPrincipalName, IPAddress,\n'
+        '          Latitude, Longitude, CountryOrRegion, State, City,\n'
+        '          DeviceId, AppDisplayName, ClientAppUsed, Browser, OperatingSystem,\n'
+        '          isManaged, isCompliant, ConditionalAccessStatus,\n'
+        '          ResultSignature, RiskState, Details\n'
     )
 
 
@@ -437,11 +445,13 @@ def _parse_signin_location(location_val):
 
 def _device_geojson(rows, geo_cache):
     features = []
+    no_geo = 0
     for row in rows:
         ip  = (row.get('PublicIP') or '').strip()
         geo = geo_cache.get(ip, {})
         lat, lon = geo.get('latitude'), geo.get('longitude')
         if lat is None or lon is None:
+            no_geo += 1
             continue
         features.append({
             'type': 'Feature',
@@ -450,50 +460,78 @@ def _device_geojson(rows, geo_cache):
                 'TimeGenerated':     str(row.get('TimeGenerated', '')),
                 'DeviceName':        row.get('DeviceName', ''),
                 'DeviceId':          row.get('DeviceId', ''),
-                'OSPlatform':        row.get('OSPlatform', ''),
                 'DeviceType':        row.get('DeviceType', ''),
+                'OSPlatform':        row.get('OSPlatform', ''),
+                'OperatingSystem':   row.get('OSPlatform', ''),
                 'CloudPlatform':     row.get('CloudPlatforms', ''),
                 'OnboardingStatus':  row.get('OnboardingStatus', ''),
+                'isManaged':         'True' if row.get('OnboardingStatus') == 'Onboarded' else 'False',
+                'IPAddress':         ip,
                 'PublicIP':          ip,
                 'SensorHealthState': row.get('SensorHealthState', ''),
                 'ExposureLevel':     row.get('ExposureLevel', ''),
-                'Country':           geo.get('country', ''),
+                'CountryOrRegion':   geo.get('country', ''),
+                'State':             geo.get('state', ''),
                 'City':              geo.get('city', ''),
+                'Latitude':          lat,
+                'Longitude':         lon,
             },
         })
+    if no_geo:
+        logger.warning(f'mde-devices: {no_geo}/{no_geo + len(features)} devices skipped — no geo coordinates (MaxMind could not resolve IP)')
     return {'type': 'FeatureCollection', 'features': features}
 
 
-def _signin_geojson(rows):
-    """Build GeoJSON from sign-in rows. Lat/lon come directly from the KQL query."""
+def _signin_geojson(rows, geo_cache):
+    """Build GeoJSON from sign-in rows.
+    Primary coordinates: Latitude/Longitude from KQL (LocationDetails.geoCoordinates).
+    Fallback: MaxMind on IPAddress when Azure AD geo coords are absent.
+    """
     features = []
+    no_geo = 0
     for row in rows:
         try:
             lat = float(row.get('Latitude') or '')
             lon = float(row.get('Longitude') or '')
         except (TypeError, ValueError):
+            lat, lon = None, None
+        ip = (row.get('IPAddress') or '').strip()
+        # MaxMind fallback
+        if lat is None or lon is None:
+            geo = geo_cache.get(ip, {})
+            lat = geo.get('latitude')
+            lon = geo.get('longitude')
+        if lat is None or lon is None:
+            no_geo += 1
             continue
         features.append({
             'type': 'Feature',
             'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
             'properties': {
                 'TimeGenerated':           str(row.get('TimeGenerated', '')),
-                'Identity':                row.get('Identity', ''),
+                'UserDisplayName':         row.get('UserDisplayName', ''),
                 'UserPrincipalName':       row.get('UserPrincipalName', ''),
-                'IPAddress':               row.get('IPAddress', ''),
-                'DisplayName':             str(row.get('DisplayName', '')),
-                'DeviceId':                str(row.get('DeviceId', '')),
-                'AppDisplayName':          row.get('AppDisplayName', ''),
+                'IPAddress':               ip,
+                'Latitude':                lat,
+                'Longitude':               lon,
+                'CountryOrRegion':         row.get('CountryOrRegion', ''),
+                'State':                   row.get('State', ''),
+                'City':                    row.get('City', ''),
+                'DeviceId':                row.get('DeviceId', ''),
+                'ResourceDisplayName':     row.get('AppDisplayName', ''),
                 'ClientAppUsed':           row.get('ClientAppUsed', ''),
-                'Browser':                 str(row.get('Browser', '')),
-                'OS':                      str(row.get('OS', '')),
-                'isManaged':               str(row.get('isManaged', '')),
+                'Browser':                 row.get('Browser', ''),
+                'OperatingSystem':         row.get('OperatingSystem', ''),
+                'isManaged':               row.get('isManaged', ''),
+                'isCompliant':             row.get('isCompliant', ''),
                 'ConditionalAccessStatus': row.get('ConditionalAccessStatus', ''),
                 'ResultSignature':         row.get('ResultSignature', ''),
                 'RiskState':               row.get('RiskState', ''),
-                'Details':                 str(row.get('Details', '')),
+                'Details':                 row.get('Details', ''),
             },
         })
+    if no_geo:
+        logger.warning(f'signin-activity: {no_geo}/{no_geo + len(features)} rows skipped — no geo coordinates')
     return {'type': 'FeatureCollection', 'features': features}
 
 
@@ -556,15 +594,28 @@ def _run_devices(workspace_id, container, reader=None):
 
 
 def _run_signin(workspace_id, container, reader=None):
-    """KQL → TSV → GeoJSON → blob. Lat/lon come from the KQL query; no MaxMind needed."""
+    """KQL → TSV → MaxMind fallback → GeoJSON → blob.
+    Lat/lon from LocationDetails.geoCoordinates when available; MaxMind on IPAddress as fallback.
+    """
     kql      = os.environ.get('SENTINEL_SIGNIN_KQL') or _default_signin_kql()
     lookback = _signin_lookback()
     rows     = _query_sentinel(workspace_id, kql, lookback)
     _upload(container, 'signin-activity.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
-    gj = _signin_geojson(rows)
+    # Enrich IPs for rows where Azure AD geoCoordinates are absent
+    geo_cache = {}
+    null_geo_ips = list({
+        r.get('IPAddress', '').strip()
+        for r in rows
+        if r.get('IPAddress', '').strip()
+        and not (r.get('Latitude') and r.get('Longitude'))
+    })
+    if null_geo_ips:
+        logger.info(f'signin-activity: {len(null_geo_ips)} IPs missing Azure AD geo coords — enriching via MaxMind')
+        _enrich_ips(null_geo_ips, geo_cache, reader)
+    gj = _signin_geojson(rows, geo_cache)
     _upload(container, 'signin-activity.geojson', _geojson_bytes(gj['features']))
-    logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features")
-    return {'rows': len(rows), 'features': len(gj['features'])}
+    logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features, {len(null_geo_ips)} IPs MaxMind-enriched")
+    return {'rows': len(rows), 'features': len(gj['features']), 'maxmind_enriched': len(null_geo_ips)}
 
 
 def _run_threatintel(workspace_id, container, reader=None):
