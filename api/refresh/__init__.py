@@ -208,15 +208,21 @@ def _get_geoip_reader():
         auth = base64.b64encode(f'{account_id}:{license_key}'.encode()).decode()
         url  = 'https://download.maxmind.com/geoip/databases/GeoLite2-City/download?suffix=tar.gz'
         req  = urllib_request.Request(url, headers={'Authorization': f'Basic {auth}'})
+        # Stream download directly to a temp file to avoid reading ~40 MB into RAM
+        tmp_tar = _GEOIP_DB_PATH + '.tar.gz'
         try:
             logger.info('Downloading GeoLite2-City database from MaxMind…')
-            with urllib_request.urlopen(req, timeout=180) as resp:
-                data = resp.read()
+            with urllib_request.urlopen(req, timeout=180) as resp, open(tmp_tar, 'wb') as fh:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
         except Exception as e:
             logger.error(f'GeoLite2-City download failed: {e}')
             return None
         try:
-            with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as tar:
+            with tarfile.open(tmp_tar, mode='r:gz') as tar:
                 for member in tar.getmembers():
                     if member.name.endswith('.mmdb'):
                         f = tar.extractfile(member)
@@ -227,6 +233,11 @@ def _get_geoip_reader():
         except Exception as e:
             logger.error(f'GeoLite2-City extraction failed: {e}')
             return None
+        finally:
+            try:
+                os.remove(tmp_tar)
+            except OSError:
+                pass
 
     try:
         return geoip2.database.Reader(_GEOIP_DB_PATH)
@@ -241,7 +252,7 @@ def _enrich_ips(ips, cache, reader=None):
     """
     Enrich unique IPs with MaxMind geolocation, storing results in cache.
     Uses local GeoLite2-City database when reader is provided (handles 100k+ IPs).
-    Falls back to web API when reader is None.
+    Falls back to web API for any IPs the DB could not resolve.
     """
     new_ips = [ip for ip in ips if ip and ip not in cache]
     if not new_ips:
@@ -249,6 +260,11 @@ def _enrich_ips(ips, cache, reader=None):
     logger.info(f'MaxMind: enriching {len(new_ips)} new IPs')
     if reader is not None:
         _enrich_ips_db(new_ips, cache, reader)
+        # Fall back to web API for any IPs the local DB couldn't resolve
+        unresolved = [ip for ip in new_ips if cache.get(ip, {}).get('latitude') is None]
+        if unresolved:
+            logger.info(f'MaxMind DB: {len(unresolved)} IPs unresolved, falling back to web API')
+            _enrich_ips_api(unresolved, cache)
     else:
         _enrich_ips_api(new_ips, cache)
 
