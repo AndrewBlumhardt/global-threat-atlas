@@ -258,39 +258,26 @@ def _get_geoip_reader(_retry=True):
         return None
 
 
-# ── MaxMind geo enrichment ────────────────────────────────────────────────────
+# ── MaxMind geo enrichment (GeoLite2-City local DB) ─────────────────────────
 
-_MAX_FALLBACK_IPS = 1000  # cap on ipinfo.io fallback calls per pipeline run (50k/month free tier, runs daily)
-
-def _enrich_ips(ips, cache, reader=None):
+def _enrich_ips(ips, cache, reader):
     """
-    Enrich unique IPs with geolocation, storing results in cache.
-    Uses local GeoLite2-City database when reader is provided (handles 100k+ IPs).
-    Falls back to ipinfo.io for any IPs the DB could not resolve (capped at _MAX_FALLBACK_IPS).
+    Enrich unique IPs with geolocation from the local GeoLite2-City DB.
+    IPs not found in the DB (private ranges, some cloud IPs) are stored with
+    null coordinates and will be dropped from the GeoJSON output.
+    Re-runs on every pipeline call — GeoLite2 is an in-process file read
+    (microseconds per IP, no network, no rate limits) so caching between runs
+    has no benefit.
     """
     new_ips = [ip for ip in ips if ip and ip not in cache]
     if not new_ips:
         return
-    logger.info(f'GeoIP: enriching {len(new_ips)} new IPs')
-    if reader is not None:
-        _enrich_ips_db(new_ips, cache, reader)
-        unresolved = [ip for ip in new_ips if cache.get(ip, {}).get('latitude') is None]
-        if unresolved:
-            if len(unresolved) <= _MAX_FALLBACK_IPS:
-                logger.info(f'GeoLite2 DB: {len(unresolved)} IPs unresolved, falling back to ipinfo.io')
-                _enrich_ips_fallback(unresolved, cache)
-            else:
-                logger.warning(f'GeoLite2 DB: {len(unresolved)} IPs unresolved — too many for fallback ({_MAX_FALLBACK_IPS} max), skipping')
-    else:
-        if len(new_ips) <= _MAX_FALLBACK_IPS:
-            _enrich_ips_fallback(new_ips, cache)
-        else:
-            logger.warning(f'No GeoLite2 DB reader — {len(new_ips)} IPs, too many for fallback only ({_MAX_FALLBACK_IPS} max)')
-
-
-def _enrich_ips_db(ips, cache, reader):
-    """Enrich IPs using local GeoLite2-City database — handles any volume instantly."""
-    for ip in ips:
+    if reader is None:
+        logger.warning('GeoLite2 DB unavailable — geo enrichment skipped; no features will be generated')
+        return
+    logger.info(f'GeoLite2: enriching {len(new_ips)} IPs')
+    resolved = 0
+    for ip in new_ips:
         try:
             r = reader.city(ip)
             cache[ip] = {
@@ -300,42 +287,13 @@ def _enrich_ips_db(ips, cache, reader):
                 'state':     r.subdivisions.most_specific.name or '',
                 'city':      r.city.name or '',
             }
+            if r.location.latitude is not None:
+                resolved += 1
         except Exception:
             cache[ip] = {'latitude': None, 'longitude': None, 'country': '', 'state': '', 'city': ''}
-
-
-def _enrich_ips_fallback(ips, cache):
-    """
-    Fallback geo enrichment via ipinfo.io for IPs not resolved by GeoLite2-City.
-    Covers cloud/datacenter IPs that the free GeoLite2-City DB omits.
-    Free tier: 50k requests/month, HTTPS, no API key required.
-    """
-    for ip in ips:
-        try:
-            req = urllib_request.Request(
-                f'https://ipinfo.io/{ip}/json',
-                headers={'Accept': 'application/json'},
-            )
-            with urllib_request.urlopen(req, timeout=10) as resp:
-                d = json.loads(resp.read().decode())
-            loc = d.get('loc', '')  # 'lat,lon'
-            if loc and ',' in loc:
-                lat_str, lon_str = loc.split(',', 1)
-                lat, lon = float(lat_str), float(lon_str)
-            else:
-                lat, lon = None, None
-            cache[ip] = {
-                'latitude':  lat,
-                'longitude': lon,
-                'country':   d.get('country', ''),
-                'state':     d.get('region', ''),
-                'city':      d.get('city', ''),
-            }
-            if lat is not None:
-                logger.info(f'ipinfo.io: {ip} → {d.get("city", "?")}, {d.get("country", "?")}')
-        except Exception as e:
-            logger.warning(f'ipinfo.io lookup for {ip}: {e}')
-            cache[ip] = {'latitude': None, 'longitude': None, 'country': '', 'state': '', 'city': ''}
+    unresolved = len(new_ips) - resolved
+    logger.info(f'GeoLite2: {resolved}/{len(new_ips)} IPs resolved' +
+                (f'; {unresolved} not in DB (private/cloud ranges) — those IPs will be excluded from GeoJSON' if unresolved else ''))
 
 def _rows_to_tsv(rows):
     """Serialize a list of dicts to TSV bytes (UTF-8), safe for blob upload."""
@@ -599,15 +557,15 @@ def _threatintel_geojson(rows, geo_cache):
 # ── Per-pipeline frequency helpers ───────────────────────────────────────────
 
 def _device_frequency_hours():
-    return float(os.environ.get('REFRESH_DEVICE_FREQUENCY_MINUTES', '15')) / 60.0
+    return float(os.environ.get('REFRESH_DEVICE_FREQUENCY_MINUTES', '0')) / 60.0
 
 
 def _signin_frequency_hours():
-    return float(os.environ.get('REFRESH_SIGNIN_FREQUENCY_MINUTES', '15')) / 60.0
+    return float(os.environ.get('REFRESH_SIGNIN_FREQUENCY_MINUTES', '0')) / 60.0
 
 
 def _threatintel_frequency_hours():
-    return float(os.environ.get('REFRESH_THREATINTEL_FREQUENCY_HOURS', '24'))
+    return float(os.environ.get('REFRESH_THREATINTEL_FREQUENCY_HOURS', '0'))
 
 
 # ── Individual pipeline runners ───────────────────────────────────────────────
@@ -647,7 +605,7 @@ def _run_signin(workspace_id, container, reader=None):
         and not (r.get('Latitude') and r.get('Longitude'))
     })
     if null_geo_ips:
-        logger.info(f'signin-activity: {len(null_geo_ips)} IPs missing Azure AD geo coords — enriching via ipinfo.io')
+        logger.info(f'signin-activity: {len(null_geo_ips)} IPs missing Azure AD geo coords — enriching via GeoLite2')
         _enrich_ips(null_geo_ips, geo_cache, reader)
     # Stamp fallback geo onto rows that had no Azure AD coordinates
     for row in rows:
