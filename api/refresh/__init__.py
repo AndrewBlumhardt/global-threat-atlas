@@ -248,25 +248,32 @@ def _get_geoip_reader():
 
 # ── MaxMind geo enrichment ────────────────────────────────────────────────────
 
+_MAX_FALLBACK_IPS = 100  # cap on ipinfo.io fallback calls per pipeline run
+
 def _enrich_ips(ips, cache, reader=None):
     """
-    Enrich unique IPs with MaxMind geolocation, storing results in cache.
+    Enrich unique IPs with geolocation, storing results in cache.
     Uses local GeoLite2-City database when reader is provided (handles 100k+ IPs).
-    Falls back to web API for any IPs the DB could not resolve.
+    Falls back to ipinfo.io for any IPs the DB could not resolve (capped at _MAX_FALLBACK_IPS).
     """
     new_ips = [ip for ip in ips if ip and ip not in cache]
     if not new_ips:
         return
-    logger.info(f'MaxMind: enriching {len(new_ips)} new IPs')
+    logger.info(f'GeoIP: enriching {len(new_ips)} new IPs')
     if reader is not None:
         _enrich_ips_db(new_ips, cache, reader)
-        # Fall back to web API for any IPs the local DB couldn't resolve
         unresolved = [ip for ip in new_ips if cache.get(ip, {}).get('latitude') is None]
         if unresolved:
-            logger.info(f'MaxMind DB: {len(unresolved)} IPs unresolved, falling back to web API')
-            _enrich_ips_api(unresolved, cache)
+            if len(unresolved) <= _MAX_FALLBACK_IPS:
+                logger.info(f'GeoLite2 DB: {len(unresolved)} IPs unresolved, falling back to ipinfo.io')
+                _enrich_ips_fallback(unresolved, cache)
+            else:
+                logger.warning(f'GeoLite2 DB: {len(unresolved)} IPs unresolved — too many for fallback ({_MAX_FALLBACK_IPS} max), skipping')
     else:
-        _enrich_ips_api(new_ips, cache)
+        if len(new_ips) <= _MAX_FALLBACK_IPS:
+            _enrich_ips_fallback(new_ips, cache)
+        else:
+            logger.warning(f'No GeoLite2 DB reader — {len(new_ips)} IPs, too many for fallback only ({_MAX_FALLBACK_IPS} max)')
 
 
 def _enrich_ips_db(ips, cache, reader):
@@ -285,39 +292,38 @@ def _enrich_ips_db(ips, cache, reader):
             cache[ip] = {'latitude': None, 'longitude': None, 'country': '', 'state': '', 'city': ''}
 
 
-def _enrich_ips_api(ips, cache):
-    """Enrich IPs via MaxMind web API. Suitable for small datasets only (<1k IPs)."""
-    account_id  = os.environ.get('MAXMIND_ACCOUNT_ID', '').strip()
-    license_key = os.environ.get('MAXMIND_LICENSE_KEY', '').strip()
-    if not account_id or not license_key:
-        logger.warning('MaxMind credentials not configured — geo enrichment skipped')
-        return
-    auth    = base64.b64encode(f'{account_id}:{license_key}'.encode()).decode()
-    headers = {'Authorization': f'Basic {auth}', 'Accept': 'application/json'}
+def _enrich_ips_fallback(ips, cache):
+    """
+    Fallback geo enrichment via ipinfo.io for IPs not resolved by GeoLite2-City.
+    Covers cloud/datacenter IPs that the free GeoLite2-City DB omits.
+    Free tier: 50k requests/month, HTTPS, no API key required.
+    """
     for ip in ips:
-        for tier in ('city', 'country'):
-            try:
-                req = urllib_request.Request(
-                    f'https://geoip.maxmind.com/geoip/v2.1/{tier}/{ip}', headers=headers
-                )
-                with urllib_request.urlopen(req, timeout=5) as resp:
-                    d = json.loads(resp.read().decode())
-                cache[ip] = {
-                    'latitude':  d.get('location', {}).get('latitude'),
-                    'longitude': d.get('location', {}).get('longitude'),
-                    'country':   d.get('country', {}).get('iso_code', ''),
-                    'state':     ((d.get('subdivisions') or [{}])[0].get('names') or {}).get('en', ''),
-                    'city':      (d.get('city', {}).get('names') or {}).get('en', ''),
-                }
-                break
-            except urllib_error.HTTPError as e:
-                if e.code == 403:
-                    continue  # tier not available, try next
-                logger.warning(f'MaxMind {tier} lookup for {ip}: HTTP {e.code}')
-                break
-            except Exception as e:
-                logger.warning(f'MaxMind {tier} lookup for {ip}: {e}')
-                break
+        try:
+            req = urllib_request.Request(
+                f'https://ipinfo.io/{ip}/json',
+                headers={'Accept': 'application/json'},
+            )
+            with urllib_request.urlopen(req, timeout=10) as resp:
+                d = json.loads(resp.read().decode())
+            loc = d.get('loc', '')  # 'lat,lon'
+            if loc and ',' in loc:
+                lat_str, lon_str = loc.split(',', 1)
+                lat, lon = float(lat_str), float(lon_str)
+            else:
+                lat, lon = None, None
+            cache[ip] = {
+                'latitude':  lat,
+                'longitude': lon,
+                'country':   d.get('country', ''),
+                'state':     d.get('region', ''),
+                'city':      d.get('city', ''),
+            }
+            if lat is not None:
+                logger.info(f'ipinfo.io: {ip} → {d.get("city", "?")}, {d.get("country", "?")}')
+        except Exception as e:
+            logger.warning(f'ipinfo.io lookup for {ip}: {e}')
+            cache[ip] = {'latitude': None, 'longitude': None, 'country': '', 'state': '', 'city': ''}
 
 def _rows_to_tsv(rows):
     """Serialize a list of dicts to TSV bytes (UTF-8), safe for blob upload."""
