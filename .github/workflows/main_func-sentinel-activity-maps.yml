@@ -61,10 +61,15 @@ jobs:
 
       - name: Upload demo data to blob storage
         run: |
-          az storage blob upload-batch \
-            --account-name sentinelmapsstore \
-            --destination datasets/demo_data \
-            --source demo_data \
-            --overwrite true \
-            --auth-mode login
+          if git diff --name-only HEAD~1 HEAD | grep -q '^demo_data/'; then
+            echo "demo_data changes detected, uploading..."
+            az storage blob upload-batch \
+              --account-name sentinelmapsstore \
+              --destination datasets/demo_data \
+              --source demo_data \
+              --overwrite true \
+              --auth-mode login
+          else
+            echo "No demo_data changes, skipping upload."
+          fi
 
