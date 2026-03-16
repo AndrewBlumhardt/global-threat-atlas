@@ -185,10 +185,11 @@ def _upload(container, blob_name, data_bytes, content_type='application/json'):
 
 # ── GeoIP database (MaxMind GeoLite2) ────────────────────────────────────────
 
-def _get_geoip_reader():
+def _get_geoip_reader(_retry=True):
     """
     Return a geoip2.database.Reader backed by a locally cached GeoLite2-City.mmdb.
     Downloads the database from MaxMind on first call or when older than 7 days.
+    If the cached file fails validation it is deleted and re-downloaded once.
     Returns None if credentials are missing or download fails.
     """
     needs_download = True
@@ -240,9 +241,20 @@ def _get_geoip_reader():
                 pass
 
     try:
-        return geoip2.database.Reader(_GEOIP_DB_PATH)
+        reader = geoip2.database.Reader(_GEOIP_DB_PATH)
+        # Quick sanity-check: every valid MaxMind DB can look up a well-known IP
+        reader.city('8.8.8.8')
+        return reader
     except Exception as e:
-        logger.error(f'Failed to open GeoLite2-City.mmdb: {e}')
+        logger.warning(f'GeoLite2-City.mmdb validation failed ({e}) — deleting and re-downloading')
+        try:
+            os.remove(_GEOIP_DB_PATH)
+        except OSError:
+            pass
+        # Retry once with a fresh download; if that also fails, return None
+        if _retry:
+            return _get_geoip_reader(_retry=False)
+        logger.error('GeoLite2-City.mmdb failed validation after fresh download — geo enrichment unavailable')
         return None
 
 
