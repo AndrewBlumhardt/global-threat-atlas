@@ -54,8 +54,9 @@ async function enable(map) {
     const geojson = await response.json();
 
     if (!geojson.features || geojson.features.length === 0) {
-      console.warn('[threatIntelOverlay] No threat intel indicators found in dataset');
-      throw new Error('No threat intelligence indicators available');
+      console.warn('[threatIntelOverlay] No threat intel indicators found in dataset — GeoJSON may still be generating');
+      isEnabled = false;
+      return;
     }
 
     // Create data source

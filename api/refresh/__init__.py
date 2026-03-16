@@ -260,7 +260,7 @@ def _get_geoip_reader(_retry=True):
 
 # ── MaxMind geo enrichment ────────────────────────────────────────────────────
 
-_MAX_FALLBACK_IPS = 100  # cap on ipinfo.io fallback calls per pipeline run
+_MAX_FALLBACK_IPS = 1000  # cap on ipinfo.io fallback calls per pipeline run (50k/month free tier, runs daily)
 
 def _enrich_ips(ips, cache, reader=None):
     """
@@ -613,14 +613,21 @@ def _threatintel_frequency_hours():
 # ── Individual pipeline runners ───────────────────────────────────────────────
 
 def _run_devices(workspace_id, container, reader=None):
-    """KQL → TSV → MaxMind → GeoJSON → blob."""
+    """KQL → enrich IPs → TSV (with geo columns) → GeoJSON → blob."""
     kql      = os.environ.get('SENTINEL_DEVICES_KQL') or _default_devices_kql()
     lookback = _devices_lookback()
     rows     = _query_sentinel(workspace_id, kql, lookback)
-    _upload(container, 'mde-devices.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
     geo_cache = {}
     ips = list({r.get('PublicIP', '').strip() for r in rows if r.get('PublicIP', '').strip()})
     _enrich_ips(ips, geo_cache, reader)
+    for row in rows:
+        geo = geo_cache.get((row.get('PublicIP') or '').strip(), {})
+        row['Latitude']        = geo.get('latitude', '') or ''
+        row['Longitude']       = geo.get('longitude', '') or ''
+        row['CountryOrRegion'] = geo.get('country', '') or ''
+        row['State']           = geo.get('state', '') or ''
+        row['City']            = geo.get('city', '') or ''
+    _upload(container, 'mde-devices.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
     gj = _device_geojson(rows, geo_cache)
     _upload(container, 'mde-devices.geojson', _geojson_bytes(gj['features']))
     logger.info(f"mde-devices — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
@@ -628,14 +635,10 @@ def _run_devices(workspace_id, container, reader=None):
 
 
 def _run_signin(workspace_id, container, reader=None):
-    """KQL → TSV → MaxMind fallback → GeoJSON → blob.
-    Lat/lon from LocationDetails.geoCoordinates when available; MaxMind on IPAddress as fallback.
-    """
+    """KQL → enrich IPs where Azure AD has no coords → TSV (with geo columns) → GeoJSON → blob."""
     kql      = os.environ.get('SENTINEL_SIGNIN_KQL') or _default_signin_kql()
     lookback = _signin_lookback()
     rows     = _query_sentinel(workspace_id, kql, lookback)
-    _upload(container, 'signin-activity.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
-    # Enrich IPs for rows where Azure AD geoCoordinates are absent
     geo_cache = {}
     null_geo_ips = list({
         r.get('IPAddress', '').strip()
@@ -644,22 +647,39 @@ def _run_signin(workspace_id, container, reader=None):
         and not (r.get('Latitude') and r.get('Longitude'))
     })
     if null_geo_ips:
-        logger.info(f'signin-activity: {len(null_geo_ips)} IPs missing Azure AD geo coords — enriching via MaxMind')
+        logger.info(f'signin-activity: {len(null_geo_ips)} IPs missing Azure AD geo coords — enriching via ipinfo.io')
         _enrich_ips(null_geo_ips, geo_cache, reader)
+    # Stamp fallback geo onto rows that had no Azure AD coordinates
+    for row in rows:
+        if not (row.get('Latitude') and row.get('Longitude')):
+            geo = geo_cache.get((row.get('IPAddress') or '').strip(), {})
+            row['Latitude']        = geo.get('latitude', '') or ''
+            row['Longitude']       = geo.get('longitude', '') or ''
+            row['CountryOrRegion'] = row.get('CountryOrRegion') or geo.get('country', '') or ''
+            row['State']           = row.get('State') or geo.get('state', '') or ''
+            row['City']            = row.get('City') or geo.get('city', '') or ''
+    _upload(container, 'signin-activity.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
     gj = _signin_geojson(rows, geo_cache)
     _upload(container, 'signin-activity.geojson', _geojson_bytes(gj['features']))
-    logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features, {len(null_geo_ips)} IPs MaxMind-enriched")
-    return {'rows': len(rows), 'features': len(gj['features']), 'maxmind_enriched': len(null_geo_ips)}
+    logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features, {len(null_geo_ips)} IPs fallback-enriched")
+    return {'rows': len(rows), 'features': len(gj['features']), 'fallback_enriched': len(null_geo_ips)}
 
 
 def _run_threatintel(workspace_id, container, reader=None):
-    """KQL → TSV → MaxMind → GeoJSON → blob."""
+    """KQL → enrich IPs → TSV (with geo columns) → GeoJSON → blob."""
     kql  = os.environ.get('SENTINEL_THREATINTEL_KQL') or _default_threatintel_kql()
     rows = _query_sentinel(workspace_id, kql, _THREATINTEL_LOOKBACK_HOURS)
-    _upload(container, 'threat-intel-indicators.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
     geo_cache = {}
     ips = list({r.get('ObservableValue', '').strip() for r in rows if r.get('ObservableValue', '').strip()})
     _enrich_ips(ips, geo_cache, reader)
+    for row in rows:
+        geo = geo_cache.get((row.get('ObservableValue') or '').strip(), {})
+        row['Latitude']        = geo.get('latitude', '') or ''
+        row['Longitude']       = geo.get('longitude', '') or ''
+        row['CountryOrRegion'] = geo.get('country', '') or ''
+        row['State']           = geo.get('state', '') or ''
+        row['City']            = geo.get('city', '') or ''
+    _upload(container, 'threat-intel-indicators.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
     gj = _threatintel_geojson(rows, geo_cache)
     _upload(container, 'threat-intel-indicators.geojson', _geojson_bytes(gj['features']))
     logger.info(f"threat-intel-indicators — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
