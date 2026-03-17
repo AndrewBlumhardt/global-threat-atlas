@@ -10,5 +10,5 @@
  *   BUBBLE_RADIUS_PX — radius (px) of the Azure Maps BubbleLayer used by the
  *                      Threat Intel layer.  Visible diameter = 2 × this value.
  */
-export const MARKER_SIZE_PX = 10;
+export const MARKER_SIZE_PX = 4;
 export const BUBBLE_RADIUS_PX = 4;
