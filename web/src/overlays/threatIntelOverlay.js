@@ -11,6 +11,9 @@ import { resolveDataUrl } from "../shared/demoMode.js";
 const THREAT_INTEL_SOURCE_ID = "threat-intel-source";
 const THREAT_INTEL_LAYER_ID = "threat-intel-layer";
 
+// Marker size — adjust here to resize all threat-intel indicators in one place
+const BUBBLE_RADIUS_PX = 4;
+
 let isEnabled = false;
 
 /**
@@ -75,7 +78,7 @@ async function enable(map) {
     // Add symbol layer for indicators (peg-like markers with 3D effect)
     // Use smaller, more dimensional visualization
     const bubbleLayer = new atlas.layer.BubbleLayer(dataSource, THREAT_INTEL_LAYER_ID, {
-      radius: 4,
+      radius: BUBBLE_RADIUS_PX,
       color: "#e51010",
       strokeColor: "#eb6060",
       strokeWidth: 1,

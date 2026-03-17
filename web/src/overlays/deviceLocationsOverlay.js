@@ -13,6 +13,9 @@ let map = null;
 let htmlMarkers = [];
 let popup = null;
 
+// Marker size — adjust here to resize all device-location markers in one place
+const MARKER_SIZE_PX = 10;
+
 /**
  * Enable the overlay - fetch and display GeoJSON as HTML markers with device icons
  */
@@ -72,7 +75,7 @@ async function enable(azureMap) {
       const bubbleColor = isMobile ? '#10b981' : '#3b82f6';
       const marker = new atlas.HtmlMarker({
         position: [coords[0], coords[1]],
-        htmlContent: `<div class="device-marker" style="width: 14px; height: 14px; border-radius: 50%; background-color: ${bubbleColor}; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); cursor: pointer; pointer-events: auto;"></div>`,
+        htmlContent: `<div class="device-marker" style="width: ${MARKER_SIZE_PX}px; height: ${MARKER_SIZE_PX}px; border-radius: 50%; background-color: ${bubbleColor}; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); cursor: pointer; pointer-events: auto;"></div>`,
         anchor: 'center',
         pixelOffset: [0, 0]
       });
