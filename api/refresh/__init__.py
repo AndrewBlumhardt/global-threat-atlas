@@ -17,9 +17,9 @@ Required app settings:
   MAXMIND_LICENSE_KEY         — MaxMind GeoIP license key
 
 Optional app settings:
-  REFRESH_DEVICE_FREQUENCY_MINUTES    — how often to refresh MDE devices (default: 15)
+  REFRESH_DEVICE_FREQUENCY_MINUTES    — how often to refresh MDE devices (default: 1440 = 24 h)
   REFRESH_DEVICE_LOOKBACK_HOURS       — how far back to query MDE data (default: 168)
-  REFRESH_SIGNIN_FREQUENCY_MINUTES    — how often to refresh sign-in activity (default: 15)
+  REFRESH_SIGNIN_FREQUENCY_MINUTES    — how often to refresh sign-in activity (default: 1440 = 24 h)
   REFRESH_SIGNIN_LOOKBACK_HOURS       — how far back to query sign-in data (default: 168)
   REFRESH_THREATINTEL_FREQUENCY_HOURS — how often to refresh threat intel (default: 24)
   SENTINEL_DEVICES_KQL                — override default MDE KQL query
@@ -557,18 +557,31 @@ def _threatintel_geojson(rows, geo_cache):
     return {'type': 'FeatureCollection', 'features': features}
 
 
-# ── Per-pipeline frequency helpers ───────────────────────────────────────────
+# ── Per-pipeline refresh frequency ───────────────────────────────────────────
+# How often each pipeline is allowed to re-run.  A browser opening (or
+# reopening) the SWA always calls /api/refresh, so these values prevent
+# redundant Sentinel queries when multiple tabs/browsers are open.
+# Env-var overrides are still honoured; edit the defaults here to change
+# the baseline without touching Azure App Settings.
+
+_DEFAULT_DEVICE_FREQUENCY_HOURS    = 24.0   # re-query MDE devices once per day
+_DEFAULT_SIGNIN_FREQUENCY_HOURS    = 24.0   # re-query sign-in activity once per day
+_DEFAULT_THREATINTEL_FREQUENCY_HOURS = 24.0 # re-query threat intel once per day
+
 
 def _device_frequency_hours():
-    return float(os.environ.get('REFRESH_DEVICE_FREQUENCY_MINUTES', '0')) / 60.0
+    return float(os.environ.get('REFRESH_DEVICE_FREQUENCY_MINUTES',
+                                str(_DEFAULT_DEVICE_FREQUENCY_HOURS * 60))) / 60.0
 
 
 def _signin_frequency_hours():
-    return float(os.environ.get('REFRESH_SIGNIN_FREQUENCY_MINUTES', '0')) / 60.0
+    return float(os.environ.get('REFRESH_SIGNIN_FREQUENCY_MINUTES',
+                                str(_DEFAULT_SIGNIN_FREQUENCY_HOURS * 60))) / 60.0
 
 
 def _threatintel_frequency_hours():
-    return float(os.environ.get('REFRESH_THREATINTEL_FREQUENCY_HOURS', '0'))
+    return float(os.environ.get('REFRESH_THREATINTEL_FREQUENCY_HOURS',
+                                str(_DEFAULT_THREATINTEL_FREQUENCY_HOURS)))
 
 
 # ── Individual pipeline runners ───────────────────────────────────────────────
