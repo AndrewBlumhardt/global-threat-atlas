@@ -671,7 +671,60 @@ try {
 } finally {
     Pop-Location
 }
-} # End of SkipFunctionApp check
+
+# Link Function App as the SWA backend so /api/* routes proxy correctly
+Write-Step "Linking Function App as Static Web App backend..."
+$functionAppId = az functionapp show `
+    --name $FunctionAppName `
+    --resource-group $ResourceGroupName `
+    --query id `
+    --output tsv
+
+try {
+    az staticwebapp backends link `
+        --name $StaticWebAppName `
+        --resource-group $ResourceGroupName `
+        --backend-resource-id $functionAppId `
+        --backend-region $Location `
+        --output none
+    Write-Success "Function App linked as SWA backend — /api/* now proxies to $FunctionAppName"
+} catch {
+    Write-Info "Backend link failed (may already be linked or require Standard SKU) — verify in portal"
+}
+
+# Update the GitHub Actions workflow with the actual Function App name,
+# then fetch the publish profile and push it as a repo secret so the
+# workflow can deploy without a pre-configured App Registration.
+$funcWorkflowPath = Join-Path $PSScriptRoot ".github\workflows\main_func-sentinel-activity-maps.yml"
+$funcSecretSet = $false
+if (Test-Path $funcWorkflowPath) {
+    $wfContent = Get-Content $funcWorkflowPath -Raw
+    $wfContent = $wfContent -replace "app-name: '[^']*'", "app-name: '$FunctionAppName'"
+    Set-Content $funcWorkflowPath $wfContent -NoNewline
+    Write-Success "$funcWorkflowPath updated: app-name = $FunctionAppName"
+} else {
+    Write-Info "Workflow file not found at $funcWorkflowPath — update app-name manually"
+}
+
+$publishProfile = az functionapp deployment list-publishing-profiles `
+    --name $FunctionAppName `
+    --resource-group $ResourceGroupName `
+    --xml
+if ($publishProfile -and (Get-Command gh -ErrorAction SilentlyContinue)) {
+    try {
+        $publishProfile | gh secret set AZURE_FUNCTIONAPP_PUBLISH_PROFILE --app actions 2>$null
+        Write-Success "GitHub secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE set (used by .github/workflows/main_func-sentinel-activity-maps.yml)"
+        $funcSecretSet = $true
+    } catch {
+        Write-Info "gh secret set failed — see Next Steps to set AZURE_FUNCTIONAPP_PUBLISH_PROFILE manually"
+    }
+} else {
+    if (-not $publishProfile) {
+        Write-Info "Could not retrieve publish profile — see Next Steps"
+    } else {
+        Write-Info "GitHub CLI (gh) not found — see Next Steps to set AZURE_FUNCTIONAPP_PUBLISH_PROFILE manually"
+    }
+}
 
 # Summary
 $duration = (Get-Date) - $startTime
@@ -718,6 +771,15 @@ if (-not $SkipFunctionApp) {
         Write-Host "      gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body '$swaToken'" -ForegroundColor Cyan
         Write-Host "      Or: GitHub repo → Settings → Secrets and variables → Actions → New repository secret" -ForegroundColor White
         Write-Host "      Name: AZURE_STATIC_WEB_APPS_API_TOKEN   Value: (token shown above)" -ForegroundColor White
+    }
+    Write-Host ""
+    if ($funcSecretSet) {
+        Write-Host "   e) GitHub Actions Function App deploy: AZURE_FUNCTIONAPP_PUBLISH_PROFILE already set." -ForegroundColor Green
+        Write-Host "      Workflow file updated: app-name = $FunctionAppName" -ForegroundColor Gray
+        Write-Host "      To rotate: az functionapp deployment list-publishing-profiles --name $FunctionAppName --resource-group $ResourceGroupName --xml | gh secret set AZURE_FUNCTIONAPP_PUBLISH_PROFILE" -ForegroundColor Gray
+    } else {
+        Write-Host "   e) GitHub Actions Function App deploy: set the publish profile secret manually." -ForegroundColor Yellow
+        Write-Host "      az functionapp deployment list-publishing-profiles --name $FunctionAppName --resource-group $ResourceGroupName --xml | gh secret set AZURE_FUNCTIONAPP_PUBLISH_PROFILE" -ForegroundColor Cyan
     }
     Write-Host ""
     Write-Host "2. Assign 'Log Analytics Reader' role to the Function App on your Log Analytics Workspace" -ForegroundColor Yellow

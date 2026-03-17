@@ -18,7 +18,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
       contents: read
 
     steps:
@@ -44,19 +43,13 @@ jobs:
           rm -f api/.python_packages/lib/site-packages/azure/storage/__init__.py
           rm -f api/.python_packages/lib/site-packages/azure/monitor/__init__.py
 
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_39F253D54E704240BBB48EB8FEEEDB6D }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_7019E05A2F694C20B817B4DC2F993FD2 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_9F12F2DB8A674FF3A416688A145F4BCE }}
-
       - name: 'Deploy to Azure Functions'
         uses: Azure/functions-action@v1
         with:
           app-name: 'func-sentinel-activity-maps'
           slot-name: 'Production'
           package: './api'
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
           scm-do-build-during-deployment: false
 
       - name: Upload demo data to blob storage
