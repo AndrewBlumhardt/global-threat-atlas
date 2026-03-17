@@ -65,6 +65,64 @@ Powered by [Leaflet.js](https://leafletjs.com).
 │  + ThreatIntel      │
 └─────────────────────┘
 
+## How the App Works
+
+Here is a walkthrough of what happens from the moment a browser opens the app to data appearing on the map.
+
+### 1. Page load and static fallbacks
+
+The SWA serves [web/index.html](web/index.html) along with the Azure Maps SDK scripts and stylesheets. Before any application code runs, [web/config.js](web/config.js) is loaded synchronously and sets `window.STORAGE_ACCOUNT_URL` and `window.DATASETS_CONTAINER` as hard-coded fallback values. The Azure Maps subscription key is intentionally absent here and never stored in any static file. Immediately after, an inline script fires `fetch('/api/config')` and stores the returned promise so the request is already in-flight before the ES module bundle has started executing.
+
+### 2. App startup and config fetch
+
+[web/src/app.js](web/src/app.js) runs `main()` as soon as the module loads. Its very first action is a fire-and-forget call to `/api/refresh`, which kicks off the backend data pipeline without blocking the map. The app then picks up the in-flight config promise. If the Function App is cold-starting and has not responded within five seconds, the loading spinner updates to "Waiting for API (cold start, please wait...)".
+
+The `/api/config` endpoint ([api/config/\_\_init\_\_.py](api/config/__init__.py)) reads the Azure Maps key, storage URL, container name, and custom layer display name from the Function App's environment and returns them as JSON. None of those values are stored in static files or committed to source control. The response carries `Cache-Control: no-cache` so the browser never reuses a stale key.
+
+### 3. Map initialisation
+
+Once config resolves, [web/src/map/map-init.js](web/src/map/map-init.js) creates the Atlas map control using the subscription key received from the API. The key authenticates all tile requests to the Azure Maps CDN for the base road tiles, weather overlays, and any other Atlas-hosted content. When the map fires its `ready` event the loading overlay is dismissed, layer controls are wired up, and drag-and-drop GeoJSON support is enabled.
+
+### 4. Data refresh pipeline
+
+The `/api/refresh` call started in step 2 is executing in parallel. [api/refresh/\_\_init\_\_.py](api/refresh/__init__.py) runs three independent pipelines for MDE devices, sign-in activity, and threat intel indicators.
+
+For each pipeline, the function does a lightweight HEAD request against the corresponding `.tsv` blob and compares its age to the pipeline's frequency threshold (default 24 hours for all three). Fresh pipelines are skipped immediately. For stale ones:
+
+- A `refresh.lock` blob is written to prevent concurrent runs if multiple sessions open at the same time.
+- The GeoLite2-City MaxMind database is checked at `/tmp/`. If absent or older than 7 days it is downloaded from MaxMind using `MAXMIND_ACCOUNT_ID` and `MAXMIND_LICENSE_KEY`, extracted in memory, and written to the local filesystem. All three pipelines share the same open reader for the duration of the call.
+- Each pipeline runs a KQL query against the Sentinel Log Analytics workspace using a Managed Identity token for `api.loganalytics.io`.
+- For MDE devices and threat intel, every unique public IP is resolved against the local GeoLite2 binary database (no network required, microseconds per lookup). For sign-in activity, Azure AD already provides coordinates for most events and MaxMind is only called for the IPs where those fields are empty.
+- Each pipeline uploads enriched data to Blob Storage as a TSV first, then as a GeoJSON FeatureCollection. All writes use a Managed Identity token for `storage.azure.com`. Payloads over 4 MB are uploaded using block staging.
+- The lock blob is deleted when all pipelines complete.
+
+### 5. Layer availability probing and data access
+
+After the map is ready, the app runs parallel HEAD requests for each data layer blob to decide which layer toggles to enable or grey out.
+
+Those requests go through `resolveDataUrl()` in [web/src/shared/demoMode.js](web/src/shared/demoMode.js), which on its first call fires a single anonymous HEAD probe against the blob container to decide how to route all subsequent data reads:
+
+- **If the storage account has anonymous blob access enabled**, data URLs resolve to direct `https://<account>.blob.core.windows.net/...` addresses and layers load without touching the Function App at all. This is the recommended approach for demo and development environments.
+- **If anonymous access is disabled** (the default for production), all data requests are routed through `/api/data/<filename>` and handled by [api/data/\_\_init\_\_.py](api/data/__init__.py), which fetches the blob using a Managed Identity token and proxies the bytes to the browser.
+
+When the user enables a layer the overlay module fetches the corresponding GeoJSON from whichever URL path was resolved above:
+
+- **Threat actors** ([threatActorsHeatmap.js](web/src/overlays/threatActorsHeatmap.js)): reads a static `threat-actors.tsv` from blob storage, counts entries per country, and renders a weighted Atlas HeatMapLayer. Country boundary polygons for the click-to-select mode are fetched once from a public CDN and cached at module level so repeated toggling does not re-download the ~250 KB file.
+- **Threat intel** ([threatIntelOverlay.js](web/src/overlays/threatIntelOverlay.js)): reads `threat-intel-indicators.geojson` and renders an Atlas BubbleLayer.
+- **Sign-in activity** ([signInActivityOverlay.js](web/src/overlays/signInActivityOverlay.js)): reads `signin-activity.geojson` and renders HTML marker pins coloured by success or failure.
+- **Device locations** ([deviceLocationsOverlay.js](web/src/overlays/deviceLocationsOverlay.js)): reads `mde-devices.geojson` and renders HTML marker pins coloured by device type.
+- **Weather and day/night overlays**: purely Atlas SDK layers with no blob reads, authenticated by the Maps key already in the map instance.
+
+Marker and bubble sizes across all three data overlays are controlled by a single shared file, [web/src/shared/markerConfig.js](web/src/shared/markerConfig.js), so they can be tuned in one place.
+
+### Demo mode
+
+Enabling the **Demo Mode** toggle in [web/src/app.js](web/src/app.js) switches all data layers to read from a separate set of static files hosted alongside the app in blob storage under a `demo_data/` prefix. These files contain pre-generated synthetic data (produced by the scripts in `tests/`) and require no Sentinel connection, no MaxMind license, and no live refresh pipeline. The `resolveDataUrl()` routing logic appends `?demo=true` to function API requests (or uses the `demo_data/` path for direct blob URLs) so live and demo data never mix.
+
+### 6. Session keepalive
+
+Once all initialisation is complete, a `setInterval` in `app.js` pings `/api/health` every 14 minutes, but only while the tab is visible. The health endpoint ([api/health/\_\_init\_\_.py](api/health/__init__.py)) responds with configuration presence flags and the current age of each GeoJSON blob using HEAD-only requests so no data is transferred. On the Consumption plan this reduces cold-start frequency during active sessions and also surfaces stale data conditions in the browser console.
+
 ## Azure Costs
 
 
