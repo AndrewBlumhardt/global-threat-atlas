@@ -70,7 +70,7 @@ async function enable(map) {
       .filter(c => typeof c === 'number' && !isNaN(c));
     const maxCount = counts.length > 0 ? Math.max(...counts) : 1;
 
-    console.log(`Threat intel count range: 1 to ${maxCount}`);
+    console.debug(`[threatIntelOverlay] count range: 1 to ${maxCount}`);
 
     // Add symbol layer for indicators (peg-like markers with 3D effect)
     // Use smaller, more dimensional visualization

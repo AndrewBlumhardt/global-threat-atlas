@@ -74,6 +74,7 @@ const COUNTRY_BOUNDS = {
   "Pakistan": [60.87, 23.69, 77.84, 37.13],
   "India": [68.18, 6.75, 97.40, 35.51],
   "Turkey": [25.67, 35.82, 44.83, 42.11],
+  "T\u00FCrkiye": [25.67, 35.82, 44.83, 42.11],
   "Italy": [6.63, 35.49, 18.52, 47.09],
   "Belarus": [23.18, 51.26, 32.77, 56.17],
   "Ukraine": [22.14, 44.39, 40.18, 52.38],
@@ -111,6 +112,9 @@ const COUNTRY_BOUNDS = {
   "United Kingdom": [-8.62, 49.96, 1.77, 60.84],
   "The Netherlands": [3.36, 50.75, 7.23, 53.55]
 };
+
+// Cache the countries GeoJSON so repeated layer toggles don't re-fetch from GitHub CDN
+let _countriesGeoJSONCache = null;
 
 const IDS = {
   source: "taByCountrySource",
@@ -234,9 +238,14 @@ async function enable(map, mode, onCountryClick) {
         }
       }
       if (!countriesGeoJSON) {
-        // Fallback to CDN
-        const countriesResponse = await fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson');
-        countriesGeoJSON = await countriesResponse.json();
+        // Fetch from CDN and cache in memory so repeated toggles skip the network call
+        if (_countriesGeoJSONCache) {
+          countriesGeoJSON = _countriesGeoJSONCache;
+        } else {
+          const countriesResponse = await fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson');
+          countriesGeoJSON = await countriesResponse.json();
+          _countriesGeoJSONCache = countriesGeoJSON;
+        }
       }
       
       // Build lookup map of country names to their GeoJSON features
@@ -261,8 +270,10 @@ async function enable(map, mode, onCountryClick) {
             country.replace('United States', 'United States of America'),
             country.replace('The Netherlands', 'Netherlands'),
             country.replace('Korea', 'South Korea'),
-            country.replace('South Korea', 'Republic of Korea')
-          ];
+            country.replace('South Korea', 'Republic of Korea'),
+            // T\u00FCrkiye is the official name since 2022; the CDN GeoJSON still uses Turkey
+            country === 'T\u00FCrkiye' ? 'Turkey' : null
+          ].filter(Boolean);
           
           for (const variant of variations) {
             geometry = countryGeometries.get(variant);
