@@ -201,15 +201,14 @@ def _get_geoip_reader(_retry=True):
             needs_download = False
 
     if needs_download:
-        account_id  = os.environ.get('MAXMIND_ACCOUNT_ID', '').strip()
         license_key = os.environ.get('MAXMIND_LICENSE_KEY', '').strip()
-        if not account_id or not license_key:
-            logger.warning('MaxMind credentials not configured — geo enrichment unavailable')
+        if not license_key:
+            logger.warning('MAXMIND_LICENSE_KEY not configured — geo enrichment unavailable')
             return None
-        auth = base64.b64encode(f'{account_id}:{license_key}'.encode()).decode()
-        url  = 'https://download.maxmind.com/geoip/databases/GeoLite2-City/download?suffix=tar.gz'
-        req  = urllib_request.Request(url, headers={'Authorization': f'Basic {auth}'})
-        # Stream download directly to a temp file to avoid reading ~40 MB into RAM
+        # Use the legacy geoip_download endpoint (license_key as query param, no Basic auth).
+        # This is the format documented by MaxMind for GeoLite2 free-tier downloads.
+        url     = f'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key={license_key}&suffix=tar.gz'
+        req     = urllib_request.Request(url)
         tmp_tar = _GEOIP_DB_PATH + '.tar.gz'
         try:
             logger.info('Downloading GeoLite2-City database from MaxMind…')
@@ -219,6 +218,10 @@ def _get_geoip_reader(_retry=True):
                     if not chunk:
                         break
                     fh.write(chunk)
+        except urllib_error.HTTPError as e:
+            body = e.read().decode('utf-8', errors='replace')[:500]
+            logger.error(f'GeoLite2-City download failed: HTTP {e.code} {e.reason} — {body}')
+            return None
         except Exception as e:
             logger.error(f'GeoLite2-City download failed: {e}')
             return None
@@ -578,6 +581,7 @@ def _run_devices(workspace_id, container, reader=None):
     geo_cache = {}
     ips = list({r.get('PublicIP', '').strip() for r in rows if r.get('PublicIP', '').strip()})
     _enrich_ips(ips, geo_cache, reader)
+    resolved = sum(1 for v in geo_cache.values() if v.get('latitude') is not None)
     for row in rows:
         geo = geo_cache.get((row.get('PublicIP') or '').strip(), {})
         row['Latitude']        = geo.get('latitude', '') or ''
@@ -588,8 +592,8 @@ def _run_devices(workspace_id, container, reader=None):
     _upload(container, 'mde-devices.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
     gj = _device_geojson(rows, geo_cache)
     _upload(container, 'mde-devices.geojson', _geojson_bytes(gj['features']))
-    logger.info(f"mde-devices — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
-    return {'rows': len(rows), 'features': len(gj['features']), 'ips_enriched': len(ips)}
+    logger.info(f"mde-devices — {len(rows)} rows, {len(gj['features'])} features, {resolved}/{len(ips)} IPs geo-resolved")
+    return {'rows': len(rows), 'features': len(gj['features']), 'ips_total': len(ips), 'ips_resolved': resolved, 'geo_db': reader is not None}
 
 
 def _run_signin(workspace_id, container, reader=None):
@@ -616,11 +620,12 @@ def _run_signin(workspace_id, container, reader=None):
             row['CountryOrRegion'] = row.get('CountryOrRegion') or geo.get('country', '') or ''
             row['State']           = row.get('State') or geo.get('state', '') or ''
             row['City']            = row.get('City') or geo.get('city', '') or ''
+    resolved = sum(1 for v in geo_cache.values() if v.get('latitude') is not None)
     _upload(container, 'signin-activity.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
     gj = _signin_geojson(rows, geo_cache)
     _upload(container, 'signin-activity.geojson', _geojson_bytes(gj['features']))
-    logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features, {len(null_geo_ips)} IPs fallback-enriched")
-    return {'rows': len(rows), 'features': len(gj['features']), 'fallback_enriched': len(null_geo_ips)}
+    logger.info(f"signin-activity — {len(rows)} rows, {len(gj['features'])} features, {resolved}/{len(null_geo_ips)} fallback IPs geo-resolved")
+    return {'rows': len(rows), 'features': len(gj['features']), 'fallback_ips_total': len(null_geo_ips), 'fallback_ips_resolved': resolved, 'geo_db': reader is not None}
 
 
 def _run_threatintel(workspace_id, container, reader=None):
@@ -637,11 +642,12 @@ def _run_threatintel(workspace_id, container, reader=None):
         row['CountryOrRegion'] = geo.get('country', '') or ''
         row['State']           = geo.get('state', '') or ''
         row['City']            = geo.get('city', '') or ''
+    resolved = sum(1 for v in geo_cache.values() if v.get('latitude') is not None)
     _upload(container, 'threat-intel-indicators.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
     gj = _threatintel_geojson(rows, geo_cache)
     _upload(container, 'threat-intel-indicators.geojson', _geojson_bytes(gj['features']))
-    logger.info(f"threat-intel-indicators — {len(rows)} rows, {len(gj['features'])} features, {len(ips)} IPs enriched")
-    return {'rows': len(rows), 'features': len(gj['features']), 'ips_enriched': len(ips)}
+    logger.info(f"threat-intel-indicators — {len(rows)} rows, {len(gj['features'])} features, {resolved}/{len(ips)} IPs geo-resolved")
+    return {'rows': len(rows), 'features': len(gj['features']), 'ips_total': len(ips), 'ips_resolved': resolved, 'geo_db': reader is not None}
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
