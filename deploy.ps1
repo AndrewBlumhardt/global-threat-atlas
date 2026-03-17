@@ -442,6 +442,22 @@ $swaToken = az staticwebapp secrets list `
 
 Write-Success "Static Web App deployment token retrieved"
 
+# Push the deployment token into the GitHub repo secret so the Actions workflow
+# can deploy immediately without any manual copy-paste.
+# Mirrors the Maps key and storage URL auto-configuration steps above.
+$swaSecretSet = $false
+if (Get-Command gh -ErrorAction SilentlyContinue) {
+    try {
+        $swaToken | gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --app actions 2>$null
+        Write-Success "GitHub secret AZURE_STATIC_WEB_APPS_API_TOKEN set in repo (used by .github/workflows/azure-static-web-apps.yml)"
+        $swaSecretSet = $true
+    } catch {
+        Write-Info "gh secret set failed — see Next Steps to set AZURE_STATIC_WEB_APPS_API_TOKEN manually"
+    }
+} else {
+    Write-Info "GitHub CLI (gh) not found — see Next Steps to set AZURE_STATIC_WEB_APPS_API_TOKEN manually"
+}
+
 # Enable Managed Identity on Static Web App
 Write-Info "Enabling Managed Identity on Static Web App..."
 az staticwebapp identity assign `
@@ -693,6 +709,16 @@ if (-not $SkipFunctionApp) {
     Write-Host "   c) MaxMind License Key (REQUIRED for IP geo-enrichment):" -ForegroundColor Cyan
     Write-Host "      # Sign up free at https://www.maxmind.com/en/geolite2/signup" -ForegroundColor Gray
     Write-Host "      az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings MAXMIND_LICENSE_KEY='<your-key>'" -ForegroundColor Cyan
+    Write-Host ""
+    if ($swaSecretSet) {
+        Write-Host "   d) GitHub Actions SWA token: already set as AZURE_STATIC_WEB_APPS_API_TOKEN repo secret." -ForegroundColor Green
+        Write-Host "      To rotate: re-run this script (or retrieve the token and run: gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN)" -ForegroundColor Gray
+    } else {
+        Write-Host "   d) GitHub Actions SWA token: set manually so the Actions workflow can deploy the frontend." -ForegroundColor Yellow
+        Write-Host "      gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body '$swaToken'" -ForegroundColor Cyan
+        Write-Host "      Or: GitHub repo → Settings → Secrets and variables → Actions → New repository secret" -ForegroundColor White
+        Write-Host "      Name: AZURE_STATIC_WEB_APPS_API_TOKEN   Value: (token shown above)" -ForegroundColor White
+    }
     Write-Host ""
     Write-Host "2. Assign 'Log Analytics Reader' role to the Function App on your Log Analytics Workspace" -ForegroundColor Yellow
     Write-Host "   Principal ID: $principalId" -ForegroundColor White
