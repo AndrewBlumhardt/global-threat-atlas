@@ -7,14 +7,12 @@
 
 import { resolveDataUrl, isDemoMode } from "../shared/demoMode.js";
 import { showDeviceDetails } from "../ui/panelManager.js";
+import { MARKER_SIZE_PX } from "../shared/markerConfig.js";
 
 let isEnabled = false;
 let map = null;
 let htmlMarkers = [];
 let popup = null;
-
-// Marker size — adjust here to resize all device-location markers in one place
-const MARKER_SIZE_PX = 10;
 
 /**
  * Enable the overlay - fetch and display GeoJSON as HTML markers with device icons
