@@ -31,6 +31,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         body=json.dumps(config),
         mimetype='application/json',
         headers={
+            # Allow the SWA frontend (same origin in production) to read this response.
+            # The wildcard is acceptable here because the Azure Maps key is a low-privilege
+            # credential that only authorises map rendering and weather tiles — it cannot
+            # be used to modify Maps account settings or access other Azure resources.
+            # If stricter isolation is needed, replace '*' with the SWA origin URL.
             'Access-Control-Allow-Origin': '*',
             'Cache-Control': 'no-cache, no-store, must-revalidate',
         }

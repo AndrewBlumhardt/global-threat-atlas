@@ -629,11 +629,15 @@ git push origin main
 | `REFRESH_DEVICE_LOOKBACK_HOURS` | How far back to query MDE device data (default: 168) | |
 | `REFRESH_SIGNIN_LOOKBACK_HOURS` | How far back to query sign-in data (default: 168) | |
 
-**Secrets (must be stored in Key Vault):**
-- `MAXMIND-LICENSE-KEY` (required for IP geolocation)
-- `AZURE-MAPS-SUBSCRIPTION-KEY` (required for weather overlays)
+**Required secrets (set directly as Function App app settings):**
+- `AZURE_MAPS_SUBSCRIPTION_KEY` — set automatically by deploy.ps1 from the Maps account primary key
+- `MAXMIND_LICENSE_KEY` — free key from [maxmind.com/en/geolite2/signup](https://www.maxmind.com/en/geolite2/signup); set manually after deployment
 
-After deployment, add your MaxMind license key and any other required secrets to Azure Key Vault. The Function App uses Managed Identity to access secrets at runtime.
+After deployment, set the MaxMind key:
+```bash
+az functionapp config appsettings set --name <FUNCTION-APP> --resource-group <RG> \
+  --settings MAXMIND_LICENSE_KEY="<your-key>"
+```
 
 ## Configuration Notes
 

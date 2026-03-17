@@ -2,7 +2,17 @@
 
 /**
  * Weather Overlay Control
- * Manages radar and infrared weather layers (mutually exclusive)
+ * Manages radar and infrared weather layers (mutually exclusive).
+ *
+ * Security note — subscription key in tile URLs:
+ * Azure Maps tile requests embed the subscription key as a query parameter
+ * (?subscription-key=...).  The key is delivered to the browser via /api/config
+ * (never in a static file), but it is visible in browser DevTools network tab
+ * while weather layers are active.  This is the standard tradeoff for Maps
+ * subscription key auth.  For higher-security deployments, switch to Entra ID
+ * (authType: "aad") in map-init.js and request tiles via an authenticated
+ * TileLayer with atlas.service.AuthenticationManager — the browser would then
+ * receive short-lived tokens instead of the durable subscription key.
  */
 
 let radarTileLayer = null;

@@ -39,6 +39,11 @@ export async function createMap({ containerId, initialView, style, subscriptionK
   }
   const cfg = { subscriptionKey };
 
+  // authType "subscriptionKey" passes the key with every map tile request.
+  // The key itself is never stored in a static file — it comes from /api/config
+  // at runtime.  If this deployment needs stricter key hygiene, replace with
+  // authType: "aad" and a clientId (Maps account → Azure AD app registration),
+  // which issues short-lived tokens and keeps the subscription key server-side.
   const map = new atlas.Map(containerId, {
     center: (initialView && initialView.center) || [-20, 25],
     zoom: (initialView && initialView.zoom) || 2,

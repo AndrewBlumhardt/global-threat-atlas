@@ -383,7 +383,7 @@ $mapsExists = az maps account show --name $AzureMapsAccountName --resource-group
 if ($mapsExists) {
     Write-Info "Azure Maps account already exists: $AzureMapsAccountName"
 } else {
-    Write-Info "Creating new Azure Maps account (Gen2 - Standard S0)..."
+    Write-Info "Creating new Azure Maps account (Gen2 - Standard S0 with weather tile support)..."
     az maps account create `
         --name $AzureMapsAccountName `
         --resource-group $ResourceGroupName `
@@ -393,7 +393,26 @@ if ($mapsExists) {
     Write-Success "Azure Maps account created: $AzureMapsAccountName"
 }
 
-Write-Info "Note: You will need to manually add the Azure Maps key to Key Vault after deployment"
+# Retrieve the Maps primary key now so it can be written directly into the Function App
+# app settings below.  The key is served to the browser at runtime by /api/config
+# (api/config/__init__.py ← os.environ['AZURE_MAPS_SUBSCRIPTION_KEY']) — it is
+# never stored in a static file.  To rotate the key, rerun this block or update
+# the app setting manually with:
+#   az maps account keys renew --name <account> --resource-group <rg> --key primary
+#   az functionapp config appsettings set --name <func> --resource-group <rg> \
+#       --settings AZURE_MAPS_SUBSCRIPTION_KEY=<new-key>
+$mapsKey = az maps account keys list `
+    --name $AzureMapsAccountName `
+    --resource-group $ResourceGroupName `
+    --query primaryKey `
+    --output tsv
+
+if ($mapsKey) {
+    Write-Success "Azure Maps primary key retrieved"
+} else {
+    Write-Warning "Could not retrieve Maps key — set AZURE_MAPS_SUBSCRIPTION_KEY manually in Function App settings"
+    $mapsKey = ''
+}
 
 # 7. Create Static Web App
 Write-Step "Creating Static Web App..."
@@ -504,12 +523,12 @@ if (-not $SkipFunctionApp) {
             DEFAULT_QUERY_TIME_WINDOW_HOURS=24 `
             INCREMENTAL_OVERLAP_MINUTES=10 `
             AzureWebJobsFeatureFlags=EnableWorkerIndexing `
-            AZURE_MAPS_SUBSCRIPTION_KEY='' `
-            AZURE_MAPS_CLIENT_ID='' `
+            AZURE_MAPS_SUBSCRIPTION_KEY=$mapsKey `
+            MAXMIND_LICENSE_KEY='' `
             KEY_VAULT_NAME=$KeyVaultName `
         --output none
 
-    Write-Info "Note: Azure Maps settings are empty by default. MaxMind license key stored in Key Vault."
+    Write-Info "Note: MAXMIND_LICENSE_KEY must be set manually (free key from maxmind.com/en/geolite2/signup)."
     Write-Success "Application settings configured — runtime storage uses Managed Identity (no storage keys)"
 
     # 9. Assign RBAC Roles
@@ -650,15 +669,13 @@ if (-not $SkipFunctionApp) {
     Write-Host "1. Add secrets to Key Vault:" -ForegroundColor Yellow
     Write-Host "   Required secrets for the application to function:" -ForegroundColor White
     Write-Host ""
-    Write-Host "   a) Azure Maps Subscription Key (REQUIRED for map visualization):" -ForegroundColor Cyan
-    Write-Host "      # Get key from Azure Maps account" -ForegroundColor Gray
-    Write-Host "      `$mapsKey = az maps account keys list --name $AzureMapsAccountName --resource-group $ResourceGroupName --query primaryKey -o tsv" -ForegroundColor Gray
-    Write-Host "      # Store in Key Vault" -ForegroundColor Gray
-    Write-Host "      az keyvault secret set --vault-name $KeyVaultName --name 'AZURE-MAPS-SUBSCRIPTION-KEY' --value `$mapsKey" -ForegroundColor Cyan
+    Write-Host "   a) Azure Maps key: already configured automatically as AZURE_MAPS_SUBSCRIPTION_KEY." -ForegroundColor Green
+    Write-Host "      To rotate: az maps account keys renew --name $AzureMapsAccountName --resource-group $ResourceGroupName --key primary" -ForegroundColor Gray
+    Write-Host "      Then:      az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings AZURE_MAPS_SUBSCRIPTION_KEY=<new-key>" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "   b) MaxMind License Key (OPTIONAL for IP geo-enrichment):" -ForegroundColor Cyan
-    Write-Host "      # Sign up at https://www.maxmind.com/en/geolite2/signup" -ForegroundColor Gray
-    Write-Host "      az keyvault secret set --vault-name $KeyVaultName --name 'MAXMIND-LICENSE-KEY' --value '<your-maxmind-key>'" -ForegroundColor Cyan
+    Write-Host "   b) MaxMind License Key (REQUIRED for IP geo-enrichment):" -ForegroundColor Cyan
+    Write-Host "      # Sign up free at https://www.maxmind.com/en/geolite2/signup" -ForegroundColor Gray
+    Write-Host "      az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings MAXMIND_LICENSE_KEY='<your-key>'" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "2. Assign 'Log Analytics Reader' role to the Function App on your Log Analytics Workspace" -ForegroundColor Yellow
     Write-Host "   Principal ID: $principalId" -ForegroundColor White
