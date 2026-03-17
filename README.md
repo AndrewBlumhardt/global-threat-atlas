@@ -268,9 +268,13 @@ git push origin main
 | `STORAGE_ACCOUNT_URL` | Blob storage URL | ✅ |
 | `STORAGE_CONTAINER_DATASETS` | Container name for data files | ✅ |
 | `STORAGE_CONTAINER_LOCKS` | Container name for lock files | ✅ |
-| `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval (default: 300) | ✅ |
 | `MAXMIND_LICENSE_KEY` | MaxMind GeoLite2 license key (required for IP geolocation) | ✅ |
 | `AZURE_MAPS_SUBSCRIPTION_KEY` | Azure Maps key (required for weather overlays) | ✅ |
+| `REFRESH_DEVICE_FREQUENCY_MINUTES` | How often MDE device data is re-queried (default: 1440 = 24 h) | |
+| `REFRESH_SIGNIN_FREQUENCY_MINUTES` | How often sign-in activity is re-queried (default: 1440 = 24 h) | |
+| `REFRESH_THREATINTEL_FREQUENCY_HOURS` | How often threat intel indicators are re-queried (default: 24) | |
+| `REFRESH_DEVICE_LOOKBACK_HOURS` | How far back to query MDE device data (default: 168) | |
+| `REFRESH_SIGNIN_LOOKBACK_HOURS` | How far back to query sign-in data (default: 168) | |
 
 All secrets must be set as environment variables in the Function App configuration. Key Vault is no longer used.
 
@@ -617,8 +621,13 @@ git push origin main
 | `STORAGE_ACCOUNT_URL` | Blob storage URL | ✅ |
 | `STORAGE_CONTAINER_DATASETS` | Container name for data files | ✅ |
 | `STORAGE_CONTAINER_LOCKS` | Container name for lock files | ✅ |
-| `DEFAULT_REFRESH_INTERVAL_SECONDS` | Throttle interval | ✅ |
-| `KEY_VAULT_NAME` | Azure Key Vault name (for secrets) | ✅ |
+| `MAXMIND_LICENSE_KEY` | MaxMind GeoLite2 license key (required for IP geolocation) | ✅ |
+| `AZURE_MAPS_SUBSCRIPTION_KEY` | Azure Maps key (required for weather overlays) | ✅ |
+| `REFRESH_DEVICE_FREQUENCY_MINUTES` | How often MDE device data is re-queried (default: 1440 = 24 h) | |
+| `REFRESH_SIGNIN_FREQUENCY_MINUTES` | How often sign-in activity is re-queried (default: 1440 = 24 h) | |
+| `REFRESH_THREATINTEL_FREQUENCY_HOURS` | How often threat intel indicators are re-queried (default: 24) | |
+| `REFRESH_DEVICE_LOOKBACK_HOURS` | How far back to query MDE device data (default: 168) | |
+| `REFRESH_SIGNIN_LOOKBACK_HOURS` | How far back to query sign-in data (default: 168) | |
 
 **Secrets (must be stored in Key Vault):**
 - `MAXMIND-LICENSE-KEY` (required for IP geolocation)
