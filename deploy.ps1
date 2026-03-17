@@ -484,6 +484,20 @@ az staticwebapp appsettings set `
 
 Write-Success "Static Web App settings configured (using Key Vault for secrets)"
 
+# Update web/config.js with the actual storage account URL so the frontend
+# fallback matches this deployment without any manual edits.
+# (The value is also served at runtime by /api/config — this only affects
+# the cold-start fallback that loads before /api/config responds.)
+$configJsPath = Join-Path $PSScriptRoot "web\config.js"
+if (Test-Path $configJsPath) {
+    $configContent = Get-Content $configJsPath -Raw
+    $configContent = $configContent -replace "window\.STORAGE_ACCOUNT_URL\s*=\s*'[^']*'", "window.STORAGE_ACCOUNT_URL = '$storageUrl'"
+    Set-Content $configJsPath $configContent -NoNewline
+    Write-Success "web/config.js updated: STORAGE_ACCOUNT_URL = $storageUrl"
+} else {
+    Write-Info "web/config.js not found — copy web/config.sample.js to web/config.js and set STORAGE_ACCOUNT_URL = $storageUrl"
+}
+
 # Disable public network access to Key Vault (Azure services can still access via backbone)
 Write-Info "Disabling public network access to Key Vault..."
 az keyvault update `
@@ -673,7 +687,10 @@ if (-not $SkipFunctionApp) {
     Write-Host "      To rotate: az maps account keys renew --name $AzureMapsAccountName --resource-group $ResourceGroupName --key primary" -ForegroundColor Gray
     Write-Host "      Then:      az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings AZURE_MAPS_SUBSCRIPTION_KEY=<new-key>" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "   b) MaxMind License Key (REQUIRED for IP geo-enrichment):" -ForegroundColor Cyan
+    Write-Host "   b) Storage Account URL: already written into web/config.js as STORAGE_ACCOUNT_URL." -ForegroundColor Green
+    Write-Host "      ($storageUrl)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "   c) MaxMind License Key (REQUIRED for IP geo-enrichment):" -ForegroundColor Cyan
     Write-Host "      # Sign up free at https://www.maxmind.com/en/geolite2/signup" -ForegroundColor Gray
     Write-Host "      az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings MAXMIND_LICENSE_KEY='<your-key>'" -ForegroundColor Cyan
     Write-Host ""
