@@ -1,70 +1,21 @@
-# Health API Endpoint
+# health
 
-**Route**: `/api/health`  
-**Methods**: GET  
-**Authentication**: Anonymous (public)
+Returns the API status, configuration presence, and current age of each GeoJSON data file.
 
-## 📋 Purpose
+## Endpoint
 
-Simple health check endpoint to verify the API is running and responsive. Used for monitoring and load balancer health probes.
+`GET /api/health`
 
-## 📄 Files
+## Response fields
 
-- `__init__.py` - Function implementation
-- `function.json` - Function binding configuration
+| Field | Description |
+|---|---|
+| `status` | Always `"healthy"` if the function responds |
+| `timestamp` | UTC ISO 8601 timestamp |
+| `configuration` | Map of required settings to `true`/`false` (presence, not values) |
+| `blobs` | Age in hours for `mde-devices.geojson`, `signin-activity.geojson`, `threat-intel-indicators.geojson` |
+| `maxmind_available` | Whether the local GeoLite2 database is cached and readable |
 
-## 🔧 Function Details
+## Usage
 
-### Request
-```http
-GET /api/health HTTP/1.1
-Host: your-site.azurestaticapps.net
-```
-
-### Response
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-02-15T01:23:45.123456"
-}
-```
-
-### Response Headers
-- `Content-Type: application/json`
-- `Access-Control-Allow-Origin: *` (CORS enabled)
-
-### Status Codes
-- **200 OK**: API is healthy and operational
-
-## 🎯 Usage
-
-### Frontend Monitoring
-```javascript
-async function checkApiHealth() {
-  try {
-    const response = await fetch('/api/health');
-    const health = await response.json();
-    console.log('API Status:', health.status);
-    return health.status === 'healthy';
-  } catch (error) {
-    console.error('API health check failed:', error);
-    return false;
-  }
-}
-```
-
-### External Health Probes
-```bash
-# Check API availability
-curl https://your-site.azurestaticapps.net/api/health
-
-# Monitor with HTTP status
-curl -f https://your-site.azurestaticapps.net/api/health || echo "API down"
-```
-
-## 📝 Notes
-
-- Lightweight endpoint (minimal processing)
-- No dependencies on external services
-- Returns quickly for load balancer health checks
-- Timestamp in ISO 8601 format (UTC)
+The frontend calls this endpoint every 14 minutes to keep the Function App warm on the Consumption plan. The response is also used to decide which layer toggles to enable or grey out on initial load.
