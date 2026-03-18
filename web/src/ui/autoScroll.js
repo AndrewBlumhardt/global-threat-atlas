@@ -20,6 +20,7 @@ export function addAutoScrollControl(map) {
   let menuHideTimerId = null;
 
   const control = document.createElement("div");
+  control.id = "autoScrollControl";
   control.className = "azure-maps-control-container";
   control.style.position = "fixed";
   control.style.bottom = "145px";

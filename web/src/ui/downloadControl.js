@@ -5,6 +5,7 @@
 
 export function addDownloadControl(map) {
   const control = document.createElement("div");
+  control.id = "downloadControl";
   control.className = "azure-maps-control-container";
   control.style.position = "fixed";
   control.style.bottom = "10px";

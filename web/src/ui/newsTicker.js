@@ -1,4 +1,5 @@
 const API_URL = '/api/news';
+const TICKER_HEIGHT = 40; // px — must match .news-ticker height in CSS
 
 let _tickerEl = null;
 let _innerEl  = null;
@@ -13,47 +14,54 @@ export async function toggleNewsTicker(enabled) {
 
   if (!enabled) {
     _tickerEl.classList.add('hidden');
+    _shiftControls(false);
     return;
   }
 
   _tickerEl.classList.remove('hidden');
-  if (_innerEl) _innerEl.textContent = 'Loading cyber news…';
+  _shiftControls(true);
+  if (_innerEl) _innerEl.textContent = 'Loading cyber news\u2026';
 
   try {
     const resp = await fetch(API_URL);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 
-    const items   = data.items   || [];
-    const speed_s = data.speed_s || 70;
+    // Handle both old (plain array) and new ({items, speed_s}) response shapes
+    const items   = Array.isArray(data) ? data : (data.items  || []);
+    const speed_s = Array.isArray(data) ? 70   : (data.speed_s || 70);
 
     if (items.length === 0) {
       if (_innerEl) _innerEl.textContent = 'No headlines available.';
       return;
     }
 
-    // Apply scroll speed from API config
-    if (_innerEl) _innerEl.style.animationDuration = `${speed_s}s`;
-
-    // Build headline spans — duplicate for seamless CSS scroll loop
     const html = items.map(item =>
       `<a class="news-ticker-item" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">` +
       `<span class="news-ticker-source">${esc(item.source)}</span>${esc(item.title)}` +
       `</a>`
-    ).join('<span class="news-ticker-sep">◆</span>');
+    ).join('<span class="news-ticker-sep">\u25c6</span>');
 
     if (_innerEl) {
       _innerEl.innerHTML = html +
-        '<span class="news-ticker-sep">◆</span>' +
+        '<span class="news-ticker-sep">\u25c6</span>' +
         html +
-        '<span class="news-ticker-sep">◆</span>';
-      // Re-apply after innerHTML resets inline styles
+        '<span class="news-ticker-sep">\u25c6</span>';
       _innerEl.style.animationDuration = `${speed_s}s`;
     }
   } catch (e) {
     console.warn('[newsTicker] fetch failed:', e.message);
     if (_innerEl) _innerEl.textContent = 'Could not load headlines.';
   }
+}
+
+function _shiftControls(tickerVisible) {
+  const offset = tickerVisible ? `${TICKER_HEIGHT + 10}px` : '10px';
+  const autoScrollOffset = tickerVisible ? `${145 + TICKER_HEIGHT}px` : '145px';
+  const dl = document.getElementById('downloadControl');
+  const as = document.getElementById('autoScrollControl');
+  if (dl) dl.style.bottom = offset;
+  if (as) as.style.bottom = autoScrollOffset;
 }
 
 function esc(s) {
