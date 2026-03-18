@@ -13,6 +13,7 @@ import azure.functions as func
 import json
 import logging
 import os
+import threading
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -32,12 +33,15 @@ FEEDS = [
 MAX_ITEMS     = int(os.getenv("TICKER_MAX_ITEMS", "10"))
 SPEED_S       = int(os.getenv("TICKER_SPEED_S",   "70"))
 CACHE_TTL_S   = 300   # 5 minutes
-FETCH_TIMEOUT = 8     # seconds per feed
+FETCH_TIMEOUT = 4     # seconds per feed — kept short so background threads don't linger
 
 # ---------------------------------------------------------------------------
-# Module-level cache
+# Module-level cache  (stale-while-revalidate)
+# _cache["items"] / _cache["ts"] hold the last good result.
+# _refresh_lock ensures only one background refresh runs at a time.
 # ---------------------------------------------------------------------------
 _cache: dict = {}
+_refresh_lock = threading.Lock()
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -59,13 +63,46 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 # ---------------------------------------------------------------------------
 
 def _get_items() -> list:
+    """Return cached items immediately.
+
+    - Fresh cache  → return instantly.
+    - Stale cache  → return stale data NOW, kick off a background refresh.
+    - Empty cache  → block once to do the first fetch (cold start only).
+    """
     now = time.time()
-    if _cache.get("ts", 0) + CACHE_TTL_S > now and _cache.get("items"):
+    fresh = _cache.get("ts", 0) + CACHE_TTL_S > now
+    has_items = bool(_cache.get("items"))
+
+    if fresh and has_items:
         return _cache["items"]
-    items = _fetch_all()
-    _cache["ts"]    = now
-    _cache["items"] = items
-    return items
+
+    if has_items:
+        # Stale but we have data — return immediately and refresh in background
+        _trigger_background_refresh()
+        return _cache["items"]
+
+    # Truly empty (first ever call) — must block
+    return _do_refresh()
+
+
+def _trigger_background_refresh() -> None:
+    """Start a background refresh if one isn't already running."""
+    if _refresh_lock.locked():
+        return  # already in progress
+    t = threading.Thread(target=_do_refresh, daemon=True)
+    t.start()
+
+
+def _do_refresh() -> list:
+    """Fetch all feeds, update the cache, and return the new item list."""
+    with _refresh_lock:
+        # Re-check inside the lock — another thread may have refreshed already
+        if _cache.get("ts", 0) + CACHE_TTL_S > time.time() and _cache.get("items"):
+            return _cache["items"]
+        items = _fetch_all()
+        _cache["ts"]    = time.time()
+        _cache["items"] = items
+        return items
 
 
 def _fetch_all() -> list:
