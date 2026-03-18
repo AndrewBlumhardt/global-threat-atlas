@@ -1,6 +1,6 @@
 # Global Threat Intelligence Atlas
 
-<img src="docs/images/screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="600"/>
+<img src="images/screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="600"/>
 
 [Live Demo](https://jolly-cliff-0f92c201e.2.azurestaticapps.net/)
 
@@ -36,7 +36,7 @@ An Azure-hosted interactive map for SOC and threat intelligence teams. Displays 
 
 ## How the App Works
 
-<img src="docs/images/atlas-design.png" alt="Application architecture diagram" width="700"/>
+<img src="images/atlas-design.png" alt="Application architecture diagram" width="700"/>
 
 Here is a walkthrough of what happens from the moment a browser opens the app to data appearing on the map.
 

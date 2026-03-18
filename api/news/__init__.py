@@ -31,7 +31,7 @@ FEEDS = [
 ]
 
 # Maximum items returned in total
-MAX_ITEMS = 50
+MAX_ITEMS = 5
 
 # Per-feed fetch timeout (seconds)
 FETCH_TIMEOUT = 8
