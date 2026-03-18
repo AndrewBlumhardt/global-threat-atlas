@@ -32,20 +32,20 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Remove WEBSITE_RUN_FROM_PACKAGE if set to a blob URL
+      - name: Remove WEBSITE_RUN_FROM_PACKAGE blob URL and set local-zip mode
         run: |
           val=$(az webapp config appsettings list \
             --name func-sentinel-activity-maps \
             --resource-group rg-sentinel-activity-maps \
             --query "[?name=='WEBSITE_RUN_FROM_PACKAGE'].value | [0]" -o tsv 2>/dev/null || echo "")
           if [[ "$val" == http* ]]; then
-            echo "Removing WEBSITE_RUN_FROM_PACKAGE (blob URL deployment mode)"
-            az webapp config appsettings delete \
+            echo "Replacing blob URL with WEBSITE_RUN_FROM_PACKAGE=1 (local zip mode)"
+            az webapp config appsettings set \
               --name func-sentinel-activity-maps \
               --resource-group rg-sentinel-activity-maps \
-              --setting-names WEBSITE_RUN_FROM_PACKAGE
+              --settings WEBSITE_RUN_FROM_PACKAGE=1
           else
-            echo "WEBSITE_RUN_FROM_PACKAGE is not set to a URL — no action needed"
+            echo "WEBSITE_RUN_FROM_PACKAGE already in local-zip or unset mode — no action needed (value: '$val')"
           fi
 
       - name: Setup Python 3.11
