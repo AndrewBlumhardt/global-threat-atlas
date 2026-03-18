@@ -170,6 +170,14 @@
               </label>
             </div>
 
+            <!-- Cyber News Ticker Layer -->
+            <div class="layer-item">
+              <label>
+                <input type="checkbox" id="layerNewsTicker">
+                <span class="layer-name">Cyber News</span>
+              </label>
+            </div>
+
             <!-- IP Lookup Layer -->
             <div class="layer-item" id="ipLookupLayerItem">
               <label>
@@ -214,6 +222,14 @@
 
   <!-- App entry point -->
   <script type="module" src="./src/app.js"></script>
+
+  <!-- Cyber News Ticker bar (hidden until toggled on from the layer panel) -->
+  <div id="newsTicker" class="hidden">
+    <div class="news-ticker-label">News</div>
+    <div class="news-ticker-track">
+      <div id="newsTickerContent"></div>
+    </div>
+  </div>
   <script>
   </script>
 </body>
