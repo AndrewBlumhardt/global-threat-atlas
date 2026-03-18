@@ -8,14 +8,14 @@ const AUTO_SCROLL_SPEED_LEVELS = {
   5: 24,
 };
 const DEFAULT_SPEED_LEVEL = 2;
-const SCROLL_TICK_MS = 50;
 const AUTO_SCROLL_DIRECTION = "right"; // "left" or "right"
 const MAX_LONGITUDE = 180;
 const MIN_LONGITUDE = -180;
 
 export function addAutoScrollControl(map) {
   let scrolling = false;
-  let scrollIntervalId = null;
+  let rafId = null;
+  let lastRafTimestamp = null;
   let speedLevel = DEFAULT_SPEED_LEVEL;
   let menuHideTimerId = null;
 
@@ -124,31 +124,30 @@ export function addAutoScrollControl(map) {
     }
   });
 
-  function stepScroll() {
+  function stepScroll(timestamp) {
     if (!scrolling) return;
 
-    const camera = map.getCamera();
-    let newCenter = [...camera.center];
-    // Speed values are degrees per second, applied on a fixed tick for consistent behavior.
-    const speedPerSecond = AUTO_SCROLL_SPEED_LEVELS[speedLevel] ?? AUTO_SCROLL_SPEED_LEVELS[DEFAULT_SPEED_LEVEL];
-    const longitudeDelta = speedPerSecond * (SCROLL_TICK_MS / 1000);
+    if (lastRafTimestamp !== null) {
+      const elapsed = Math.min((timestamp - lastRafTimestamp) / 1000, 0.1); // cap at 100 ms to avoid jumps after tab-switch
+      const speedPerSecond = AUTO_SCROLL_SPEED_LEVELS[speedLevel] ?? AUTO_SCROLL_SPEED_LEVELS[DEFAULT_SPEED_LEVEL];
+      const longitudeDelta = speedPerSecond * elapsed;
 
-    if (AUTO_SCROLL_DIRECTION === "right") {
-      newCenter[0] += longitudeDelta;
-      if (newCenter[0] > MAX_LONGITUDE) {
-        newCenter[0] = MIN_LONGITUDE;
+      const camera = map.getCamera();
+      let newCenter = [...camera.center];
+
+      if (AUTO_SCROLL_DIRECTION === "right") {
+        newCenter[0] += longitudeDelta;
+        if (newCenter[0] > MAX_LONGITUDE) newCenter[0] = MIN_LONGITUDE;
+      } else {
+        newCenter[0] -= longitudeDelta;
+        if (newCenter[0] < MIN_LONGITUDE) newCenter[0] = MAX_LONGITUDE;
       }
-    } else {
-      newCenter[0] -= longitudeDelta;
-      if (newCenter[0] < MIN_LONGITUDE) {
-        newCenter[0] = MAX_LONGITUDE;
-      }
+
+      map.setCamera({ center: newCenter, type: "jump" });
     }
 
-    map.setCamera({
-      center: newCenter,
-      type: "jump",
-    });
+    lastRafTimestamp = timestamp;
+    rafId = requestAnimationFrame(stepScroll);
   }
 
   button.addEventListener("click", (event) => {
@@ -162,18 +161,19 @@ export function addAutoScrollControl(map) {
       refreshSpeedMenuState();
       speedMenu.style.display = "block";
       scheduleMenuAutoHide();
-      stepScroll();
-      scrollIntervalId = setInterval(stepScroll, SCROLL_TICK_MS);
+      lastRafTimestamp = null;
+      rafId = requestAnimationFrame(stepScroll);
     } else {
       button.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
       button.style.color = "#333";
       button.style.borderColor = "rgba(255, 255, 255, 0.5)";
       speedMenu.style.display = "none";
       clearMenuAutoHide();
-      if (scrollIntervalId) {
-        clearInterval(scrollIntervalId);
-        scrollIntervalId = null;
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
       }
+      lastRafTimestamp = null;
     }
   });
 
