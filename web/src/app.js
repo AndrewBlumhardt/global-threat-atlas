@@ -15,6 +15,27 @@ import { setDemoMode, resolveDataUrl, isDemoMode } from "./shared/demoMode.js";
 import { lookupAndPlaceIP, clearAllLookups } from "./overlays/ipLookupOverlay.js";
 import { toggleNewsTicker } from "./ui/newsTicker.js";
 
+/**
+ * Probe a URL with HEAD, retrying on 5xx (cold-start / transient worker errors).
+ * Returns the final Response, or throws on network failure.
+ * Never retries 4xx — those are definitive answers (file not found, etc.).
+ */
+async function probeWithRetry(url, maxAttempts = 3, delayMs = 2000) {
+  let last;
+  for (let i = 0; i < maxAttempts; i++) {
+    if (i > 0) await new Promise(r => setTimeout(r, delayMs));
+    try {
+      last = await fetch(url, { method: 'HEAD' });
+      if (last.status < 500) return last; // ok or 4xx — stop retrying
+      console.warn(`[probe] ${url} returned ${last.status}, attempt ${i + 1}/${maxAttempts}`);
+    } catch (err) {
+      if (i === maxAttempts - 1) throw err;
+      console.warn(`[probe] ${url} network error, attempt ${i + 1}/${maxAttempts}:`, err.message);
+    }
+  }
+  return last;
+}
+
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
 
@@ -318,7 +339,7 @@ async function main() {
  */
 async function checkCustomSourceAvailability() {
   try {
-    const response = await fetch(await resolveDataUrl("custom-source.geojson"), { method: 'HEAD' });
+    const response = await probeWithRetry(await resolveDataUrl("custom-source.geojson"));
     const isAvailable = response.ok;
     // Apply custom layer display name if set (from API config or fallback)
     const customLayerDisplayName = window.CUSTOM_LAYER_DISPLAY_NAME || 'Custom Source';
@@ -337,7 +358,7 @@ async function checkCustomSourceAvailability() {
  */
 async function checkSignInActivityAvailability() {
   try {
-    const response = await fetch(await resolveDataUrl("signin-activity.geojson"), { method: 'HEAD' });
+    const response = await probeWithRetry(await resolveDataUrl("signin-activity.geojson"));
     const isAvailable = response.ok;
     updateLayerAvailability('SignInActivity', isAvailable);
   } catch (error) {
@@ -352,7 +373,7 @@ async function checkSignInActivityAvailability() {
 async function checkDeviceLocationsAvailability() {
   try {
     const deviceFile = await resolveDataUrl(isDemoMode() ? "device-locations.geojson" : "mde-devices.geojson");
-    const response = await fetch(deviceFile, { method: 'HEAD' });
+    const response = await probeWithRetry(deviceFile);
     const isAvailable = response.ok;
     updateLayerAvailability('DeviceLocations', isAvailable);
   } catch (error) {

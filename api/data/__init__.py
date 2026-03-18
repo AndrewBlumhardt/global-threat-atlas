@@ -17,29 +17,44 @@ _CORS_HEADERS = {
     'Access-Control-Allow-Headers': 'Content-Type',
 }
 
+# ---------------------------------------------------------------------------
+# Token cache — MI tokens are valid ~1 hour; refresh 10 min before expiry.
+# ---------------------------------------------------------------------------
+import time as _time
+_token_cache: dict = {}   # keys: resource -> {token, expires_at}
+
 
 def _get_mi_token(resource='https://storage.azure.com/'):
     """
-    Obtain a managed-identity bearer token.
-    Azure Functions / App Service expose IDENTITY_ENDPOINT + IDENTITY_HEADER.
-    Falls back to the VM-level IMDS endpoint when those vars are absent.
+    Obtain a managed-identity bearer token, reusing a cached copy when still
+    valid.  Fetching a fresh token on every invocation adds ~100-400 ms and
+    causes contention when multiple requests arrive simultaneously on cold start.
     """
+    now = _time.time()
+    cached = _token_cache.get(resource)
+    if cached and cached['expires_at'] > now:
+        return cached['token']
+
     identity_endpoint = os.environ.get('IDENTITY_ENDPOINT')
     identity_header   = os.environ.get('IDENTITY_HEADER')
     if identity_endpoint and identity_header:
-        # App Service / Azure Functions managed identity endpoint
         url = f'{identity_endpoint}?resource={resource}&api-version=2019-08-01'
         req = urllib_request.Request(url)
         req.add_header('X-IDENTITY-HEADER', identity_header)
     else:
-        # VM-level IMDS fallback
         url = (
             'http://169.254.169.254/metadata/identity/oauth2/token'
             f'?api-version=2018-02-01&resource={resource}'
         )
         req = urllib_request.Request(url, headers={'Metadata': 'true'})
     with urllib_request.urlopen(req, timeout=10) as resp:
-        return json.loads(resp.read())['access_token']
+        data = json.loads(resp.read())
+
+    token = data['access_token']
+    # expires_on is a Unix timestamp string; cache with a 10-minute safety margin
+    expires_on = int(data.get('expires_on', now + 3600))
+    _token_cache[resource] = {'token': token, 'expires_at': expires_on - 600}
+    return token
 
 
 def _blob_fetch(storage_url, container, blob_name, method='GET'):
