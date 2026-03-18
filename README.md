@@ -2,7 +2,7 @@
 
 <img src="images/screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="600"/>
 
-[Live Demo](https://jolly-cliff-0f92c201e.2.azurestaticapps.net/)
+**[Try the Live Demo](https://jolly-cliff-0f92c201e.2.azurestaticapps.net/)**
 
 An Azure-hosted interactive map for SOC and threat intelligence teams. Displays geo-enriched security data from Microsoft Sentinel on a global Azure Maps canvas. Designed for wall displays and analyst dashboards.
 
@@ -14,6 +14,7 @@ An Azure-hosted interactive map for SOC and threat intelligence teams. Displays 
 - Custom GeoJSON overlay (user-supplied or hosted in blob storage)
 - Weather radar and infrared (Azure Maps weather tiles)
 - Day/night terminator overlay
+- Cyber News Feed (auto-scrolling headlines from public security RSS feeds)
 
 **Other features:** IP lookup with MaxMind geolocation, VirusTotal links, drag-and-drop GeoJSON, screenshot capture, auto-scroll, demo mode with synthetic data.
 
@@ -101,16 +102,16 @@ A `setInterval` in `app.js` pings `/api/health` every 14 minutes while the tab i
 ## Azure Costs
 
 **Required Azure resources:**
-- Azure Static Web App (Standard tier — required for linked Function App backend)
+- Azure Static Web App (Standard tier, required for linked Function App backend)
 - Azure Function App (Consumption plan)
 - Azure Maps Account (Gen2 pay-as-you-go; paid tier required for weather tiles)
 - Azure Storage Account
 
 **Typical monthly cost:** $10-20 USD for demo or small production environments.
 
-**MaxMind:** IP geolocation uses a free GeoLite2 license. Business or commercial users must obtain a paid license — see [MaxMind licensing](https://www.maxmind.com).
+**MaxMind:** IP geolocation uses a free GeoLite2 license. Business or commercial users must obtain a paid license. See [MaxMind licensing](https://www.maxmind.com).
 
-### Function App — Consumption Plan
+### Function App: Consumption Plan
 
 The Function App bills only when functions execute:
 
@@ -143,23 +144,23 @@ When reached, the function app stops for the rest of the UTC day and resumes at 
 
 ### Static Web App (Public Frontend)
 
-The Azure Static Web App frontend is intentionally public — no login is required to view the map. Access control rules in [web/staticwebapp.config.json](web/staticwebapp.config.json) route all `/api/*` requests through the SWA's managed reverse proxy rather than exposing the Function App URL directly. Browsers never know the Function App's hostname, preventing direct bypass of the proxy.
+The Azure Static Web App frontend is intentionally public; no login is required to view the map. Access control rules in [web/staticwebapp.config.json](web/staticwebapp.config.json) route all `/api/*` requests through the SWA's managed reverse proxy rather than exposing the Function App URL directly. Browsers never know the Function App's hostname, preventing direct bypass of the proxy.
 
 For production deployments, consider these additional controls available from the SWA portal or `staticwebapp.config.json`:
-- **IP allow-listing** — restrict the app to your corporate IP ranges if it is for internal SOC use only
-- **Password protection** — SWA supports a simple site-wide password (Standard tier) as a lightweight gating mechanism without requiring Azure AD
-- **Azure AD authentication** — SWA can front the entire app with Entra ID authentication, requiring users to sign in before the map loads
+- **IP allow-listing:** restrict the app to your corporate IP ranges if it is for internal SOC use only
+- **Password protection:** SWA supports a simple site-wide password (Standard tier) as a lightweight gating mechanism without requiring Azure AD
+- **Azure AD authentication:** SWA can front the entire app with Entra ID authentication, requiring users to sign in before the map loads
 
 None of these are required for a demo deployment with synthetic data. They matter as soon as the map displays real Sentinel data.
 
 ### Function App API Endpoints
 
-All API routes are anonymous HTTP triggers — there is no API key or bearer token on any `/api/*` call. This is intentional: the Function App's only callers are the SWA proxy and the browser session it is serving. The SWA proxy is the access control boundary.
+All API routes are anonymous HTTP triggers; there is no API key or bearer token on any `/api/*` call. This is intentional: the Function App's only callers are the SWA proxy and the browser session it is serving. The SWA proxy is the access control boundary.
 
 For environments where additional hardening is warranted:
-- **CORS restriction** — restrict allowed origins to the SWA hostname in the Function App's CORS settings so the endpoints reject direct browser calls from other origins
-- **Inbound network restriction** — use the Function App's access restriction rules to allow only the SWA's outbound IP range, blocking all other callers
-- **Azure AD authentication** — enable Easy Auth on the Function App and require a valid Entra ID token; SWA can be configured to pass through the user's token automatically
+- **CORS restriction:** restrict allowed origins to the SWA hostname in the Function App's CORS settings so the endpoints reject direct browser calls from other origins
+- **Inbound network restriction:** use the Function App's access restriction rules to allow only the SWA's outbound IP range, blocking all other callers
+- **Azure AD authentication:** enable Easy Auth on the Function App and require a valid Entra ID token; SWA can be configured to pass through the user's token automatically
 
 ### Blob Storage
 
@@ -171,7 +172,7 @@ Two settings that are often conflated:
 
 | Option | How it works | Suitable for |
 |---|---|---|
-| **Anonymous** | URL is sufficient — no credentials | Demo / dev / test only |
+| **Anonymous** | URL is sufficient; no credentials needed | Demo / dev / test only |
 | **Managed Identity via Function App** | Blob reads proxy through the Function App, which authenticates with its own Managed Identity | Production |
 | **Private endpoint** | Disables public network access entirely | High-security production |
 
@@ -184,7 +185,7 @@ Two settings that are often conflated:
 
 ### Key Management and Why Key Vault Was Not Used
 
-The Azure Maps subscription key is never stored in static files or source control. It is read at runtime by `/api/config` from the Function App's app settings and served to the browser only for the current session. All Sentinel queries and blob reads use Managed Identity tokens — no connection strings or SAS tokens are required.
+The Azure Maps subscription key is never stored in static files or source control. It is read at runtime by `/api/config` from the Function App's app settings and served to the browser only for the current session. All Sentinel queries and blob reads use Managed Identity tokens; no connection strings or SAS tokens are required.
 
 Azure Key Vault was deliberately excluded to keep deployment complexity and cost minimal while still meeting reasonable security requirements:
 
@@ -192,12 +193,12 @@ Azure Key Vault was deliberately excluded to keep deployment complexity and cost
 |---|---|---|
 | **Extra Azure resource** | No | Yes (~$0.03/10,000 ops) |
 | **Deployment complexity** | Script sets values directly | Must create vault, assign access policy, use Key Vault reference syntax |
-| **Managed Identity required** | Already required for blob/Sentinel access | Same — vault access also uses Managed Identity |
+| **Managed Identity required** | Already required for blob/Sentinel access | Same; vault access also uses Managed Identity |
 | **Secret rotation** | Requires manual update or redeployment | Can rotate without touching app settings |
 | **Audit trail** | Function App logs only | Key Vault logs every secret read |
 | **Credential visibility** | App settings visible to anyone with Contributor on the Function App | Secret values never leave the vault |
 
-For this application, the only secret that would meaningfully benefit from Key Vault is the Azure Maps subscription key — MaxMind credentials are lower sensitivity, and all other access uses Managed Identity with no stored secrets at all. At the current scale and threat model, the additional vault resource and deployment steps are not justified.
+For this application, the only secret that would meaningfully benefit from Key Vault is the Azure Maps subscription key. MaxMind credentials are lower sensitivity, and all other access uses Managed Identity with no stored secrets at all. At the current scale and threat model, the additional vault resource and deployment steps are not justified.
 
 **To add Key Vault** if your environment requires it:
 1. Create a Key Vault in the same resource group.
@@ -314,6 +315,7 @@ The Function App deploys automatically on push to `api/**` via `.github/workflow
 | `/api/generate_geojson` | GET, POST | Converts an enriched TSV blob to GeoJSON and uploads it back to storage |
 | `/api/health` | GET | Returns API status, configuration presence, and blob data freshness |
 | `/api/lookup-ip` | GET | Resolves a single IP address to geo coordinates via MaxMind |
+| `/api/news` | GET | Returns up to 5 recent headlines from public security RSS feeds |
 | `/api/refresh` | GET, POST | Runs the Sentinel KQL → MaxMind → GeoJSON pipeline for stale datasets |
 
 See [api/README.md](api/README.md) for full parameter and response details.

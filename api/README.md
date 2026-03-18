@@ -7,7 +7,7 @@ Python Azure Functions backend for the Sentinel Activity Maps application.
 ### `/api/config`
 **Method:** GET
 
-Returns runtime configuration to the browser. Reads `AZURE_MAPS_SUBSCRIPTION_KEY`, `STORAGE_ACCOUNT_URL`, `STORAGE_CONTAINER_DATASETS`, and `CUSTOM_LAYER_DISPLAY_NAME` from the Function App's environment and returns them as JSON. The Maps key is never stored in static files — this endpoint is the sole delivery mechanism. Response carries `Cache-Control: no-cache`.
+Returns runtime configuration to the browser. Reads `AZURE_MAPS_SUBSCRIPTION_KEY`, `STORAGE_ACCOUNT_URL`, `STORAGE_CONTAINER_DATASETS`, and `CUSTOM_LAYER_DISPLAY_NAME` from the Function App's environment and returns them as JSON. The Maps key is never stored in static files; this endpoint is the sole delivery mechanism. Response carries `Cache-Control: no-cache`.
 
 ---
 
@@ -44,11 +44,39 @@ Converts an enriched TSV blob in storage to a GeoJSON FeatureCollection and uplo
 **Method:** GET
 
 Returns the current API status as JSON. Includes:
-- `status` — always `"healthy"` if the function is reachable
-- `timestamp` — UTC ISO 8601 string
-- `configuration` — presence (not values) of required app settings
-- `blobs` — age in hours for each of the three GeoJSON data files (`mde-devices.geojson`, `signin-activity.geojson`, `threat-intel-indicators.geojson`)
-- `maxmind_available` — whether the local GeoLite2 database is present and readable
+- `status`: always `"healthy"` if the function is reachable
+- `timestamp`: UTC ISO 8601 string
+- `configuration`: presence (not values) of required app settings
+- `blobs`: age in hours for each of the four GeoJSON data files (`mde-devices.geojson`, `signin-activity.geojson`, `threat-intel-indicators.geojson`, `news.json`)
+- `maxmind_available`: whether the local GeoLite2 database is present and readable
+
+---
+
+### `/api/news`
+**Method:** GET
+
+Fetches headlines from public security RSS feeds and returns a unified JSON array of up to 5 items, sorted newest-first.
+
+**Response fields per item:**
+
+| Field | Description |
+|---|---|
+| `title` | Article headline |
+| `source` | Feed display name |
+| `url` | Link to the full article |
+| `published` | ISO 8601 publication timestamp |
+
+Response carries `Cache-Control: public, max-age=900` (15-minute CDN cache). Feeds are fetched in parallel with an 8-second per-feed timeout. Failed feeds are skipped silently. No API keys required.
+
+**Sources:**
+
+| Source | Feed |
+|---|---|
+| CISA Alerts | https://www.cisa.gov/news.xml |
+| SANS ISC | https://isc.sans.edu/rssfeed.xml |
+| Bleeping Computer | https://www.bleepingcomputer.com/feed/ |
+| The Hacker News | https://feeds.feedburner.com/TheHackersNews |
+| MSRC | https://api.msrc.microsoft.com/update-guide/rss |
 
 ---
 
