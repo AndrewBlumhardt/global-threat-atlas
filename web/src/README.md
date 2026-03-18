@@ -4,7 +4,7 @@ Application JavaScript source. All files are ES modules loaded via `<script type
 
 ## Entry point
 
-`app.js`: initialises config, fires the refresh pipeline call, creates the map, wires up all overlays and UI controls.
+`app.js`: initializes config, fires the refresh pipeline call, creates the map, wires up all overlays and UI controls.
 
 ## Subfolders
 
