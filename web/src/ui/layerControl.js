@@ -26,6 +26,7 @@ let currentState = {
   deviceLocations: false,
   customSource: false,
   dayNight: false,
+  cyberNews: false,
 };
 
 let onLayerToggle = null;
@@ -205,6 +206,17 @@ export function initLayerControl(toggleCallback) {
       currentState.dayNight = e.target.checked;
       if (onLayerToggle) {
         await onLayerToggle('dayNight', e.target.checked);
+      }
+    });
+  }
+
+  // Cyber News ticker toggle
+  const cyberNewsCheckbox = document.getElementById('layerCyberNews');
+  if (cyberNewsCheckbox) {
+    cyberNewsCheckbox.addEventListener('change', async (e) => {
+      currentState.cyberNews = e.target.checked;
+      if (onLayerToggle) {
+        await onLayerToggle('cyberNews', e.target.checked);
       }
     });
   }
