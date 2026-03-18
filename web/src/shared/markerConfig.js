@@ -11,4 +11,4 @@
  *                      Threat Intel layer.  Visible diameter = 2 × this value.
  */
 export const MARKER_SIZE_PX = 10;
-export const BUBBLE_RADIUS_PX = 10;
+export const BUBBLE_RADIUS_PX = 4;
