@@ -1,9 +1,13 @@
 """
-/api/news  — Returns the top 5 headlines from cybersecurity RSS feeds.
+/api/news  — Returns cybersecurity headlines from RSS feeds.
 
-Fetches feeds in parallel, picks the 5 most recent items, and returns them
+Fetches feeds in parallel, picks the most recent items, and returns them
 as JSON.  Results are cached in a module-level variable for 5 minutes so
 repeated calls don't hammer upstream feeds.
+
+Environment variables (set in Function App → Configuration):
+  TICKER_MAX_ITEMS  Max headlines to return (default: 10)
+  TICKER_SPEED_S    Scroll animation duration in seconds (default: 70)
 """
 import azure.functions as func
 import json
@@ -25,7 +29,8 @@ FEEDS = [
     ("Bleeping Computer",  "https://www.bleepingcomputer.com/feed/"),
     ("CISA Advisories",    "https://www.cisa.gov/news.xml"),
 ]
-MAX_ITEMS     = 5
+MAX_ITEMS     = int(os.getenv("TICKER_MAX_ITEMS", "10"))
+SPEED_S       = int(os.getenv("TICKER_SPEED_S",   "70"))
 CACHE_TTL_S   = 300   # 5 minutes
 FETCH_TIMEOUT = 8     # seconds per feed
 
@@ -37,7 +42,7 @@ _cache: dict = {}
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     items = _get_items()
-    body  = json.dumps(items, ensure_ascii=False)
+    body  = json.dumps({"items": items, "speed_s": SPEED_S}, ensure_ascii=False)
     return func.HttpResponse(
         body,
         status_code=200,
