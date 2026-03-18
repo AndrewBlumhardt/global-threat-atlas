@@ -22,12 +22,18 @@ export async function toggleNewsTicker(enabled) {
   try {
     const resp = await fetch(API_URL);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const items = await resp.json();
+    const data = await resp.json();
 
-    if (!items || items.length === 0) {
+    const items   = data.items   || [];
+    const speed_s = data.speed_s || 70;
+
+    if (items.length === 0) {
       if (_innerEl) _innerEl.textContent = 'No headlines available.';
       return;
     }
+
+    // Apply scroll speed from API config
+    if (_innerEl) _innerEl.style.animationDuration = `${speed_s}s`;
 
     // Build headline spans — duplicate for seamless CSS scroll loop
     const html = items.map(item =>
@@ -41,6 +47,8 @@ export async function toggleNewsTicker(enabled) {
         '<span class="news-ticker-sep">◆</span>' +
         html +
         '<span class="news-ticker-sep">◆</span>';
+      // Re-apply after innerHTML resets inline styles
+      _innerEl.style.animationDuration = `${speed_s}s`;
     }
   } catch (e) {
     console.warn('[newsTicker] fetch failed:', e.message);

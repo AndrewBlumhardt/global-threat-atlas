@@ -8,6 +8,7 @@ repeated calls don't hammer upstream feeds.
 import azure.functions as func
 import json
 import logging
+import os
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
