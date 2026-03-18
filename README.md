@@ -12,6 +12,7 @@ An Azure-hosted interactive map for SOC and threat intelligence teams. Displays 
 - Threat intelligence indicators (active IP IOCs from Sentinel ThreatIntelIndicators)
 - Threat actor heatmap (country-level attribution from a static TSV)
 - Custom GeoJSON overlay (user-supplied or hosted in blob storage)
+- Cyber News Feed (live cybersecurity headlines from public RSS feeds)
 - Weather radar and infrared (Azure Maps weather tiles)
 - Day/night terminator overlay
 
@@ -249,6 +250,8 @@ All settings are configured automatically by the deploy script except `MAXMIND_A
 | `SENTINEL_THREATINTEL_KQL` | Override default threat intel KQL query | Built-in |
 | `CUSTOM_LAYER_DISPLAY_NAME` | Display name for the custom GeoJSON layer | `Custom Source` |
 | `REFRESH_MAX_ROWS` | Row cap for KQL query results | `1000000` |
+| `TICKER_MAX_ITEMS` | Max headlines returned by `/api/news` | `10` |
+| `TICKER_SPEED_S` | Cyber News ticker scroll duration in seconds (lower = faster) | `70` |
 
 ### CI/CD
 
@@ -266,6 +269,7 @@ The Function App deploys automatically on push to `api/**` via `.github/workflow
 | `/api/generate_geojson` | GET, POST | Converts an enriched TSV blob to GeoJSON and uploads it back to storage |
 | `/api/health` | GET | Returns API status, configuration presence, and blob data freshness |
 | `/api/lookup-ip` | GET | Resolves a single IP address to geo coordinates via MaxMind |
+| `/api/news` | GET | Returns recent cybersecurity headlines from RSS feeds as `{items, speed_s}`; cached 5 min |
 | `/api/refresh` | GET, POST | Runs the Sentinel KQL → MaxMind → GeoJSON pipeline for stale datasets |
 
 See [api/README.md](api/README.md) for full parameter and response details.
