@@ -56,12 +56,8 @@ export async function toggleNewsTicker(enabled) {
 }
 
 function _shiftControls(tickerVisible) {
-  const offset = tickerVisible ? `${TICKER_HEIGHT + 10}px` : '10px';
-  const autoScrollOffset = tickerVisible ? `${145 + TICKER_HEIGHT}px` : '145px';
   const dl = document.getElementById('downloadControl');
-  const as = document.getElementById('autoScrollControl');
-  if (dl) dl.style.bottom = offset;
-  if (as) as.style.bottom = autoScrollOffset;
+  if (dl) dl.style.bottom = tickerVisible ? `${TICKER_HEIGHT + 10}px` : '10px';
 }
 
 function esc(s) {

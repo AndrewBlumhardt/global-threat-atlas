@@ -215,13 +215,13 @@
         <span class="loading-text">Loading map…</span>
       </div>
 
-      <div id="map"></div>
-
-      <!-- Cyber News Ticker -->
-      <div id="newsTicker" class="news-ticker hidden">
-        <div class="news-ticker-label">CYBER NEWS</div>
-        <div class="news-ticker-scroll">
-          <span id="newsTickerInner"></span>
+      <div id="map">
+        <!-- Cyber News Ticker (inside #map so it survives Azure Maps fullscreen) -->
+        <div id="newsTicker" class="news-ticker hidden">
+          <div class="news-ticker-label">CYBER NEWS</div>
+          <div class="news-ticker-scroll">
+            <span id="newsTickerInner"></span>
+          </div>
         </div>
       </div>
     </main>
