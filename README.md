@@ -223,6 +223,7 @@ Deploy the entire application to Azure in approximately five minutes.
 - Azure CLI installed and authenticated (`az login`)
 - Owner or Contributor role on the target subscription or resource group
 - Microsoft Sentinel workspace with data
+- MaxMind GeoLite2 account (free; required for IP geolocation) — sign up at [maxmind.com/en/geolite2/signup](https://www.maxmind.com/en/geolite2/signup)
 - GitHub CLI (`gh`) for automatic GitHub Actions secret configuration (recommended)
 
 **PowerShell (Windows):**
