@@ -7,5 +7,4 @@ azure-storage-blob
 azure-monitor-query
 geoip2
 azure-functions
-# xml.etree.ElementTree is stdlib; no extra package needed for the news feed
 

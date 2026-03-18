@@ -163,7 +163,6 @@ export function addAutoScrollControl(map) {
       scheduleMenuAutoHide();
       stepScroll();
       scrollIntervalId = setInterval(stepScroll, SCROLL_TICK_MS);
-      document.dispatchEvent(new CustomEvent("autoScrollChanged", { detail: { active: true } }));
     } else {
       button.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
       button.style.color = "#333";
@@ -174,7 +173,6 @@ export function addAutoScrollControl(map) {
         clearInterval(scrollIntervalId);
         scrollIntervalId = null;
       }
-      document.dispatchEvent(new CustomEvent("autoScrollChanged", { detail: { active: false } }));
     }
   });
 

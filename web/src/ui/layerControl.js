@@ -26,7 +26,6 @@ let currentState = {
   deviceLocations: false,
   customSource: false,
   dayNight: false,
-  newsTicker: false,
 };
 
 let onLayerToggle = null;
@@ -206,17 +205,6 @@ export function initLayerControl(toggleCallback) {
       currentState.dayNight = e.target.checked;
       if (onLayerToggle) {
         await onLayerToggle('dayNight', e.target.checked);
-      }
-    });
-  }
-
-  // Cyber News Ticker toggle
-  const ntCheckbox = document.getElementById('layerNewsTicker');
-  if (ntCheckbox) {
-    ntCheckbox.addEventListener('change', async (e) => {
-      currentState.newsTicker = e.target.checked;
-      if (onLayerToggle) {
-        await onLayerToggle('newsTicker', e.target.checked);
       }
     });
   }

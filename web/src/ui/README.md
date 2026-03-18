@@ -14,4 +14,3 @@ UI controls and panel utilities.
 | `threatActorsToggle.js` | Toggle button for the threat actors heatmap layer. |
 | `threatIntelToggle.js` | Toggle button for the threat intelligence indicators layer. |
 | `weatherControl.js` | Toggle control for weather radar and infrared tile layers. |
-| `newsTicker.js` | Cyber News Feed ticker bar fixed to the bottom of the viewport. Fetches up to 5 headlines from `/api/news`, loops them seamlessly, and speeds up when auto-scroll is active. |

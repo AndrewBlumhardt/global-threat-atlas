@@ -1,8 +1,8 @@
 # Global Threat Intelligence Atlas
 
-<img src="images/screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="600"/>
+<img src="screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="600"/>
 
-**[Try the Live Demo](https://jolly-cliff-0f92c201e.2.azurestaticapps.net/)**
+[Live Demo](https://jolly-cliff-0f92c201e.2.azurestaticapps.net/)
 
 An Azure-hosted interactive map for SOC and threat intelligence teams. Displays geo-enriched security data from Microsoft Sentinel on a global Azure Maps canvas. Designed for wall displays and analyst dashboards.
 
@@ -14,30 +14,12 @@ An Azure-hosted interactive map for SOC and threat intelligence teams. Displays 
 - Custom GeoJSON overlay (user-supplied or hosted in blob storage)
 - Weather radar and infrared (Azure Maps weather tiles)
 - Day/night terminator overlay
-- Cyber News Feed (auto-scrolling headlines from public security RSS feeds)
 
 **Other features:** IP lookup with MaxMind geolocation, VirusTotal links, drag-and-drop GeoJSON, screenshot capture, auto-scroll, demo mode with synthetic data.
 
 ---
 
-## Operating Instructions
-
-- **Load the map** to begin. There may be a short delay on first load while the Function App cold-starts.
-- **Demo layers** are available immediately without a Sentinel connection. Enable Demo Mode to load synthetic sample data.
-- **Data layers** (sign-in activity, devices, threat intel) will appear greyed out if the data source is not yet available. This typically means the refresh pipeline has not run yet, or the required app settings are not configured.
-- **Threat actor map** uses a static TSV file in blob storage. It can be updated manually in Excel. Country attribution may be incomplete and actors without a country are not displayed.
-- **Threat intel, sign-in, and device data** come from Sentinel. IP coordinates are enriched with MaxMind geolocation. Country-level accuracy is generally reliable; precision decreases at city level. Routing, VPNs, and proxies affect accuracy.
-- **IP Lookup** accepts any public IP address and places a pin using MaxMind. The "Find My IP" button detects and plots your current IP.
-- **VirusTotal links** appear on IP-bearing markers in the details panel.
-- **Custom GeoJSON** can be dragged and dropped onto the map for temporary display, or hosted in blob storage for a persistent overlay.
-- **Screenshot** and **auto-scroll** controls are available in the toolbar.
-- This atlas is intended for pattern research and SOC wallboard displays. It does not provide the real-time fidelity needed for active incident response.
-
----
-
 ## How the App Works
-
-<img src="images/atlas-design.png" alt="Application architecture diagram" width="700"/>
 
 Here is a walkthrough of what happens from the moment a browser opens the app to data appearing on the map.
 
@@ -102,16 +84,16 @@ A `setInterval` in `app.js` pings `/api/health` every 14 minutes while the tab i
 ## Azure Costs
 
 **Required Azure resources:**
-- Azure Static Web App (Standard tier, required for linked Function App backend)
+- Azure Static Web App (Standard tier — required for linked Function App backend)
 - Azure Function App (Consumption plan)
 - Azure Maps Account (Gen2 pay-as-you-go; paid tier required for weather tiles)
 - Azure Storage Account
 
 **Typical monthly cost:** $10-20 USD for demo or small production environments.
 
-**MaxMind:** IP geolocation uses a free GeoLite2 license. Business or commercial users must obtain a paid license. See [MaxMind licensing](https://www.maxmind.com).
+**MaxMind:** IP geolocation uses a free GeoLite2 license. Business or commercial users must obtain a paid license — see [MaxMind licensing](https://www.maxmind.com).
 
-### Function App: Consumption Plan
+### Function App — Consumption Plan
 
 The Function App bills only when functions execute:
 
@@ -142,27 +124,7 @@ When reached, the function app stops for the rest of the UTC day and resumes at 
 
 ## Security
 
-### Static Web App (Public Frontend)
-
-The Azure Static Web App frontend is intentionally public; no login is required to view the map. Access control rules in [web/staticwebapp.config.json](web/staticwebapp.config.json) route all `/api/*` requests through the SWA's managed reverse proxy rather than exposing the Function App URL directly. Browsers never know the Function App's hostname, preventing direct bypass of the proxy.
-
-For production deployments, consider these additional controls available from the SWA portal or `staticwebapp.config.json`:
-- **IP allow-listing:** restrict the app to your corporate IP ranges if it is for internal SOC use only
-- **Password protection:** SWA supports a simple site-wide password (Standard tier) as a lightweight gating mechanism without requiring Azure AD
-- **Azure AD authentication:** SWA can front the entire app with Entra ID authentication, requiring users to sign in before the map loads
-
-None of these are required for a demo deployment with synthetic data. They matter as soon as the map displays real Sentinel data.
-
-### Function App API Endpoints
-
-All API routes are anonymous HTTP triggers; there is no API key or bearer token on any `/api/*` call. This is intentional: the Function App's only callers are the SWA proxy and the browser session it is serving. The SWA proxy is the access control boundary.
-
-For environments where additional hardening is warranted:
-- **CORS restriction:** restrict allowed origins to the SWA hostname in the Function App's CORS settings so the endpoints reject direct browser calls from other origins
-- **Inbound network restriction:** use the Function App's access restriction rules to allow only the SWA's outbound IP range, blocking all other callers
-- **Azure AD authentication:** enable Easy Auth on the Function App and require a valid Entra ID token; SWA can be configured to pass through the user's token automatically
-
-### Blob Storage
+### Blob Storage Access
 
 Two settings that are often conflated:
 
@@ -172,7 +134,7 @@ Two settings that are often conflated:
 
 | Option | How it works | Suitable for |
 |---|---|---|
-| **Anonymous** | URL is sufficient; no credentials needed | Demo / dev / test only |
+| **Anonymous** | URL is sufficient — no credentials | Demo / dev / test only |
 | **Managed Identity via Function App** | Blob reads proxy through the Function App, which authenticates with its own Managed Identity | Production |
 | **Private endpoint** | Disables public network access entirely | High-security production |
 
@@ -183,35 +145,24 @@ Two settings that are often conflated:
 - **Production:** anonymous access disabled, reads proxied through the Function App with Managed Identity
 - **High-security production:** anonymous access disabled, private endpoint added
 
-### Key Management and Why Key Vault Was Not Used
+### Key Management
 
-The Azure Maps subscription key is never stored in static files or source control. It is read at runtime by `/api/config` from the Function App's app settings and served to the browser only for the current session. All Sentinel queries and blob reads use Managed Identity tokens; no connection strings or SAS tokens are required.
+The Azure Maps subscription key is never stored in static files or source control. It is read at runtime by `/api/config` from the Function App's app settings and served to the browser only for the current session. All Sentinel queries and blob reads use Managed Identity tokens — no connection strings or SAS tokens are required.
 
-Azure Key Vault was deliberately excluded to keep deployment complexity and cost minimal while still meeting reasonable security requirements:
+---
 
-| | App Settings (current) | Key Vault |
-|---|---|---|
-| **Extra Azure resource** | No | Yes (~$0.03/10,000 ops) |
-| **Deployment complexity** | Script sets values directly | Must create vault, assign access policy, use Key Vault reference syntax |
-| **Managed Identity required** | Already required for blob/Sentinel access | Same; vault access also uses Managed Identity |
-| **Secret rotation** | Requires manual update or redeployment | Can rotate without touching app settings |
-| **Audit trail** | Function App logs only | Key Vault logs every secret read |
-| **Credential visibility** | App settings visible to anyone with Contributor on the Function App | Secret values never leave the vault |
+## Operating Instructions
 
-For this application, the only secret that would meaningfully benefit from Key Vault is the Azure Maps subscription key. MaxMind credentials are lower sensitivity, and all other access uses Managed Identity with no stored secrets at all. At the current scale and threat model, the additional vault resource and deployment steps are not justified.
-
-**To add Key Vault** if your environment requires it:
-1. Create a Key Vault in the same resource group.
-2. Assign the Function App's Managed Identity the **Key Vault Secrets User** role on the vault.
-3. Add the Maps key as a secret:
-   ```bash
-   az keyvault secret set --vault-name <vault> --name AzureMapsKey --value <key>
-   ```
-4. Replace the `AZURE_MAPS_SUBSCRIPTION_KEY` app setting value with a Key Vault reference:
-   ```
-   @Microsoft.KeyVault(VaultName=<vault>;SecretName=AzureMapsKey)
-   ```
-The Function App resolves the reference transparently at runtime with no code changes required.
+- **Load the map** to begin. There may be a short delay on first load while the Function App cold-starts.
+- **Demo layers** are available immediately without a Sentinel connection. Enable Demo Mode to load synthetic sample data.
+- **Data layers** (sign-in activity, devices, threat intel) will appear greyed out if the data source is not yet available. This typically means the refresh pipeline has not run yet, or the required app settings are not configured.
+- **Threat actor map** uses a static TSV file in blob storage. It can be updated manually in Excel. Country attribution may be incomplete and actors without a country are not displayed.
+- **Threat intel, sign-in, and device data** come from Sentinel. IP coordinates are enriched with MaxMind geolocation. Country-level accuracy is generally reliable; precision decreases at city level. Routing, VPNs, and proxies affect accuracy.
+- **IP Lookup** accepts any public IP address and places a pin using MaxMind. The "Find My IP" button detects and plots your current IP.
+- **VirusTotal links** appear on IP-bearing markers in the details panel.
+- **Custom GeoJSON** can be dragged and dropped onto the map for temporary display, or hosted in blob storage for a persistent overlay.
+- **Screenshot** and **auto-scroll** controls are available in the toolbar.
+- This atlas is intended for pattern research and SOC wallboard displays. It does not provide the real-time fidelity needed for active incident response.
 
 ---
 
@@ -223,7 +174,6 @@ Deploy the entire application to Azure in approximately five minutes.
 - Azure CLI installed and authenticated (`az login`)
 - Owner or Contributor role on the target subscription or resource group
 - Microsoft Sentinel workspace with data
-- MaxMind GeoLite2 account (free; required for IP geolocation) — sign up at [maxmind.com/en/geolite2/signup](https://www.maxmind.com/en/geolite2/signup)
 - GitHub CLI (`gh`) for automatic GitHub Actions secret configuration (recommended)
 
 **PowerShell (Windows):**
@@ -316,7 +266,6 @@ The Function App deploys automatically on push to `api/**` via `.github/workflow
 | `/api/generate_geojson` | GET, POST | Converts an enriched TSV blob to GeoJSON and uploads it back to storage |
 | `/api/health` | GET | Returns API status, configuration presence, and blob data freshness |
 | `/api/lookup-ip` | GET | Resolves a single IP address to geo coordinates via MaxMind |
-| `/api/news` | GET | Returns up to 5 recent headlines from public security RSS feeds |
 | `/api/refresh` | GET, POST | Runs the Sentinel KQL → MaxMind → GeoJSON pipeline for stale datasets |
 
 See [api/README.md](api/README.md) for full parameter and response details.

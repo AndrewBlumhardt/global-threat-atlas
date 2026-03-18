@@ -81,7 +81,7 @@ This directory contains CI/CD workflows for automated deployment and testing of 
 
 ## Troubleshooting
 
-**Start here: health check endpoint:**
+**Start here — health check endpoint:**
 After any deployment, verify the function is healthy before debugging further:
 ```
 https://<your-swa>.azurestaticapps.net/api/health

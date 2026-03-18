@@ -13,7 +13,6 @@ import { addDownloadControl } from "./ui/downloadControl.js";
 import { enableDragAndDrop } from "./ui/dragDropGeoJSON.js";
 import { setDemoMode, resolveDataUrl, isDemoMode } from "./shared/demoMode.js";
 import { lookupAndPlaceIP, clearAllLookups } from "./overlays/ipLookupOverlay.js";
-import { toggleNewsTicker } from "./ui/newsTicker.js";
 
 async function main() {
   console.log("Starting Sentinel Activity Maps...");
@@ -152,9 +151,6 @@ async function main() {
         case 'dayNight':
           toggleDayNightOverlay(map, enabled);
           break;
-        case 'newsTicker':
-          await toggleNewsTicker(enabled);
-          break;
       }
     });
     
@@ -164,7 +160,6 @@ async function main() {
     updateLayerAvailability('WeatherRadar', true);
     updateLayerAvailability('WeatherInfrared', true);
     updateLayerAvailability('DayNight', true);
-    updateLayerAvailability('NewsTicker', true);
     // Future layers start disabled (enabled when data is available)
     updateLayerAvailability('DeviceLocations', false);
     
