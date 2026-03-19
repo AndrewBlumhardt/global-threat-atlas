@@ -20,6 +20,21 @@ An Azure-hosted interactive map for SOC and threat intelligence teams. Displays 
 
 ---
 
+## Operating Instructions
+
+- **Load the map** to begin. There may be a short delay on first load while the Function App cold-starts.
+- **Demo layers** are available immediately without a Sentinel connection. Enable Demo Mode to load synthetic sample data.
+- **Data layers** (sign-in activity, devices, threat intel) will appear greyed out if the data source is not yet available. This typically means the refresh pipeline has not run yet, or the required app settings are not configured.
+- **Threat actor map** uses a static TSV file in blob storage. It can be updated manually in Excel. Country attribution may be incomplete and actors without a country are not displayed.
+- **Threat intel, sign-in, and device data** come from Sentinel. IP coordinates are enriched with MaxMind geolocation. Country-level accuracy is generally reliable; precision decreases at city level. Routing, VPNs, and proxies affect accuracy.
+- **IP Lookup** accepts any public IP address and places a pin using MaxMind. The "Find My IP" button detects and plots your current IP.
+- **VirusTotal links** appear on IP-bearing markers in the details panel.
+- **Custom GeoJSON** can be dragged and dropped onto the map for temporary display, or hosted in blob storage for a persistent overlay.
+- **Screenshot** and **auto-scroll** controls are available in the toolbar.
+- This atlas is intended for pattern research and SOC wallboard displays. It does not provide the real-time fidelity needed for active incident response.
+
+---
+
 ## How the App Works
 
 <img src="https://raw.githubusercontent.com/AndrewBlumhardt/sentinel-activity-maps/main/images/atlas-design.png" alt="Application architecture diagram" width="700"/>
@@ -168,50 +183,11 @@ Two settings that are often conflated:
 - **Production:** anonymous access disabled, reads proxied through the Function App with Managed Identity
 - **High-security production:** anonymous access disabled, private endpoint added
 
-### Key Management and Why Key Vault Was Not Used
+### Key Management
 
 The Azure Maps subscription key is never stored in static files or source control. It is read at runtime by `/api/config` from the Function App's app settings and served to the browser only for the current session. All Sentinel queries and blob reads use Managed Identity tokens — no connection strings or SAS tokens are required.
 
-Azure Key Vault was deliberately excluded to keep deployment complexity and cost minimal while still meeting reasonable security requirements:
-
-| | App Settings (current) | Key Vault |
-|---|---|---|
-| **Extra Azure resource** | No | Yes (~$0.03/10,000 ops) |
-| **Deployment complexity** | Script sets values directly | Must create vault, assign access policy, use Key Vault reference syntax |
-| **Managed Identity required** | Already required for blob/Sentinel access | Same; vault access also uses Managed Identity |
-| **Secret rotation** | Requires manual update or redeployment | Can rotate without touching app settings |
-| **Audit trail** | Function App logs only | Key Vault logs every secret read |
-| **Credential visibility** | App settings visible to anyone with Contributor on the Function App | Secret values never leave the vault |
-
-For this application, the only secret that would meaningfully benefit from Key Vault is the Azure Maps subscription key. MaxMind credentials are lower sensitivity, and all other access uses Managed Identity with no stored secrets at all. At the current scale and threat model, the additional vault resource and deployment steps are not justified.
-
-**To add Key Vault** if your environment requires it:
-1. Create a Key Vault in the same resource group.
-2. Assign the Function App's Managed Identity the **Key Vault Secrets User** role on the vault.
-3. Add the Maps key as a secret:
-   ```bash
-   az keyvault secret set --vault-name <vault> --name AzureMapsKey --value <key>
-   ```
-4. Replace the `AZURE_MAPS_SUBSCRIPTION_KEY` app setting value with a Key Vault reference:
-   ```
-   @Microsoft.KeyVault(VaultName=<vault>;SecretName=AzureMapsKey)
-   ```
-The Function App resolves the reference transparently at runtime with no code changes required.
-
----
-
-## Operating Instructions
-
-- **Load the map** to begin. There may be a short delay on first load while the Function App cold-starts.
-- **Demo layers** are available immediately without a Sentinel connection. Enable Demo Mode to load synthetic sample data.
-- **Data layers** (sign-in activity, devices, threat intel) will appear greyed out if the data source is not yet available. This typically means the refresh pipeline has not run yet, or the required app settings are not configured.
-- **Threat actor map** uses a static TSV file in blob storage. It can be updated manually in Excel. Country attribution may be incomplete and actors without a country are not displayed.
-- **Threat intel, sign-in, and device data** come from Sentinel. IP coordinates are enriched with MaxMind geolocation. Country-level accuracy is generally reliable; precision decreases at city level. Routing, VPNs, and proxies affect accuracy.
-- **IP Lookup** accepts any public IP address and places a pin using MaxMind. The "Find My IP" button detects and plots your current IP.
-- **VirusTotal links** appear on IP-bearing markers in the details panel.
-- **Custom GeoJSON** can be dragged and dropped onto the map for temporary display, or hosted in blob storage for a persistent overlay.
-- **Screenshot** and **auto-scroll** controls are available in the toolbar.
-- This atlas is intended for pattern research and SOC wallboard displays. It does not provide the real-time fidelity needed for active incident response.
+Azure Key Vault was deliberately excluded: the only secret that would benefit is the Maps key, and the added resource, deployment complexity, and access policy configuration are not justified at this scale. To add Key Vault if your environment requires it, create a vault, assign the Function App's Managed Identity the **Key Vault Secrets User** role, store the key as a secret, and replace the `AZURE_MAPS_SUBSCRIPTION_KEY` app setting with a Key Vault reference (`@Microsoft.KeyVault(VaultName=<vault>;SecretName=AzureMapsKey)`).
 
 ---
 
