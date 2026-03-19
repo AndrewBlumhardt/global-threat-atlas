@@ -1,11 +1,12 @@
 // Constants for auto-scroll behavior
-// Levels span a modest range so all speeds feel usable on typical hardware/networks.
+// Each level is ~40% faster than the previous so steps are perceptibly distinct
+// at zoom 2 where a degree of longitude is only ~2-3 pixels wide.
 const AUTO_SCROLL_SPEED_LEVELS = {
-  1: 4,
-  2: 6,
-  3: 8,
-  4: 11,
-  5: 14,
+  1: 7,
+  2: 10,
+  3: 14,
+  4: 18,
+  5: 22,
 };
 const DEFAULT_SPEED_LEVEL = 2;
 const AUTO_SCROLL_DIRECTION = "right"; // "left" or "right"
