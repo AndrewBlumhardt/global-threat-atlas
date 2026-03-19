@@ -1,11 +1,11 @@
 // Constants for auto-scroll behavior
-// Levels intentionally span from visibly slow to very fast for ambient map motion.
+// Levels span a modest range so all speeds feel usable on typical hardware/networks.
 const AUTO_SCROLL_SPEED_LEVELS = {
-  1: 2.5,
-  2: 5,
-  3: 9,
-  4: 15,
-  5: 24,
+  1: 4,
+  2: 6,
+  3: 8,
+  4: 11,
+  5: 14,
 };
 const DEFAULT_SPEED_LEVEL = 2;
 const AUTO_SCROLL_DIRECTION = "right"; // "left" or "right"
