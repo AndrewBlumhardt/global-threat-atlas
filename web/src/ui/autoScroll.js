@@ -1,12 +1,14 @@
-// Constants for auto-scroll behavior
-// Each level is ~40% faster than the previous so steps are perceptibly distinct
-// at zoom 2 where a degree of longitude is only ~2-3 pixels wide.
+// Speed levels in pixels/second (zoom-independent).
+// Converted to longitude degrees at runtime using the current zoom so the visual
+// speed feels consistent regardless of how far in/out the user has zoomed.
+// Sub-pixel deltas are accumulated across frames so every level produces a
+// perceptibly different speed even at low zoom where 1° ≈ 2-3 px.
 const AUTO_SCROLL_SPEED_LEVELS = {
-  1: 7,
-  2: 10,
-  3: 14,
-  4: 18,
-  5: 22,
+  1: 20,
+  2: 40,
+  3: 65,
+  4: 95,
+  5: 130,
 };
 const DEFAULT_SPEED_LEVEL = 2;
 const AUTO_SCROLL_DIRECTION = "right"; // "left" or "right"
@@ -19,6 +21,7 @@ export function addAutoScrollControl(map) {
   let lastRafTimestamp = null;
   let speedLevel = DEFAULT_SPEED_LEVEL;
   let menuHideTimerId = null;
+  let pendingLongitude = 0; // accumulated sub-pixel longitude degrees not yet sent to the map
 
   const control = document.createElement("div");
   control.id = "autoScrollControl";
@@ -130,21 +133,33 @@ export function addAutoScrollControl(map) {
 
     if (lastRafTimestamp !== null) {
       const elapsed = Math.min((timestamp - lastRafTimestamp) / 1000, 0.1); // cap at 100 ms to avoid jumps after tab-switch
-      const speedPerSecond = AUTO_SCROLL_SPEED_LEVELS[speedLevel] ?? AUTO_SCROLL_SPEED_LEVELS[DEFAULT_SPEED_LEVEL];
-      const longitudeDelta = speedPerSecond * elapsed;
 
-      const camera = map.getCamera();
-      let newCenter = [...camera.center];
+      // Convert pixels/second → degrees/second at the current zoom level.
+      // At zoom z: map width = 256 * 2^z pixels for 360°, so px/deg = (256 * 2^z) / 360.
+      const pixelsPerSecond = AUTO_SCROLL_SPEED_LEVELS[speedLevel] ?? AUTO_SCROLL_SPEED_LEVELS[DEFAULT_SPEED_LEVEL];
+      const zoom = map.getCamera().zoom;
+      const pixelsPerDegree = (256 * Math.pow(2, zoom)) / 360;
+      const degreesPerSecond = pixelsPerSecond / pixelsPerDegree;
 
-      if (AUTO_SCROLL_DIRECTION === "right") {
-        newCenter[0] += longitudeDelta;
-        if (newCenter[0] > MAX_LONGITUDE) newCenter[0] = MIN_LONGITUDE;
-      } else {
-        newCenter[0] -= longitudeDelta;
-        if (newCenter[0] < MIN_LONGITUDE) newCenter[0] = MAX_LONGITUDE;
+      // Accumulate — don't call setCamera until we have at least 1 px of real movement.
+      pendingLongitude += degreesPerSecond * elapsed;
+      const onePxInDegrees = 1 / pixelsPerDegree;
+
+      if (pendingLongitude >= onePxInDegrees) {
+        const camera = map.getCamera();
+        let newCenter = [...camera.center];
+
+        if (AUTO_SCROLL_DIRECTION === "right") {
+          newCenter[0] += pendingLongitude;
+          if (newCenter[0] > MAX_LONGITUDE) newCenter[0] -= 360;
+        } else {
+          newCenter[0] -= pendingLongitude;
+          if (newCenter[0] < MIN_LONGITUDE) newCenter[0] += 360;
+        }
+
+        map.setCamera({ center: newCenter, type: "jump" });
+        pendingLongitude = 0;
       }
-
-      map.setCamera({ center: newCenter, type: "jump" });
     }
 
     lastRafTimestamp = timestamp;
@@ -175,6 +190,7 @@ export function addAutoScrollControl(map) {
         rafId = null;
       }
       lastRafTimestamp = null;
+      pendingLongitude = 0;
     }
   });
 
