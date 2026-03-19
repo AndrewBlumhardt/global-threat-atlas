@@ -1,6 +1,6 @@
 # Global Threat Intelligence Atlas
 
-<img src="screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="600"/>
+<img src="https://raw.githubusercontent.com/AndrewBlumhardt/sentinel-activity-maps/main/images/screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="600"/>
 
 [Live Demo](https://jolly-cliff-0f92c201e.2.azurestaticapps.net/)
 
@@ -21,6 +21,8 @@ An Azure-hosted interactive map for SOC and threat intelligence teams. Displays 
 ---
 
 ## How the App Works
+
+<img src="https://raw.githubusercontent.com/AndrewBlumhardt/sentinel-activity-maps/main/images/atlas-design.png" alt="Application architecture diagram" width="700"/>
 
 Here is a walkthrough of what happens from the moment a browser opens the app to data appearing on the map.
 
@@ -125,6 +127,26 @@ When reached, the function app stops for the rest of the UTC day and resumes at 
 
 ## Security
 
+### Static Web App (Public Frontend)
+
+The Azure Static Web App frontend is intentionally public; no login is required to view the map. Access control rules in [web/staticwebapp.config.json](web/staticwebapp.config.json) route all `/api/*` requests through the SWA's managed reverse proxy rather than exposing the Function App URL directly. Browsers never know the Function App's hostname, preventing direct bypass of the proxy.
+
+For production deployments, consider these additional controls available from the SWA portal or `staticwebapp.config.json`:
+- **IP allow-listing:** restrict the app to your corporate IP ranges if it is for internal SOC use only
+- **Password protection:** SWA supports a simple site-wide password (Standard tier) as a lightweight gating mechanism without requiring Azure AD
+- **Azure AD authentication:** SWA can front the entire app with Entra ID authentication, requiring users to sign in before the map loads
+
+None of these are required for a demo deployment with synthetic data. They matter as soon as the map displays real Sentinel data.
+
+### Function App API Endpoints
+
+All API routes are anonymous HTTP triggers; there is no API key or bearer token on any `/api/*` call. This is intentional: the Function App's only callers are the SWA proxy and the browser session it is serving. The SWA proxy is the access control boundary.
+
+For environments where additional hardening is warranted:
+- **CORS restriction:** restrict allowed origins to the SWA hostname in the Function App's CORS settings so the endpoints reject direct browser calls from other origins
+- **Inbound network restriction:** use the Function App's access restriction rules to allow only the SWA's outbound IP range, blocking all other callers
+- **Azure AD authentication:** enable Easy Auth on the Function App and require a valid Entra ID token; SWA can be configured to pass through the user's token automatically
+
 ### Blob Storage Access
 
 Two settings that are often conflated:
@@ -146,9 +168,35 @@ Two settings that are often conflated:
 - **Production:** anonymous access disabled, reads proxied through the Function App with Managed Identity
 - **High-security production:** anonymous access disabled, private endpoint added
 
-### Key Management
+### Key Management and Why Key Vault Was Not Used
 
 The Azure Maps subscription key is never stored in static files or source control. It is read at runtime by `/api/config` from the Function App's app settings and served to the browser only for the current session. All Sentinel queries and blob reads use Managed Identity tokens — no connection strings or SAS tokens are required.
+
+Azure Key Vault was deliberately excluded to keep deployment complexity and cost minimal while still meeting reasonable security requirements:
+
+| | App Settings (current) | Key Vault |
+|---|---|---|
+| **Extra Azure resource** | No | Yes (~$0.03/10,000 ops) |
+| **Deployment complexity** | Script sets values directly | Must create vault, assign access policy, use Key Vault reference syntax |
+| **Managed Identity required** | Already required for blob/Sentinel access | Same; vault access also uses Managed Identity |
+| **Secret rotation** | Requires manual update or redeployment | Can rotate without touching app settings |
+| **Audit trail** | Function App logs only | Key Vault logs every secret read |
+| **Credential visibility** | App settings visible to anyone with Contributor on the Function App | Secret values never leave the vault |
+
+For this application, the only secret that would meaningfully benefit from Key Vault is the Azure Maps subscription key. MaxMind credentials are lower sensitivity, and all other access uses Managed Identity with no stored secrets at all. At the current scale and threat model, the additional vault resource and deployment steps are not justified.
+
+**To add Key Vault** if your environment requires it:
+1. Create a Key Vault in the same resource group.
+2. Assign the Function App's Managed Identity the **Key Vault Secrets User** role on the vault.
+3. Add the Maps key as a secret:
+   ```bash
+   az keyvault secret set --vault-name <vault> --name AzureMapsKey --value <key>
+   ```
+4. Replace the `AZURE_MAPS_SUBSCRIPTION_KEY` app setting value with a Key Vault reference:
+   ```
+   @Microsoft.KeyVault(VaultName=<vault>;SecretName=AzureMapsKey)
+   ```
+The Function App resolves the reference transparently at runtime with no code changes required.
 
 ---
 
