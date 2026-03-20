@@ -193,45 +193,62 @@ Azure Key Vault was deliberately excluded: the only secret that would benefit is
 
 ## Deployment
 
-Deploy the entire application to Azure in approximately five minutes.
+The included script creates all required Azure resources and deploys the app in one step. If you prefer to create resources manually in the Azure Portal, skip to [Manual Deployment](#manual-deployment).
 
-**Requirements:**
-- Azure CLI installed and authenticated (`az login`)
-- Owner or Contributor role on the target subscription or resource group
-- Microsoft Sentinel workspace with data
-- GitHub CLI (`gh`) for automatic GitHub Actions secret configuration (recommended)
+### Scripted Deployment (Recommended)
 
-**PowerShell (Windows):**
+**What you need before starting:**
+- An Azure subscription with Owner or Contributor access
+- A Microsoft Sentinel workspace (note the Workspace ID — a GUID found in Azure Portal → Log Analytics workspaces → your workspace → Overview)
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) installed
+- [Git](https://git-scm.com/downloads) installed
+- (Recommended) [GitHub CLI](https://cli.github.com/) for automatic CI/CD wiring
+
+**Step 1 — Clone the repo**
+
+Open PowerShell and run:
 ```powershell
-.\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID"
-
-# Azure Government (GCC / GCC-High)
-.\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID" -Cloud AzureUSGovernment
+git clone https://github.com/AndrewBlumhardt/sentinel-activity-maps.git
+cd sentinel-activity-maps
 ```
 
-**Bash (Linux / macOS):**
-```bash
-./deploy.sh --workspace-id "YOUR-WORKSPACE-ID"
+**Step 2 — Sign in to Azure**
 
-# Azure Government (GCC / GCC-High)
-./deploy.sh --workspace-id "YOUR-WORKSPACE-ID" --cloud AzureUSGovernment
+```powershell
+az login
+```
+
+A browser window will open. Sign in with an account that has Owner or Contributor on the subscription. When done, PowerShell will show your active subscription. To use a different subscription:
+```powershell
+az account set --subscription "YOUR-SUBSCRIPTION-NAME-OR-ID"
+```
+
+**Step 3 — Run the deployment script**
+
+```powershell
+.\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID"
+```
+
+Replace `YOUR-WORKSPACE-ID` with the GUID from Step 1. The script will display a deployment plan and ask you to confirm before creating anything. It takes approximately 5 minutes.
+
+For **Azure Government (GCC / GCC-High)**:
+```powershell
+.\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID" -Cloud AzureUSGovernment
 ```
 
 **What the script creates:**
 - Azure Function App (Python 3.11, Consumption plan) with Managed Identity
-- Azure Static Web App (Standard tier) linked to the Function App backend
-- Storage Account with a `datasets` container
+- Azure Static Web App (Standard tier) linked to the Function App
+- Storage Account with `datasets` and `locks` containers
 - Azure Maps Account (Gen2)
 - RBAC role assignments (Log Analytics Reader, Storage Blob Data Contributor)
-- GitHub Actions secrets for CI/CD (requires `gh` CLI)
+- GitHub Actions secrets for automatic CI/CD (requires GitHub CLI)
 
----
+At the end the script prints the Static Web App URL — that is your app.
 
-## Post-Deployment
+**Step 4 — Add your MaxMind license key**
 
-### Required manual step
-
-After deployment, set the MaxMind license key. This is the only credential the script cannot obtain automatically:
+MaxMind provides free IP geolocation credentials (required for the IP enrichment pipeline). Sign up at [maxmind.com/en/geolite2/signup](https://www.maxmind.com/en/geolite2/signup), then run:
 
 ```powershell
 az functionapp config appsettings set `
@@ -240,17 +257,55 @@ az functionapp config appsettings set `
   --settings MAXMIND_ACCOUNT_ID="<your-account-id>" MAXMIND_LICENSE_KEY="<your-license-key>"
 ```
 
-Free credentials are available at [maxmind.com/en/geolite2/signup](https://www.maxmind.com/en/geolite2/signup).
+Substitute the Function App name and resource group printed by the deploy script.
 
-### Verify deployment
+**Step 5 — Trigger the first data refresh**
 
-```powershell
-# Check API health and blob data freshness
-curl https://<FUNCTION-APP>.azurewebsites.net/api/health
-
-# Trigger the first data refresh manually
-curl https://<FUNCTION-APP>.azurewebsites.net/api/refresh
+Open a browser and go to:
 ```
+https://<your-function-app>.azurewebsites.net/api/refresh
+```
+
+This runs the Sentinel → MaxMind → GeoJSON pipeline for the first time. It may take 1–2 minutes. Once complete, reload your Static Web App URL and enable the data layers.
+
+**Step 6 — Verify everything is working**
+
+```
+https://<your-function-app>.azurewebsites.net/api/health
+```
+
+This returns the current status of all configuration settings and the age of each data file.
+
+---
+
+### Manual Deployment
+
+If you prefer the Azure Portal over the CLI, create the following resources in the same resource group in this order:
+
+1. **Storage Account** — Standard LRS, anonymous blob access disabled. Create a container named `datasets` and one named `locks`.
+2. **Function App** — Python 3.11, Linux, Consumption plan. Enable System-assigned Managed Identity under Identity.
+3. **Azure Maps Account** — Gen2 SKU (required for weather tiles).
+4. **Static Web App** — Standard tier. Under Settings → APIs, link it to the Function App.
+
+After creating resources, configure the Function App's Application Settings:
+
+| Setting | Value |
+|---|---|
+| `AZURE_MAPS_SUBSCRIPTION_KEY` | Key from Azure Maps Account → Authentication |
+| `STORAGE_ACCOUNT_URL` | `https://<your-storage-account>.blob.core.windows.net` |
+| `STORAGE_CONTAINER_DATASETS` | `datasets` |
+| `SENTINEL_WORKSPACE_ID` | Your Log Analytics workspace GUID |
+| `MAXMIND_ACCOUNT_ID` | From maxmind.com |
+| `MAXMIND_LICENSE_KEY` | From maxmind.com |
+
+Then assign RBAC roles on the storage account to the Function App's Managed Identity:
+- **Storage Blob Data Contributor** — allows the refresh pipeline to write enriched data
+- **Storage Blob Data Reader** — allows the data proxy to serve files to the browser
+
+And assign on the Log Analytics workspace:
+- **Log Analytics Reader** — allows the refresh pipeline to run KQL queries against Sentinel
+
+Finally, deploy the `api/` folder to the Function App (via VS Code Azure Functions extension or `func azure functionapp publish <name>`), and connect the Static Web App to this GitHub repository to trigger the frontend build.
 
 ### Function App settings reference
 
