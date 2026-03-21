@@ -529,25 +529,39 @@ if (-not $SkipFunctionApp) {
     }
 
     # 9b. Upload demo data
-    # Wait for RBAC to propagate before uploading — new storage accounts
-    # can take 15-30 s before data-plane role assignments take effect.
+    # Wait for RBAC + infrastructure encryption to propagate. Retry each file
+    # up to 3 times with increasing delays (encryption can extend propagation).
     Write-Step "Uploading demo data to blob storage (waiting 30 s for RBAC propagation)..."
     Start-Sleep -Seconds 30
     $demoDataDir = Join-Path $PSScriptRoot "demo_data"
     if (Test-Path $demoDataDir) {
         Get-ChildItem -Path $demoDataDir -File | Where-Object { $_.Name -ne '.gitkeep' } | ForEach-Object {
             $blobName = "demo_data/$($_.Name)"
-            az storage blob upload `
-                --account-name $StorageAccountName `
-                --container-name datasets `
-                --name $blobName `
-                --file $_.FullName `
-                --auth-mode login `
-                --overwrite `
-                --output none
-            Write-Success "Uploaded: $blobName"
+            $uploaded = $false
+            foreach ($delaySec in @(0, 30, 60)) {
+                if ($delaySec -gt 0) {
+                    Write-Info "  Retrying $blobName in ${delaySec}s (RBAC still propagating)..."
+                    Start-Sleep -Seconds $delaySec
+                }
+                az storage blob upload `
+                    --account-name $StorageAccountName `
+                    --container-name datasets `
+                    --name $blobName `
+                    --file $_.FullName `
+                    --auth-mode login `
+                    --overwrite `
+                    --output none 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Uploaded: $blobName"
+                    $uploaded = $true
+                    break
+                }
+            }
+            if (-not $uploaded) {
+                Write-Warning "Failed to upload $blobName after 3 attempts - upload manually after RBAC propagates"
+            }
         }
-        Write-Success "Demo data uploaded to datasets/demo_data/"
+        Write-Success "Demo data upload complete"
     } else {
         Write-Info "demo_data/ directory not found - skipping demo data upload"
     }
@@ -625,13 +639,21 @@ try {
         if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
         Compress-Archive -Path "$buildDir\*" -DestinationPath $zipPath
 
-        Write-Info "Uploading zip to $FunctionAppName..."
-        az functionapp deploy `
-            --resource-group $ResourceGroupName `
+        # Deploy via Kudu zip deploy REST API
+        # (az functionapp deploy --type zip is preview and broken on Linux Consumption Plan)
+        Write-Info "Uploading zip to $FunctionAppName via Kudu..."
+        $creds = az functionapp deployment list-publishing-credentials `
             --name $FunctionAppName `
-            --src-path $zipPath `
-            --type zip `
-            --timeout 600
+            --resource-group $ResourceGroupName `
+            --query '{user:publishingUserName, pass:publishingPassword}' `
+            --output json | ConvertFrom-Json
+        $base64Auth = [Convert]::ToBase64String(
+            [Text.Encoding]::ASCII.GetBytes("$($creds.user):$($creds.pass)"))
+        $zipBytes = [System.IO.File]::ReadAllBytes($zipPath)
+        $kuduUri = "https://$FunctionAppName.scm.azurewebsites.net/api/zipdeploy"
+        Invoke-RestMethod -Uri $kuduUri -Method POST `
+            -Headers @{ Authorization = "Basic $base64Auth"; 'Content-Type' = 'application/zip' } `
+            -Body $zipBytes | Out-Null
 
         Remove-Item $buildDir -Recurse -Force
         Remove-Item $zipPath -Force
