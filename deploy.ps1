@@ -562,8 +562,24 @@ if (-not $SkipFunctionApp) {
         --output none
     Write-Success "Assigned runtime storage roles (Blob Owner, Queue Contributor, Table Contributor)"
 
-    # 9b. Upload demo data now that the deploying user has Storage Blob Data Contributor
-    Write-Step "Uploading demo data to blob storage..."
+    # Also grant the deploying user Storage Blob Data Contributor so --auth-mode login
+    # works during the demo data upload below. Subscription Owner/Contributor does not
+    # automatically include storage data-plane access.
+    $deployerOid = az ad signed-in-user show --query id --output tsv 2>$null
+    if ($deployerOid) {
+        az role assignment create `
+            --assignee $deployerOid `
+            --role "Storage Blob Data Contributor" `
+            --scope $storageAccountId `
+            --output none 2>$null
+        Write-Success "Assigned Storage Blob Data Contributor to deploying user"
+    }
+
+    # 9b. Upload demo data
+    # Wait for RBAC to propagate before uploading — new storage accounts
+    # can take 15-30 s before data-plane role assignments take effect.
+    Write-Step "Uploading demo data to blob storage (waiting 30 s for RBAC propagation)..."
+    Start-Sleep -Seconds 30
     $demoDataDir = Join-Path $PSScriptRoot "demo_data"
     if (Test-Path $demoDataDir) {
         Get-ChildItem -Path $demoDataDir -File | Where-Object { $_.Name -ne '.gitkeep' } | ForEach-Object {
@@ -641,7 +657,7 @@ try {
             --name $FunctionAppName `
             --src-path $zipPath `
             --type zip `
-            --build-remote true `
+            --build-remote `
             --timeout 600 `
             --output none
         
