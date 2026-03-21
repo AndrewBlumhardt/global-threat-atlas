@@ -114,16 +114,16 @@ A `setInterval` in `app.js` pings `/api/health` every 14 minutes while the tab i
 ## Azure Costs
 
 **Required Azure resources:**
-- Azure Static Web App (Standard tier — required for linked Function App backend)
+- Azure Static Web App (Standard tier - required for linked Function App backend)
 - Azure Function App (Consumption plan)
 - Azure Maps Account (Gen2 pay-as-you-go; paid tier required for weather tiles)
 - Azure Storage Account
 
 **Typical monthly cost:** $10-20 USD for demo or small production environments.
 
-**MaxMind:** IP geolocation uses a free GeoLite2 license. Business or commercial users must obtain a paid license — see [MaxMind licensing](https://www.maxmind.com). See also the [Acknowledgements](#acknowledgements) section below.
+**MaxMind:** IP geolocation uses a free GeoLite2 license. Business or commercial users must obtain a paid license - see [MaxMind licensing](https://www.maxmind.com). See also the [Acknowledgements](#acknowledgements) section below.
 
-### Function App — Consumption Plan
+### Function App - Consumption Plan
 
 The Function App bills only when functions execute:
 
@@ -184,7 +184,7 @@ Two settings that are often conflated:
 
 | Option | How it works | Suitable for |
 |---|---|---|
-| **Anonymous** | URL is sufficient — no credentials | Demo / dev / test only |
+| **Anonymous** | URL is sufficient - no credentials | Demo / dev / test only |
 | **Managed Identity via Function App** | Blob reads proxy through the Function App, which authenticates with its own Managed Identity | Production |
 | **Private endpoint** | Disables public network access entirely | High-security production |
 
@@ -197,7 +197,7 @@ Two settings that are often conflated:
 
 ### Key Management
 
-The Azure Maps subscription key is never stored in static files or source control. It is read at runtime by `/api/config` from the Function App's app settings and served to the browser only for the current session. All Sentinel queries and blob reads use Managed Identity tokens — no connection strings or SAS tokens are required.
+The Azure Maps subscription key is never stored in static files or source control. It is read at runtime by `/api/config` from the Function App's app settings and served to the browser only for the current session. All Sentinel queries and blob reads use Managed Identity tokens - no connection strings or SAS tokens are required.
 
 Azure Key Vault was deliberately excluded: the only secret that would benefit is the Maps key, and the added resource, deployment complexity, and access policy configuration are not justified at this scale. To add Key Vault if your environment requires it, create a vault, assign the Function App's Managed Identity the **Key Vault Secrets User** role, store the key as a secret, and replace the `AZURE_MAPS_SUBSCRIPTION_KEY` app setting with a Key Vault reference (`@Microsoft.KeyVault(VaultName=<vault>;SecretName=AzureMapsKey)`).
 
@@ -211,12 +211,12 @@ The included script creates all required Azure resources and deploys the app in 
 
 **What you need before starting:**
 - An Azure subscription with Owner or Contributor access
-- A Microsoft Sentinel workspace (note the Workspace ID — a GUID found in Azure Portal → Log Analytics workspaces → your workspace → Overview)
+- A Microsoft Sentinel workspace (note the Workspace ID - a GUID found in Azure Portal → Log Analytics workspaces → your workspace → Overview)
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) installed
 - [Git](https://git-scm.com/downloads) installed
 - (Recommended) [GitHub CLI](https://cli.github.com/) for automatic CI/CD wiring
 
-**Step 1 — Clone the repo**
+**Step 1 - Clone the repo**
 
 Open PowerShell and run:
 ```powershell
@@ -224,7 +224,7 @@ git clone https://github.com/AndrewBlumhardt/global-threat-atlas.git
 cd global-threat-atlas
 ```
 
-**Step 2 — Sign in to Azure**
+**Step 2 - Sign in to Azure**
 
 ```powershell
 az login
@@ -235,7 +235,7 @@ A browser window will open. Sign in with an account that has Owner or Contributo
 az account set --subscription "YOUR-SUBSCRIPTION-NAME-OR-ID"
 ```
 
-**Step 3 — Run the deployment script**
+**Step 3 - Run the deployment script**
 
 ```powershell
 .\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID"
@@ -249,7 +249,7 @@ By default, all Azure resources are named after the project name `global-threat-
 |---|---|---|
 | `-ProjectName` | Prefix for all resource names | `contoso-threat-map` |
 | `-ResourceGroupName` | Resource group name (overrides ProjectName-derived default) | `rg-security-tools` |
-| `-Location` | Azure region — **recommended**, deploy close to your Sentinel workspace | `westus2`, `eastus`, `uksouth` |
+| `-Location` | Azure region - **recommended**, deploy close to your Sentinel workspace | `westus2`, `eastus`, `uksouth` |
 
 ```powershell
 # Custom project name (all resources share the same prefix)
@@ -275,11 +275,11 @@ For **Azure Government (GCC / GCC-High)**:
 - RBAC role assignments (Log Analytics Reader, Storage Blob Data Contributor)
 - GitHub Actions secrets for automatic CI/CD (requires GitHub CLI)
 
-At the end the script prints the Static Web App URL — that is your app.
+At the end the script prints the Static Web App URL - that is your app.
 
-**Step 4 — Add your MaxMind license key**
+**Step 4 - Add your MaxMind license key**
 
-IP enrichment uses [MaxMind GeoLite2](https://www.maxmind.com/en/geolite2/signup) — a free, locally-run database that provides city-level precision (latitude, longitude, ASN, and ISP data) on every IP lookup. It is more detailed than the coordinates Azure embeds in sign-in logs, works offline inside the Function App, and adds no per-lookup cost or external API call. A free GeoLite2 license is sufficient for personal or internal use; a paid [GeoIP2](https://www.maxmind.com/en/geoip/geoip2-databases-overview) license is recommended for production or commercial deployments.
+IP enrichment uses [MaxMind GeoLite2](https://www.maxmind.com/en/geolite2/signup) - a free, locally-run database that provides city-level precision (latitude, longitude, ASN, and ISP data) on every IP lookup. It is more detailed than the coordinates Azure embeds in sign-in logs, works offline inside the Function App, and adds no per-lookup cost or external API call. A free GeoLite2 license is sufficient for personal or internal use; a paid [GeoIP2](https://www.maxmind.com/en/geoip/geoip2-databases-overview) license is recommended for production or commercial deployments.
 
 Sign up at [maxmind.com/en/geolite2/signup](https://www.maxmind.com/en/geolite2/signup) to obtain a free Account ID and License Key, then run:
 
@@ -292,7 +292,7 @@ az functionapp config appsettings set `
 
 Substitute the Function App name and resource group printed by the deploy script.
 
-**Step 5 — Trigger the first data refresh**
+**Step 5 - Trigger the first data refresh**
 
 Open a browser and go to:
 ```
@@ -301,7 +301,7 @@ https://<your-function-app>.azurewebsites.net/api/refresh
 
 This runs the Sentinel → MaxMind → GeoJSON pipeline for the first time. It may take 1–2 minutes. Once complete, reload your Static Web App URL and enable the data layers.
 
-**Step 6 — Verify everything is working**
+**Step 6 - Verify everything is working**
 
 ```
 https://<your-function-app>.azurewebsites.net/api/health
@@ -315,10 +315,10 @@ This returns the current status of all configuration settings and the age of eac
 
 If you prefer the Azure Portal over the CLI, create the following resources in the same resource group in this order:
 
-1. **Storage Account** — Standard LRS, anonymous blob access disabled. Create a container named `datasets` and one named `locks`.
-2. **Function App** — Python 3.11, Linux, Consumption plan. Enable System-assigned Managed Identity under Identity.
-3. **Azure Maps Account** — Gen2 SKU (required for weather tiles).
-4. **Static Web App** — Standard tier. Under Settings → APIs, link it to the Function App.
+1. **Storage Account** - Standard LRS, anonymous blob access disabled. Create a container named `datasets` and one named `locks`.
+2. **Function App** - Python 3.11, Linux, Consumption plan. Enable System-assigned Managed Identity under Identity.
+3. **Azure Maps Account** - Gen2 SKU (required for weather tiles).
+4. **Static Web App** - Standard tier. Under Settings → APIs, link it to the Function App.
 
 After creating resources, configure the Function App's Application Settings:
 
@@ -332,11 +332,11 @@ After creating resources, configure the Function App's Application Settings:
 | `MAXMIND_LICENSE_KEY` | From maxmind.com |
 
 Then assign RBAC roles on the storage account to the Function App's Managed Identity:
-- **Storage Blob Data Contributor** — allows the refresh pipeline to write enriched data
-- **Storage Blob Data Reader** — allows the data proxy to serve files to the browser
+- **Storage Blob Data Contributor** - allows the refresh pipeline to write enriched data
+- **Storage Blob Data Reader** - allows the data proxy to serve files to the browser
 
 And assign on the Log Analytics workspace:
-- **Log Analytics Reader** — allows the refresh pipeline to run KQL queries against Sentinel
+- **Log Analytics Reader** - allows the refresh pipeline to run KQL queries against Sentinel
 
 Finally, deploy the `api/` folder to the Function App (via VS Code Azure Functions extension or `func azure functionapp publish <name>`), and connect the Static Web App to this GitHub repository to trigger the frontend build.
 
@@ -425,9 +425,9 @@ See [api/README.md](api/README.md) for full parameter and response details.
 
 This project uses the following third-party services:
 
-- **[MaxMind GeoLite2](https://www.maxmind.com)** — IP geolocation database. This product includes GeoLite2 data created by MaxMind, available from [https://www.maxmind.com](https://www.maxmind.com). Use of MaxMind data is subject to the [GeoLite2 End User License Agreement](https://www.maxmind.com/en/geolite2/eula). A free license is sufficient for personal and internal use; a paid [GeoIP2](https://www.maxmind.com/en/geoip/geoip2-databases-overview) license is required for commercial or business deployments.
-- **[Azure Maps](https://azure.microsoft.com/en-us/products/azure-maps/)** — Map rendering, weather tiles, and basemap imagery.
-- **[VirusTotal](https://www.virustotal.com)** — IP reputation links (user-initiated only; no automated API calls are made by this application).
+- **[MaxMind GeoLite2](https://www.maxmind.com)** - IP geolocation database. This product includes GeoLite2 data created by MaxMind, available from [https://www.maxmind.com](https://www.maxmind.com). Use of MaxMind data is subject to the [GeoLite2 End User License Agreement](https://www.maxmind.com/en/geolite2/eula). A free license is sufficient for personal and internal use; a paid [GeoIP2](https://www.maxmind.com/en/geoip/geoip2-databases-overview) license is required for commercial or business deployments.
+- **[Azure Maps](https://azure.microsoft.com/en-us/products/azure-maps/)** - Map rendering, weather tiles, and basemap imagery.
+- **[VirusTotal](https://www.virustotal.com)** - IP reputation links (user-initiated only; no automated API calls are made by this application).
 
 ---
 
@@ -435,7 +435,7 @@ This project uses the following third-party services:
 
 <img src="https://github.com/AndrewBlumhardt.png" alt="Andrew Blumhardt" width="96" align="left" style="border-radius:50%; margin-right:16px"/>
 
-**Andrew Blumhardt** is a security engineer focused on Microsoft Sentinel, Azure cloud security, and threat intelligence tooling. This project was built to give SOC teams a practical, self-hosted threat visualization layer on top of their existing Sentinel investment — deployable in a single script and designed to run as a wall display or analyst dashboard.
+**Andrew Blumhardt** is a security engineer focused on Microsoft Sentinel, Azure cloud security, and threat intelligence tooling. This project was built to give SOC teams a practical, self-hosted threat visualization layer on top of their existing Sentinel investment - deployable in a single script and designed to run as a wall display or analyst dashboard.
 
 - **GitHub:** [github.com/AndrewBlumhardt](https://github.com/AndrewBlumhardt)
 - **LinkedIn:** [linkedin.com/in/andrewblumhardt](https://www.linkedin.com/in/andrewblumhardt/)
