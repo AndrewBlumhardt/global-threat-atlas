@@ -53,7 +53,7 @@ This directory contains CI/CD workflows for automated deployment and testing of 
 
 1. Create Azure AD App Registration:
    ```bash
-   az ad app create --display-name "GitHub-Sentinel-Activity-Maps"
+   az ad app create --display-name "GitHub-Global-Threat-Atlas"
    ```
 
 2. Configure federated credentials for GitHub Actions

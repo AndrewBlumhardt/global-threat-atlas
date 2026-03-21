@@ -219,7 +219,7 @@ The included script creates all required Azure resources and deploys the app in 
 Open PowerShell and run:
 ```powershell
 git clone https://github.com/AndrewBlumhardt/sentinel-activity-maps.git
-cd sentinel-activity-maps
+cd sentinel-activity-maps   # folder name matches the repo name
 ```
 
 **Step 2 — Sign in to Azure**
@@ -363,7 +363,7 @@ All settings are configured automatically by the deploy script except `MAXMIND_A
 
 ### CI/CD
 
-The Function App deploys automatically on push to `api/**` via `.github/workflows/main_func-sentinel-activity-maps.yml`. The SWA deploys automatically on push to `web/**` via the SWA-generated workflow. Both workflows are configured during deployment.
+The Function App deploys automatically on push to `api/**` via a workflow file in `.github/workflows/` (named `main_func-<your-function-app-name>.yml`, generated when the Function App is created in Azure). The SWA deploys automatically on push to `web/**` via the SWA-generated workflow. Both workflows are configured by `deploy.ps1` during deployment.
 
 ---
 
