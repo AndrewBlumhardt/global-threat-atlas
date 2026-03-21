@@ -593,46 +593,49 @@ try {
         func azure functionapp publish $FunctionAppName --python
         Write-Success "Function deployed successfully using func CLI"
     } else {
-        # Fallback to zip deploy
-        Write-Info "Deploying using zip deploy method..."
-        
+        # Fallback: zip deploy with locally-vendored packages
+        # (mirrors the GitHub Actions workflow exactly — no remote build needed)
+        Write-Info "func CLI not found. Building zip with vendored packages..."
+
         # Create temporary build directory
         $buildDir = Join-Path $env:TEMP "$ProjectName-build"
-        if (Test-Path $buildDir) {
-            Remove-Item $buildDir -Recurse -Force
-        }
+        if (Test-Path $buildDir) { Remove-Item $buildDir -Recurse -Force }
         New-Item -ItemType Directory -Path $buildDir | Out-Null
-        
-        # Copy necessary files for old-style Azure Functions (host.json + per-function folders)
+
+        # Copy function files (host.json + per-function folders; skip venv/cache)
         Copy-Item -Path "host.json" -Destination $buildDir
         Copy-Item -Path "requirements.txt" -Destination $buildDir
-        # Copy each function subfolder (skip .venv and cache directories)
         Get-ChildItem -Path "." -Directory |
             Where-Object { $_.Name -notin @('.venv', '__pycache__', '.git') } |
             ForEach-Object { Copy-Item -Path $_.FullName -Destination $buildDir -Recurse }
-        
-        # Create zip file
-        $zipPath = Join-Path $env:TEMP "$ProjectName-deploy.zip"
-        if (Test-Path $zipPath) {
-            Remove-Item $zipPath -Force
+
+        # Vendor Python packages into .python_packages/lib/site-packages
+        $pkgDir = "$buildDir\.python_packages\lib\site-packages"
+        New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
+        Write-Info "Installing Python packages into zip (this may take a minute)..."
+        pip install -r requirements.txt --target $pkgDir --quiet
+        # Remove Azure SDK namespace __init__.py files that break cross-package imports
+        @("azure", "azure\storage", "azure\monitor") | ForEach-Object {
+            $f = "$pkgDir\$_\__init__.py"
+            if (Test-Path $f) { Remove-Item $f -Force }
         }
-        
+
+        # Create and deploy zip
+        $zipPath = Join-Path $env:TEMP "$ProjectName-deploy.zip"
+        if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
         Compress-Archive -Path "$buildDir\*" -DestinationPath $zipPath
-        
-        # Deploy zip using az functionapp deploy (supports Python Linux consumption plan)
+
+        Write-Info "Uploading zip to $FunctionAppName..."
         az functionapp deploy `
             --resource-group $ResourceGroupName `
             --name $FunctionAppName `
             --src-path $zipPath `
             --type zip `
-            --build-remote `
-            --timeout 600 `
-            --output none
-        
-        # Cleanup
+            --timeout 600
+
         Remove-Item $buildDir -Recurse -Force
         Remove-Item $zipPath -Force
-        
+
         Write-Success "Function deployed successfully using zip deploy"
     }
 } catch {
@@ -737,18 +740,21 @@ if (-not $SkipFunctionApp) {
     Write-Host "      # Sign up free at https://www.maxmind.com/en/geolite2/signup" -ForegroundColor Gray
     Write-Host "      az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings MAXMIND_ACCOUNT_ID='<your-account-id>' MAXMIND_LICENSE_KEY='<your-license-key>'" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "   d) GitHub Actions SWA token: set so the Actions workflow can deploy the frontend." -ForegroundColor Yellow
-    Write-Host "      gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body '$swaToken'" -ForegroundColor Cyan
-    Write-Host "      Or: GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret" -ForegroundColor White
-    Write-Host "      Name: AZURE_STATIC_WEB_APPS_API_TOKEN   Value: $swaToken" -ForegroundColor White
+    Write-Host "   d) Deploy the frontend - set the SWA token as a GitHub secret, then trigger the workflow:" -ForegroundColor Yellow
+    Write-Host "      1. gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body '$swaToken'" -ForegroundColor Cyan
+    Write-Host "         Or: GitHub repo -> Settings -> Secrets and variables -> Actions -> New secret" -ForegroundColor White
+    Write-Host "         Name: AZURE_STATIC_WEB_APPS_API_TOKEN   Value: $swaToken" -ForegroundColor White
+    Write-Host "      2. Push any change to web/ (or run the workflow manually from GitHub Actions tab)" -ForegroundColor White
+    Write-Host "      SWA will show 'Waiting for deployment' until the workflow runs." -ForegroundColor Gray
     Write-Host ""
     if ($funcSecretSet) {
-        Write-Host "   e) GitHub Actions Function App deploy: AZURE_FUNCTIONAPP_PUBLISH_PROFILE already set." -ForegroundColor Green
-        Write-Host "      Workflow file updated: app-name = $FunctionAppName" -ForegroundColor Gray
+        Write-Host "   e) Function App GitHub Actions deploy: AZURE_FUNCTIONAPP_PUBLISH_PROFILE already set." -ForegroundColor Green
+        Write-Host "      Push any change to api/ to trigger a redeploy via GitHub Actions." -ForegroundColor Gray
         Write-Host "      To rotate: az functionapp deployment list-publishing-profiles --name $FunctionAppName --resource-group $ResourceGroupName --xml | gh secret set AZURE_FUNCTIONAPP_PUBLISH_PROFILE" -ForegroundColor Gray
     } else {
-        Write-Host "   e) GitHub Actions Function App deploy: set the publish profile secret manually." -ForegroundColor Yellow
+        Write-Host "   e) Function App GitHub Actions deploy (for ongoing CI/CD):" -ForegroundColor Yellow
         Write-Host "      az functionapp deployment list-publishing-profiles --name $FunctionAppName --resource-group $ResourceGroupName --xml | gh secret set AZURE_FUNCTIONAPP_PUBLISH_PROFILE" -ForegroundColor Cyan
+        Write-Host "      The function code was deployed inline above — this secret is only needed for future pushes to api/." -ForegroundColor Gray
     }
     Write-Host ""
     Write-Host "2. Assign 'Log Analytics Reader' role to the Function App on your Log Analytics Workspace" -ForegroundColor Yellow
