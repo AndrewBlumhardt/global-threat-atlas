@@ -433,21 +433,7 @@ $swaToken = az staticwebapp secrets list `
 
 Write-Success "Static Web App deployment token retrieved"
 
-# Push the deployment token into the GitHub repo secret so the Actions workflow
-# can deploy immediately without any manual copy-paste.
-# Mirrors the Maps key and storage URL auto-configuration steps above.
-$swaSecretSet = $false
-if (Get-Command gh -ErrorAction SilentlyContinue) {
-    try {
-        $swaToken | gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --app actions 2>$null
-        Write-Success "GitHub secret AZURE_STATIC_WEB_APPS_API_TOKEN set in repo (used by .github/workflows/azure-static-web-apps.yml)"
-        $swaSecretSet = $true
-    } catch {
-        Write-Info "gh secret set failed — see Next Steps to set AZURE_STATIC_WEB_APPS_API_TOKEN manually"
-    }
-} else {
-    Write-Info "GitHub CLI (gh) not found — see Next Steps to set AZURE_STATIC_WEB_APPS_API_TOKEN manually"
-}
+Write-Info "SWA deployment token retrieved — see Next Steps to set AZURE_STATIC_WEB_APPS_API_TOKEN"
 
 # Grant Function App blob storage read access via RBAC
 Write-Step "Granting storage access roles..."
@@ -769,15 +755,10 @@ if (-not $SkipFunctionApp) {
     Write-Host "      # Sign up free at https://www.maxmind.com/en/geolite2/signup" -ForegroundColor Gray
     Write-Host "      az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings MAXMIND_ACCOUNT_ID='<your-account-id>' MAXMIND_LICENSE_KEY='<your-license-key>'" -ForegroundColor Cyan
     Write-Host ""
-    if ($swaSecretSet) {
-        Write-Host "   d) GitHub Actions SWA token: already set as AZURE_STATIC_WEB_APPS_API_TOKEN repo secret." -ForegroundColor Green
-        Write-Host "      To rotate: re-run this script (or retrieve the token and run: gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN)" -ForegroundColor Gray
-    } else {
-        Write-Host "   d) GitHub Actions SWA token: set manually so the Actions workflow can deploy the frontend." -ForegroundColor Yellow
-        Write-Host "      gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body '$swaToken'" -ForegroundColor Cyan
-        Write-Host "      Or: GitHub repo → Settings → Secrets and variables → Actions → New repository secret" -ForegroundColor White
-        Write-Host "      Name: AZURE_STATIC_WEB_APPS_API_TOKEN   Value: (token shown above)" -ForegroundColor White
-    }
+    Write-Host "   d) GitHub Actions SWA token: set so the Actions workflow can deploy the frontend." -ForegroundColor Yellow
+    Write-Host "      gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body '$swaToken'" -ForegroundColor Cyan
+    Write-Host "      Or: GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret" -ForegroundColor White
+    Write-Host "      Name: AZURE_STATIC_WEB_APPS_API_TOKEN   Value: $swaToken" -ForegroundColor White
     Write-Host ""
     if ($funcSecretSet) {
         Write-Host "   e) GitHub Actions Function App deploy: AZURE_FUNCTIONAPP_PUBLISH_PROFILE already set." -ForegroundColor Green
