@@ -241,9 +241,22 @@ az account set --subscription "YOUR-SUBSCRIPTION-NAME-OR-ID"
 
 Replace `YOUR-WORKSPACE-ID` with the GUID from Step 1. The script will display a deployment plan and ask you to confirm before creating anything. It takes approximately 5 minutes.
 
-By default, all Azure resources are named after the project name `global-threat-atlas`. To use a different name (e.g. for a company-branded deployment):
+By default, all Azure resources are named after the project name `global-threat-atlas` and placed in a resource group called `rg-global-threat-atlas`. Both can be customised independently:
+
+| Parameter | Controls | Example value |
+|---|---|---|
+| `-ProjectName` | Prefix for all resource names | `contoso-threat-map` |
+| `-ResourceGroupName` | Resource group name (overrides ProjectName-derived default) | `rg-security-tools` |
+
 ```powershell
+# Custom project name (all resources share the same prefix)
 .\deploy.ps1 -ProjectName "contoso-threat-map" -WorkspaceId "YOUR-WORKSPACE-ID"
+
+# Custom resource group name only
+.\deploy.ps1 -ResourceGroupName "rg-security-tools" -WorkspaceId "YOUR-WORKSPACE-ID"
+
+# Both together
+.\deploy.ps1 -ProjectName "contoso-threat-map" -ResourceGroupName "rg-security-tools" -WorkspaceId "YOUR-WORKSPACE-ID"
 ```
 
 For **Azure Government (GCC / GCC-High)**:

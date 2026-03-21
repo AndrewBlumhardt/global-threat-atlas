@@ -68,6 +68,9 @@
     .\deploy.ps1 -ProjectName "contoso-threat-map" -WorkspaceId "12345678-1234-1234-1234-123456789012"
 
 .EXAMPLE
+    .\deploy.ps1 -ProjectName "contoso-threat-map" -ResourceGroupName "rg-security-tools" -WorkspaceId "12345678-1234-1234-1234-123456789012"
+
+.EXAMPLE
     .\deploy.ps1 -ProjectName "contoso-threat-map" -Location "westus2" -WorkspaceId "12345678-1234-1234-1234-123456789012"
 
 .EXAMPLE
