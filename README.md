@@ -27,6 +27,8 @@ An Azure-hosted interactive map for SOC and threat intelligence teams. Displays 
 - [Deployment](#deployment)
 - [API Reference](#api-reference)
 - [Troubleshooting](#troubleshooting)
+- [Acknowledgements](#acknowledgements)
+- [About the Developer](#about-the-developer)
 
 ---
 
@@ -119,7 +121,7 @@ A `setInterval` in `app.js` pings `/api/health` every 14 minutes while the tab i
 
 **Typical monthly cost:** $10-20 USD for demo or small production environments.
 
-**MaxMind:** IP geolocation uses a free GeoLite2 license. Business or commercial users must obtain a paid license — see [MaxMind licensing](https://www.maxmind.com).
+**MaxMind:** IP geolocation uses a free GeoLite2 license. Business or commercial users must obtain a paid license — see [MaxMind licensing](https://www.maxmind.com). See also the [Acknowledgements](#acknowledgements) section below.
 
 ### Function App — Consumption Plan
 
@@ -416,3 +418,26 @@ See [api/README.md](api/README.md) for full parameter and response details.
 **Data is stale**
 - Each pipeline refreshes at most once per 24 hours by default. Call `/api/refresh?force=true` to refresh immediately.
 - Adjust frequency with `REFRESH_DEVICE_FREQUENCY_MINUTES`, `REFRESH_SIGNIN_FREQUENCY_MINUTES`, or `REFRESH_THREATINTEL_FREQUENCY_HOURS`.
+
+---
+
+## Acknowledgements
+
+This project uses the following third-party services:
+
+- **[MaxMind GeoLite2](https://www.maxmind.com)** — IP geolocation database. This product includes GeoLite2 data created by MaxMind, available from [https://www.maxmind.com](https://www.maxmind.com). Use of MaxMind data is subject to the [GeoLite2 End User License Agreement](https://www.maxmind.com/en/geolite2/eula). A free license is sufficient for personal and internal use; a paid [GeoIP2](https://www.maxmind.com/en/geoip/geoip2-databases-overview) license is required for commercial or business deployments.
+- **[Azure Maps](https://azure.microsoft.com/en-us/products/azure-maps/)** — Map rendering, weather tiles, and basemap imagery.
+- **[VirusTotal](https://www.virustotal.com)** — IP reputation links (user-initiated only; no automated API calls are made by this application).
+
+---
+
+## About the Developer
+
+<img src="https://github.com/AndrewBlumhardt.png" alt="Andrew Blumhardt" width="96" align="left" style="border-radius:50%; margin-right:16px"/>
+
+**Andrew Blumhardt** is a security engineer focused on Microsoft Sentinel, Azure cloud security, and threat intelligence tooling. This project was built to give SOC teams a practical, self-hosted threat visualization layer on top of their existing Sentinel investment — deployable in a single script and designed to run as a wall display or analyst dashboard.
+
+- **GitHub:** [github.com/AndrewBlumhardt](https://github.com/AndrewBlumhardt)
+- **LinkedIn:** [linkedin.com/in/andrewblumhardt](https://www.linkedin.com/in/andrewblumhardt/)
+
+Developed with assistance from [GitHub Copilot](https://github.com/features/copilot) (Claude Sonnet) and [ChatGPT](https://chatgpt.com).
