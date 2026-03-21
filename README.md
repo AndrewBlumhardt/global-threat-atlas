@@ -1,6 +1,6 @@
 # Global Threat Intelligence Atlas
 
-<img src="https://raw.githubusercontent.com/AndrewBlumhardt/sentinel-activity-maps/main/images/screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="600"/>
+<img src="https://raw.githubusercontent.com/AndrewBlumhardt/global-threat-atlas/main/images/screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="600"/>
 
 [Live Demo](https://jolly-cliff-0f92c201e.2.azurestaticapps.net/)
 
@@ -47,7 +47,7 @@ An Azure-hosted interactive map for SOC and threat intelligence teams. Displays 
 
 ## How the App Works
 
-<img src="https://raw.githubusercontent.com/AndrewBlumhardt/sentinel-activity-maps/main/images/atlas-design.png" alt="Application architecture diagram" width="700"/>
+<img src="https://raw.githubusercontent.com/AndrewBlumhardt/global-threat-atlas/main/images/atlas-design.png" alt="Application architecture diagram" width="700"/>
 
 Here is a walkthrough of what happens from the moment a browser opens the app to data appearing on the map.
 
@@ -218,8 +218,8 @@ The included script creates all required Azure resources and deploys the app in 
 
 Open PowerShell and run:
 ```powershell
-git clone https://github.com/AndrewBlumhardt/sentinel-activity-maps.git
-cd sentinel-activity-maps   # folder name matches the repo name
+git clone https://github.com/AndrewBlumhardt/global-threat-atlas.git
+cd global-threat-atlas
 ```
 
 **Step 2 — Sign in to Azure**
