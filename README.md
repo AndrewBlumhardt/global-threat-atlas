@@ -277,7 +277,9 @@ At the end the script prints the Static Web App URL — that is your app.
 
 **Step 4 — Add your MaxMind license key**
 
-MaxMind provides free IP geolocation credentials (required for the IP enrichment pipeline). Sign up at [maxmind.com/en/geolite2/signup](https://www.maxmind.com/en/geolite2/signup), then run:
+IP enrichment uses [MaxMind GeoLite2](https://www.maxmind.com/en/geolite2/signup) — a free, locally-run database that provides city-level precision (latitude, longitude, ASN, and ISP data) on every IP lookup. It is more detailed than the coordinates Azure embeds in sign-in logs, works offline inside the Function App, and adds no per-lookup cost or external API call. A free GeoLite2 license is sufficient for personal or internal use; a paid [GeoIP2](https://www.maxmind.com/en/geoip/geoip2-databases-overview) license is recommended for production or commercial deployments.
+
+Sign up at [maxmind.com/en/geolite2/signup](https://www.maxmind.com/en/geolite2/signup) to obtain a free Account ID and License Key, then run:
 
 ```powershell
 az functionapp config appsettings set `
