@@ -31,19 +31,19 @@
 
 .PARAMETER StorageAccountName
     Storage account name (must be globally unique, lowercase, 3-24 chars, alphanumeric only).
-    Default: derived from ProjectName with random 5-digit suffix.
+    Default: derived from ProjectName with a deterministic suffix (stable across re-runs).
 
 .PARAMETER FunctionAppName
     Function app name (must be globally unique).
-    Default: func-<ProjectName>-XXXXX
+    Default: func-<ProjectName>-<suffix>
 
 .PARAMETER StaticWebAppName
     Static Web App name.
     Default: swa-<ProjectName>
 
 .PARAMETER AzureMapsAccountName
-    Azure Maps account name.
-    Default: maps-<ProjectName>-XXXX
+    Azure Maps account name (unique within its resource group).
+    Default: maps-<ProjectName>
 
 .PARAMETER WorkspaceId
     Log Analytics Workspace ID (required for function to work)
@@ -127,10 +127,11 @@ if (-not $Location)             { $Location             = "eastus" }
 $swaValidRegions = @('westus2','centralus','eastus2','westeurope','eastasia')
 $SwaLocation = if ($swaValidRegions -contains $Location) { $Location } else { 'eastus2' }
 if (-not $ResourceGroupName)    { $ResourceGroupName    = "rg-$ProjectName" }
-if (-not $StorageAccountName)   { $StorageAccountName   = "${storageSlug}$(Get-Random -Minimum 10000 -Maximum 99999)" }
-if (-not $FunctionAppName)      { $FunctionAppName      = "func-$ProjectName-$(Get-Random -Minimum 10000 -Maximum 99999)" }
 if (-not $StaticWebAppName)     { $StaticWebAppName     = "swa-$ProjectName" }
-if (-not $AzureMapsAccountName) { $AzureMapsAccountName = "maps-$ProjectName-$(Get-Random -Minimum 1000 -Maximum 9999)" }
+if (-not $AzureMapsAccountName) { $AzureMapsAccountName = "maps-$ProjectName" }
+# StorageAccountName and FunctionAppName need a globally-unique suffix;
+# computed after login so the subscription ID can seed a deterministic value
+# (same project + same subscription = same names on every run — see below)
 
 # Color output functions
 function Write-Step {
@@ -208,6 +209,16 @@ if ($SubscriptionId) {
     Write-Success "Subscription set"
 } else {
     Write-Info "Using current subscription: $($account.name)"
+}
+
+# Derive a deterministic suffix from ProjectName + subscription ID so that
+# default storage / function-app names are stable across re-runs and unique
+# per subscription without needing random numbers.
+if (-not $StorageAccountName -or -not $FunctionAppName) {
+    $resolvedSubId = az account show --query id --output tsv
+    $nameSuffix    = (("$ProjectName$resolvedSubId").GetHashCode() -band [int]::MaxValue) % 90000 + 10000
+    if (-not $StorageAccountName) { $StorageAccountName = "${storageSlug}$nameSuffix" }
+    if (-not $FunctionAppName)    { $FunctionAppName    = "func-$ProjectName-$nameSuffix" }
 }
 
 # Validate workspace ID format
