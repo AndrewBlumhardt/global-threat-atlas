@@ -89,7 +89,7 @@ param(
     [string]$ResourceGroupName = "",
     
     [Parameter(Mandatory=$false)]
-    [string]$Location = "eastus",
+    [string]$Location = "",
     
     [Parameter(Mandatory=$false)]
     [string]$StorageAccountName = "",
@@ -133,6 +133,7 @@ if ($storageSlug.Length -lt 3)  { $storageSlug = $storageSlug.PadRight(3, '0') }
 $kvSlug = ($ProjectName -replace '[^a-zA-Z0-9-]', '').ToLower()
 if ($kvSlug.Length -gt 14) { $kvSlug = $kvSlug.Substring(0, 14) }
 
+if (-not $Location)             { $Location             = "eastus" }
 if (-not $ResourceGroupName)    { $ResourceGroupName    = "rg-$ProjectName" }
 if (-not $StorageAccountName)   { $StorageAccountName   = "${storageSlug}$(Get-Random -Minimum 10000 -Maximum 99999)" }
 if (-not $FunctionAppName)      { $FunctionAppName      = "func-$ProjectName-$(Get-Random -Minimum 10000 -Maximum 99999)" }
@@ -237,7 +238,7 @@ Write-Host "Deployment Plan" -ForegroundColor Magenta
 Write-Host "================================================" -ForegroundColor Magenta
 Write-Host "Project Name:      $ProjectName"
 Write-Host "Resource Group:    $ResourceGroupName"
-Write-Host "Location:          $Location"
+Write-Host "Location:          $Location  (tip: set -Location to deploy closer to your workspace)"
 Write-Host "Storage Account:   $StorageAccountName"
 Write-Host "Function App:      $FunctionAppName"
 Write-Host "Key Vault:         $KeyVaultName"
@@ -681,7 +682,7 @@ try {
         Write-Info "Deploying using zip deploy method..."
         
         # Create temporary build directory
-        $buildDir = Join-Path $env:TEMP "sentinel-maps-build"
+        $buildDir = Join-Path $env:TEMP "$ProjectName-build"
         if (Test-Path $buildDir) {
             Remove-Item $buildDir -Recurse -Force
         }
@@ -695,7 +696,7 @@ try {
         Copy-Item -Path "shared" -Destination $buildDir -Recurse
         
         # Create zip file
-        $zipPath = Join-Path $env:TEMP "sentinel-maps-deploy.zip"
+        $zipPath = Join-Path $env:TEMP "$ProjectName-deploy.zip"
         if (Test-Path $zipPath) {
             Remove-Item $zipPath -Force
         }
@@ -748,7 +749,9 @@ try {
 # Update the GitHub Actions workflow with the actual Function App name,
 # then fetch the publish profile and push it as a repo secret so the
 # workflow can deploy without a pre-configured App Registration.
-$funcWorkflowPath = Join-Path $PSScriptRoot ".github\workflows\main_func-sentinel-activity-maps.yml"
+# Find the Function App workflow file (named by Azure when the app was created).
+$funcWorkflowPath = Get-ChildItem (Join-Path $PSScriptRoot ".github\workflows") -Filter "main_func-*.yml" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+if (-not $funcWorkflowPath) { $funcWorkflowPath = Join-Path $PSScriptRoot ".github\workflows\main_func-$FunctionAppName.yml" }
 $funcSecretSet = $false
 if (Test-Path $funcWorkflowPath) {
     $wfContent = Get-Content $funcWorkflowPath -Raw
@@ -766,7 +769,7 @@ $publishProfile = az functionapp deployment list-publishing-profiles `
 if ($publishProfile -and (Get-Command gh -ErrorAction SilentlyContinue)) {
     try {
         $publishProfile | gh secret set AZURE_FUNCTIONAPP_PUBLISH_PROFILE --app actions 2>$null
-        Write-Success "GitHub secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE set (used by .github/workflows/main_func-sentinel-activity-maps.yml)"
+        Write-Success "GitHub secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE set (used by $funcWorkflowPath)"
         $funcSecretSet = $true
     } catch {
         Write-Info "gh secret set failed — see Next Steps to set AZURE_FUNCTIONAPP_PUBLISH_PROFILE manually"
@@ -778,6 +781,7 @@ if ($publishProfile -and (Get-Command gh -ErrorAction SilentlyContinue)) {
         Write-Info "GitHub CLI (gh) not found — see Next Steps to set AZURE_FUNCTIONAPP_PUBLISH_PROFILE manually"
     }
 }
+} # end if (-not $SkipFunctionApp) — steps 8-10, linking, and CI/CD setup
 
 # Summary
 $duration = (Get-Date) - $startTime

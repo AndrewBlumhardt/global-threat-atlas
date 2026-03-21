@@ -247,16 +247,17 @@ By default, all Azure resources are named after the project name `global-threat-
 |---|---|---|
 | `-ProjectName` | Prefix for all resource names | `contoso-threat-map` |
 | `-ResourceGroupName` | Resource group name (overrides ProjectName-derived default) | `rg-security-tools` |
+| `-Location` | Azure region — **recommended**, deploy close to your Sentinel workspace | `westus2`, `eastus`, `uksouth` |
 
 ```powershell
 # Custom project name (all resources share the same prefix)
-.\deploy.ps1 -ProjectName "contoso-threat-map" -WorkspaceId "YOUR-WORKSPACE-ID"
+.\deploy.ps1 -ProjectName "contoso-threat-map" -Location "westus2" -WorkspaceId "YOUR-WORKSPACE-ID"
 
 # Custom resource group name only
 .\deploy.ps1 -ResourceGroupName "rg-security-tools" -WorkspaceId "YOUR-WORKSPACE-ID"
 
 # Both together
-.\deploy.ps1 -ProjectName "contoso-threat-map" -ResourceGroupName "rg-security-tools" -WorkspaceId "YOUR-WORKSPACE-ID"
+.\deploy.ps1 -ProjectName "contoso-threat-map" -ResourceGroupName "rg-security-tools" -Location "westus2" -WorkspaceId "YOUR-WORKSPACE-ID"
 ```
 
 For **Azure Government (GCC / GCC-High)**:
