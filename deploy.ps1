@@ -287,6 +287,7 @@ if ($storageExists.nameAvailable -eq $false -and $storageExists.reason -eq "Alre
         --kind StorageV2 `
         --allow-blob-public-access false `
         --min-tls-version TLS1_2 `
+        --require-infrastructure-encryption `
         --output none
     Write-Success "Storage account created: $StorageAccountName"
 }
@@ -424,21 +425,6 @@ Write-Success "Static Web App deployment token retrieved"
 
 Write-Info "SWA deployment token retrieved — see Next Steps to set AZURE_STATIC_WEB_APPS_API_TOKEN"
 
-# Grant Function App blob storage read access via RBAC
-Write-Step "Granting storage access roles..."
-$storageId = az storage account show `
-    --name $StorageAccountName `
-    --resource-group $ResourceGroupName `
-    --query id `
-    --output tsv
-
-az role assignment create `
-    --assignee $principalId `
-    --role "Storage Blob Data Reader" `
-    --scope $storageId `
-    --output none
-Write-Success "Function App: Storage Blob Data Reader"
-
 # Configure SWA app settings
 Write-Info "Configuring Static Web App settings..."
 $storageUrl = "https://$StorageAccountName.blob.core.windows.net"
@@ -473,20 +459,10 @@ if (-not $SkipFunctionApp) {
 
     $storageUrl = "https://$StorageAccountName.blob.core.windows.net"
 
-    # Switch AzureWebJobsStorage from key-based (set by functionapp create) to identity-based.
-    # This allows the storage account to have shared key access disabled.
-    Write-Info "Switching Function App runtime storage to identity-based (Managed Identity)..."
-    az functionapp config appsettings delete `
-        --resource-group $ResourceGroupName `
-        --name $FunctionAppName `
-        --setting-names AzureWebJobsStorage `
-        --output none 2>$null
-
     az functionapp config appsettings set `
         --resource-group $ResourceGroupName `
         --name $FunctionAppName `
         --settings `
-            AzureWebJobsStorage__accountName=$StorageAccountName `
             SENTINEL_WORKSPACE_ID=$WorkspaceId `
             STORAGE_ACCOUNT_URL=$storageUrl `
             STORAGE_CONTAINER_DATASETS=datasets `
@@ -498,7 +474,29 @@ if (-not $SkipFunctionApp) {
         --output none
 
     Write-Info "Note: MAXMIND_ACCOUNT_ID and MAXMIND_LICENSE_KEY must be set manually (free credentials from maxmind.com/en/geolite2/signup)."
-    Write-Success "Application settings configured — runtime storage uses Managed Identity (no storage keys)"
+    Write-Success "Application settings configured"
+
+    # Configure CORS - allow requests from the Static Web App and local dev
+    Write-Info "Configuring Function App CORS..."
+    $swaHostname = az staticwebapp show `
+        --name $StaticWebAppName `
+        --resource-group $ResourceGroupName `
+        --query defaultHostname `
+        --output tsv 2>$null
+    if ($swaHostname) {
+        az functionapp cors add `
+            --name $FunctionAppName `
+            --resource-group $ResourceGroupName `
+            --allowed-origins "https://$swaHostname" `
+            --output none 2>$null
+        Write-Success "CORS: https://$swaHostname"
+    }
+    az functionapp cors add `
+        --name $FunctionAppName `
+        --resource-group $ResourceGroupName `
+        --allowed-origins "http://localhost:7071" `
+        --output none 2>$null
+    Write-Success "CORS: http://localhost:7071 (local dev)"
 
     # 9. Assign RBAC Roles
     Write-Step "Assigning RBAC roles..."
@@ -515,27 +513,7 @@ if (-not $SkipFunctionApp) {
         --role "Storage Blob Data Contributor" `
         --scope $storageAccountId `
         --output none
-    Write-Success "Assigned Storage Blob Data Contributor role"
-
-    # Runtime storage roles — required for identity-based AzureWebJobsStorage
-    # (replaces the key-based connection string set by az functionapp create)
-    Write-Info "Assigning Function App runtime storage roles (for identity-based AzureWebJobsStorage)..."
-    az role assignment create `
-        --assignee $principalId `
-        --role "Storage Blob Data Owner" `
-        --scope $storageAccountId `
-        --output none
-    az role assignment create `
-        --assignee $principalId `
-        --role "Storage Queue Data Contributor" `
-        --scope $storageAccountId `
-        --output none
-    az role assignment create `
-        --assignee $principalId `
-        --role "Storage Table Data Contributor" `
-        --scope $storageAccountId `
-        --output none
-    Write-Success "Assigned runtime storage roles (Blob Owner, Queue Contributor, Table Contributor)"
+    Write-Success "Assigned Storage Blob Data Contributor to Function App MI"
 
     # Also grant the deploying user Storage Blob Data Contributor so --auth-mode login
     # works during the demo data upload below. Subscription Owner/Contributor does not
@@ -574,9 +552,24 @@ if (-not $SkipFunctionApp) {
         Write-Info "demo_data/ directory not found - skipping demo data upload"
     }
 
-    # Log Analytics Reader role (if workspace is in same subscription)
-    Write-Info "Note: You may need to manually assign 'Log Analytics Reader' role to the Function App's managed identity on your Log Analytics Workspace"
-    Write-Info "Principal ID: $principalId"
+    # Log Analytics Reader - look up workspace resource ID by workspace GUID
+    Write-Info "Looking up Log Analytics workspace to assign Log Analytics Reader..."
+    $workspaceResourceId = az resource list `
+        --resource-type Microsoft.OperationalInsights/workspaces `
+        --query "[?properties.customerId=='$WorkspaceId'].id | [0]" `
+        --output tsv 2>$null
+    if ($workspaceResourceId) {
+        az role assignment create `
+            --assignee $principalId `
+            --role "Log Analytics Reader" `
+            --scope $workspaceResourceId `
+            --output none
+        $workspaceRg = ($workspaceResourceId -split '/')[4]
+        Write-Success "Assigned Log Analytics Reader (workspace RG: $workspaceRg)"
+    } else {
+        Write-Info "Workspace $WorkspaceId not found in current subscription - assign Log Analytics Reader manually:"
+        Write-Info "  az role assignment create --assignee $principalId --role 'Log Analytics Reader' --scope <workspace-resource-id>"
+    }
 
     # 10. Deploy Function Code
     Write-Step "Deploying function code (with remote build for Python dependencies)..."
