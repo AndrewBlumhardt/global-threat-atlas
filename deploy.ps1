@@ -123,6 +123,9 @@ if ($storageSlug.Length -gt 19) { $storageSlug = $storageSlug.Substring(0, 19) }
 if ($storageSlug.Length -lt 3)  { $storageSlug = $storageSlug.PadRight(3, '0') }
 
 if (-not $Location)             { $Location             = "eastus" }
+# SWA is only available in a subset of regions; map to the nearest valid one
+$swaValidRegions = @('westus2','centralus','eastus2','westeurope','eastasia')
+$SwaLocation = if ($swaValidRegions -contains $Location) { $Location } else { 'eastus2' }
 if (-not $ResourceGroupName)    { $ResourceGroupName    = "rg-$ProjectName" }
 if (-not $StorageAccountName)   { $StorageAccountName   = "${storageSlug}$(Get-Random -Minimum 10000 -Maximum 99999)" }
 if (-not $FunctionAppName)      { $FunctionAppName      = "func-$ProjectName-$(Get-Random -Minimum 10000 -Maximum 99999)" }
@@ -302,12 +305,14 @@ $storageKey = az storage account keys list `
     az storage container create `
         --name datasets `
         --account-name $StorageAccountName `
+        --auth-mode login `
         --output none
 
     az storage container create `
         --name locks `
         --account-name $StorageAccountName `
-    --output none
+        --auth-mode login `
+        --output none
 
 Write-Success "Containers created: datasets, locks"
 
@@ -370,6 +375,7 @@ if ($mapsExists) {
         --resource-group $ResourceGroupName `
         --sku "G2" `
         --kind "Gen2" `
+        --accept-tos `
         --output none
     Write-Success "Azure Maps account created: $AzureMapsAccountName"
 }
@@ -408,7 +414,7 @@ if ($swaExists) {
     az staticwebapp create `
         --name $StaticWebAppName `
         --resource-group $ResourceGroupName `
-        --location $Location `
+        --location $SwaLocation `
         --sku "Standard" `
         --output none
     Write-Success "Static Web App created: $StaticWebAppName"
@@ -586,12 +592,12 @@ if (-not $SkipFunctionApp) {
 
 # Check if in api directory
 $currentPath = Get-Location
-if (Test-Path ".\function_app.py") {
+if (Test-Path ".\host.json") {
     $apiPath = $currentPath
-} elseif (Test-Path ".\api\function_app.py") {
+} elseif (Test-Path ".\api\host.json") {
     $apiPath = Join-Path $currentPath "api"
 } else {
-    Write-Error "Cannot find function_app.py. Please run from project root or api directory."
+    Write-Error "Cannot find api/host.json. Please run from the project root or api directory."
     exit 1
 }
 
@@ -613,12 +619,13 @@ try {
         }
         New-Item -ItemType Directory -Path $buildDir | Out-Null
         
-        # Copy necessary files
-        Copy-Item -Path "function_app.py" -Destination $buildDir
+        # Copy necessary files for old-style Azure Functions (host.json + per-function folders)
         Copy-Item -Path "host.json" -Destination $buildDir
         Copy-Item -Path "requirements.txt" -Destination $buildDir
-        Copy-Item -Path "sources.yaml" -Destination $buildDir
-        Copy-Item -Path "shared" -Destination $buildDir -Recurse
+        # Copy each function subfolder (skip .venv and cache directories)
+        Get-ChildItem -Path "." -Directory |
+            Where-Object { $_.Name -notin @('.venv', '__pycache__', '.git') } |
+            ForEach-Object { Copy-Item -Path $_.FullName -Destination $buildDir -Recurse }
         
         # Create zip file
         $zipPath = Join-Path $env:TEMP "$ProjectName-deploy.zip"
