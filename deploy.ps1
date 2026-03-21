@@ -449,25 +449,7 @@ if (Get-Command gh -ErrorAction SilentlyContinue) {
     Write-Info "GitHub CLI (gh) not found — see Next Steps to set AZURE_STATIC_WEB_APPS_API_TOKEN manually"
 }
 
-# Enable Managed Identity on Static Web App
-Write-Info "Enabling Managed Identity on Static Web App..."
-az staticwebapp identity assign `
-    --name $StaticWebAppName `
-    --resource-group $ResourceGroupName `
-    --output none
-
-Write-Success "Managed Identity enabled on Static Web App"
-
-# Get SWA Managed Identity Principal ID
-$swaPrincipalId = az staticwebapp identity show `
-    --name $StaticWebAppName `
-    --resource-group $ResourceGroupName `
-    --query principalId `
-    --output tsv
-
-Write-Info "SWA Principal ID: $swaPrincipalId"
-
-# Grant Function App and SWA blob storage access via RBAC
+# Grant Function App blob storage read access via RBAC
 Write-Step "Granting storage access roles..."
 $storageId = az storage account show `
     --name $StorageAccountName `
@@ -481,13 +463,6 @@ az role assignment create `
     --scope $storageId `
     --output none
 Write-Success "Function App: Storage Blob Data Reader"
-
-az role assignment create `
-    --assignee $swaPrincipalId `
-    --role "Storage Blob Data Reader" `
-    --scope $storageId `
-    --output none
-Write-Success "Static Web App: Storage Blob Data Reader"
 
 # Configure SWA app settings
 Write-Info "Configuring Static Web App settings..."
@@ -660,11 +635,12 @@ try {
         
         Compress-Archive -Path "$buildDir\*" -DestinationPath $zipPath
         
-        # Deploy zip
-        az functionapp deployment source config-zip `
+        # Deploy zip using az functionapp deploy (supports Python Linux consumption plan)
+        az functionapp deploy `
             --resource-group $ResourceGroupName `
             --name $FunctionAppName `
-            --src $zipPath `
+            --src-path $zipPath `
+            --type zip `
             --build-remote true `
             --timeout 600 `
             --output none
