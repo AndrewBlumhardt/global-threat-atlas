@@ -327,31 +327,6 @@ $storageKey = az storage account keys list `
 
 Write-Success "Containers created: datasets, locks"
 
-# 3b. Upload demo data to blob storage
-Write-Step "Uploading demo data to blob storage..."
-
-# Resolve demo_data directory (works whether script is run from project root or api/)
-$scriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
-$demoDataDir = Join-Path $scriptDir "demo_data"
-
-if (Test-Path $demoDataDir) {
-    Get-ChildItem -Path $demoDataDir -File | Where-Object { $_.Name -ne '.gitkeep' } | ForEach-Object {
-        $blobName = "demo_data/$($_.Name)"
-        az storage blob upload `
-            --account-name $StorageAccountName `
-            --container-name datasets `
-            --name $blobName `
-            --file $_.FullName `
-            --auth-mode login `
-            --overwrite `
-            --output none
-        Write-Success "Uploaded: $blobName"
-    }
-    Write-Success "Demo data uploaded to datasets/demo_data/"
-} else {
-    Write-Info "demo_data/ directory not found - skipping demo data upload"
-}
-
 # 4. Create Function App
 Write-Step "Creating Function App..."
 
@@ -618,6 +593,27 @@ if (-not $SkipFunctionApp) {
         --scope $storageAccountId `
         --output none
     Write-Success "Assigned runtime storage roles (Blob Owner, Queue Contributor, Table Contributor)"
+
+    # 9b. Upload demo data now that the deploying user has Storage Blob Data Contributor
+    Write-Step "Uploading demo data to blob storage..."
+    $demoDataDir = Join-Path $PSScriptRoot "demo_data"
+    if (Test-Path $demoDataDir) {
+        Get-ChildItem -Path $demoDataDir -File | Where-Object { $_.Name -ne '.gitkeep' } | ForEach-Object {
+            $blobName = "demo_data/$($_.Name)"
+            az storage blob upload `
+                --account-name $StorageAccountName `
+                --container-name datasets `
+                --name $blobName `
+                --file $_.FullName `
+                --auth-mode login `
+                --overwrite `
+                --output none
+            Write-Success "Uploaded: $blobName"
+        }
+        Write-Success "Demo data uploaded to datasets/demo_data/"
+    } else {
+        Write-Info "demo_data/ directory not found - skipping demo data upload"
+    }
 
     # Log Analytics Reader role (if workspace is in same subscription)
     Write-Info "Note: You may need to manually assign 'Log Analytics Reader' role to the Function App's managed identity on your Log Analytics Workspace"
