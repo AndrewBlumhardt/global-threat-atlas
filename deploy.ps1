@@ -31,11 +31,11 @@
 
 .PARAMETER StorageAccountName
     Storage account name (must be globally unique, lowercase, 3-24 chars, alphanumeric only).
-    Default: derived from ProjectName with a deterministic suffix (stable across re-runs).
+    Default: <ProjectName> (lowercase alphanumeric only).
 
 .PARAMETER FunctionAppName
     Function app name (must be globally unique).
-    Default: func-<ProjectName>-<suffix>
+    Default: func-<ProjectName>
 
 .PARAMETER StaticWebAppName
     Static Web App name.
@@ -119,7 +119,7 @@ $ErrorActionPreference = "Stop"
 
 # Derive resource names from ProjectName for any that were not explicitly supplied
 $storageSlug = ($ProjectName -replace '[^a-z0-9]', '').ToLower()
-if ($storageSlug.Length -gt 19) { $storageSlug = $storageSlug.Substring(0, 19) }
+if ($storageSlug.Length -gt 24) { $storageSlug = $storageSlug.Substring(0, 24) }
 if ($storageSlug.Length -lt 3)  { $storageSlug = $storageSlug.PadRight(3, '0') }
 
 if (-not $Location)             { $Location             = "eastus" }
@@ -129,9 +129,8 @@ $SwaLocation = if ($swaValidRegions -contains $Location) { $Location } else { 'e
 if (-not $ResourceGroupName)    { $ResourceGroupName    = "rg-$ProjectName" }
 if (-not $StaticWebAppName)     { $StaticWebAppName     = "swa-$ProjectName" }
 if (-not $AzureMapsAccountName) { $AzureMapsAccountName = "maps-$ProjectName" }
-# StorageAccountName and FunctionAppName need a globally-unique suffix;
-# computed after login so the subscription ID can seed a deterministic value
-# (same project + same subscription = same names on every run — see below)
+if (-not $StorageAccountName)   { $StorageAccountName   = $storageSlug }
+if (-not $FunctionAppName)      { $FunctionAppName      = "func-$ProjectName" }
 
 # Color output functions
 function Write-Step {
@@ -209,16 +208,6 @@ if ($SubscriptionId) {
     Write-Success "Subscription set"
 } else {
     Write-Info "Using current subscription: $($account.name)"
-}
-
-# Derive a deterministic suffix from ProjectName + subscription ID so that
-# default storage / function-app names are stable across re-runs and unique
-# per subscription without needing random numbers.
-if (-not $StorageAccountName -or -not $FunctionAppName) {
-    $resolvedSubId = az account show --query id --output tsv
-    $nameSuffix    = (("$ProjectName$resolvedSubId").GetHashCode() -band [int]::MaxValue) % 90000 + 10000
-    if (-not $StorageAccountName) { $StorageAccountName = "${storageSlug}$nameSuffix" }
-    if (-not $FunctionAppName)    { $FunctionAppName    = "func-$ProjectName-$nameSuffix" }
 }
 
 # Validate workspace ID format
