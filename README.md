@@ -20,6 +20,16 @@ An Azure-hosted interactive map for SOC and threat intelligence teams. Displays 
 
 ---
 
+- [Operating Instructions](#operating-instructions)
+- [How the App Works](#how-the-app-works)
+- [Azure Costs](#azure-costs)
+- [Security](#security)
+- [Deployment](#deployment)
+- [API Reference](#api-reference)
+- [Troubleshooting](#troubleshooting)
+
+---
+
 ## Operating Instructions
 
 - **Load the map** to begin. There may be a short delay on first load while the Function App cold-starts.
@@ -230,6 +240,11 @@ az account set --subscription "YOUR-SUBSCRIPTION-NAME-OR-ID"
 ```
 
 Replace `YOUR-WORKSPACE-ID` with the GUID from Step 1. The script will display a deployment plan and ask you to confirm before creating anything. It takes approximately 5 minutes.
+
+By default, all Azure resources are named after the project name `global-threat-atlas`. To use a different name (e.g. for a company-branded deployment):
+```powershell
+.\deploy.ps1 -ProjectName "contoso-threat-map" -WorkspaceId "YOUR-WORKSPACE-ID"
+```
 
 For **Azure Government (GCC / GCC-High)**:
 ```powershell

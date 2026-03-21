@@ -1,29 +1,54 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-    Automated deployment script for Sentinel Activity Maps Azure Function
+    Automated deployment script for the Global Threat Intelligence Atlas
 
 .DESCRIPTION
-    This script creates all required Azure resources and deploys the function app:
+    This script creates all required Azure resources and deploys the application:
     - Resource Group
     - Storage Account with containers
     - Function App (Python 3.11, Linux)
+    - Key Vault
+    - Azure Maps Account
+    - Static Web App
     - Managed Identity configuration
     - RBAC role assignments
     - Function deployment
 
+    All resource names are derived from -ProjectName by default but can each
+    be overridden individually for custom naming or brownfield deployments.
+
+.PARAMETER ProjectName
+    Short name used to derive consistent names for all Azure resources.
+    Must be lowercase letters, numbers, and hyphens only.
+    Default: global-threat-atlas
+
 .PARAMETER ResourceGroupName
-    Name of the resource group to create (default: rg-sentinel-activity-maps)
+    Name of the resource group to create.
+    Default: rg-<ProjectName>
 
 .PARAMETER Location
     Azure region for resources (default: eastus)
 
 .PARAMETER StorageAccountName
-    Storage account name (must be globally unique, lowercase, 3-24 chars, alphanumeric only)
-    Default: sentinelactmapsXXXXX (random 5-digit suffix)
+    Storage account name (must be globally unique, lowercase, 3-24 chars, alphanumeric only).
+    Default: derived from ProjectName with random 5-digit suffix.
 
 .PARAMETER FunctionAppName
-    Function app name (must be globally unique, default: sentinel-activity-maps-func-XXXXX)
+    Function app name (must be globally unique).
+    Default: func-<ProjectName>-XXXXX
+
+.PARAMETER KeyVaultName
+    Key Vault name (must be globally unique, 3-24 chars).
+    Default: kv-<ProjectName>-XXXX
+
+.PARAMETER StaticWebAppName
+    Static Web App name.
+    Default: swa-<ProjectName>
+
+.PARAMETER AzureMapsAccountName
+    Azure Maps account name.
+    Default: maps-<ProjectName>-XXXX
 
 .PARAMETER WorkspaceId
     Log Analytics Workspace ID (required for function to work)
@@ -40,7 +65,10 @@
     .\deploy.ps1 -WorkspaceId "12345678-1234-1234-1234-123456789012"
 
 .EXAMPLE
-    .\deploy.ps1 -ResourceGroupName "rg-sentinel-activity-maps" -Location "westus2" -WorkspaceId "12345678-1234-1234-1234-123456789012"
+    .\deploy.ps1 -ProjectName "contoso-threat-map" -WorkspaceId "12345678-1234-1234-1234-123456789012"
+
+.EXAMPLE
+    .\deploy.ps1 -ProjectName "contoso-threat-map" -Location "westus2" -WorkspaceId "12345678-1234-1234-1234-123456789012"
 
 .EXAMPLE
     .\deploy.ps1 -WorkspaceId "12345678-1234-1234-1234-123456789012" -Cloud AzureUSGovernment
@@ -52,16 +80,19 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
-    [string]$ResourceGroupName = "rg-sentinel-activity-maps",
+    [string]$ProjectName = "global-threat-atlas",
+
+    [Parameter(Mandatory=$false)]
+    [string]$ResourceGroupName = "",
     
     [Parameter(Mandatory=$false)]
     [string]$Location = "eastus",
     
     [Parameter(Mandatory=$false)]
-    [string]$StorageAccountName = "sentinelactmaps$(Get-Random -Minimum 10000 -Maximum 99999)",
+    [string]$StorageAccountName = "",
     
     [Parameter(Mandatory=$false)]
-    [string]$FunctionAppName = "sentinel-activity-maps-func-$(Get-Random -Minimum 10000 -Maximum 99999)",
+    [string]$FunctionAppName = "",
     
     [Parameter(Mandatory=$true)]
     [string]$WorkspaceId,
@@ -74,13 +105,13 @@ param(
     [string]$Cloud = "AzureCloud",
     
     [Parameter(Mandatory=$false)]
-    [string]$KeyVaultName = "kv-sentinel-maps-$(Get-Random -Minimum 1000 -Maximum 9999)",
+    [string]$KeyVaultName = "",
     
     [Parameter(Mandatory=$false)]
-    [string]$StaticWebAppName = "swa-sentinel-activity-maps",
+    [string]$StaticWebAppName = "",
     
     [Parameter(Mandatory=$false)]
-    [string]$AzureMapsAccountName = "maps-sentinel-activity-$(Get-Random -Minimum 1000 -Maximum 9999)",
+    [string]$AzureMapsAccountName = "",
     
     [Parameter(Mandatory=$false)]
     [switch]$SkipInfrastructure,
@@ -90,6 +121,21 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Derive resource names from ProjectName for any that were not explicitly supplied
+$storageSlug = ($ProjectName -replace '[^a-z0-9]', '').ToLower()
+if ($storageSlug.Length -gt 19) { $storageSlug = $storageSlug.Substring(0, 19) }
+if ($storageSlug.Length -lt 3)  { $storageSlug = $storageSlug.PadRight(3, '0') }
+
+$kvSlug = ($ProjectName -replace '[^a-zA-Z0-9-]', '').ToLower()
+if ($kvSlug.Length -gt 14) { $kvSlug = $kvSlug.Substring(0, 14) }
+
+if (-not $ResourceGroupName)    { $ResourceGroupName    = "rg-$ProjectName" }
+if (-not $StorageAccountName)   { $StorageAccountName   = "${storageSlug}$(Get-Random -Minimum 10000 -Maximum 99999)" }
+if (-not $FunctionAppName)      { $FunctionAppName      = "func-$ProjectName-$(Get-Random -Minimum 10000 -Maximum 99999)" }
+if (-not $KeyVaultName)         { $KeyVaultName         = "kv-${kvSlug}-$(Get-Random -Minimum 1000 -Maximum 9999)" }
+if (-not $StaticWebAppName)     { $StaticWebAppName     = "swa-$ProjectName" }
+if (-not $AzureMapsAccountName) { $AzureMapsAccountName = "maps-$ProjectName-$(Get-Random -Minimum 1000 -Maximum 9999)" }
 
 # Color output functions
 function Write-Step {
@@ -186,10 +232,14 @@ if ($StorageAccountName -notmatch '^[a-z0-9]{3,24}$') {
 Write-Host "`n================================================" -ForegroundColor Magenta
 Write-Host "Deployment Plan" -ForegroundColor Magenta
 Write-Host "================================================" -ForegroundColor Magenta
+Write-Host "Project Name:      $ProjectName"
 Write-Host "Resource Group:    $ResourceGroupName"
 Write-Host "Location:          $Location"
 Write-Host "Storage Account:   $StorageAccountName"
 Write-Host "Function App:      $FunctionAppName"
+Write-Host "Key Vault:         $KeyVaultName"
+Write-Host "Static Web App:    $StaticWebAppName"
+Write-Host "Azure Maps:        $AzureMapsAccountName"
 Write-Host "Workspace ID:      $WorkspaceId"
 Write-Host "================================================`n" -ForegroundColor Magenta
 
