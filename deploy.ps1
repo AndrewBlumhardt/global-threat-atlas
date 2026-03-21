@@ -601,12 +601,12 @@ if (-not $SkipFunctionApp) {
     # 10. Deploy Function Code
     Write-Step "Deploying function code (with remote build for Python dependencies)..."
 
-# Check if in api directory
+# Check if in api directory (check subdirectory first — project root also has a host.json)
 $currentPath = Get-Location
-if (Test-Path ".\host.json") {
-    $apiPath = $currentPath
-} elseif (Test-Path ".\api\host.json") {
+if (Test-Path ".\api\host.json") {
     $apiPath = Join-Path $currentPath "api"
+} elseif (Test-Path ".\host.json") {
+    $apiPath = $currentPath
 } else {
     Write-Error "Cannot find api/host.json. Please run from the project root or api directory."
     exit 1
