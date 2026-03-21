@@ -8,7 +8,6 @@
     - Resource Group
     - Storage Account with containers
     - Function App (Python 3.11, Linux)
-    - Key Vault
     - Azure Maps Account
     - Static Web App
     - Managed Identity configuration
@@ -37,10 +36,6 @@
 .PARAMETER FunctionAppName
     Function app name (must be globally unique).
     Default: func-<ProjectName>-XXXXX
-
-.PARAMETER KeyVaultName
-    Key Vault name (must be globally unique, 3-24 chars).
-    Default: kv-<ProjectName>-XXXX
 
 .PARAMETER StaticWebAppName
     Static Web App name.
@@ -108,9 +103,6 @@ param(
     [string]$Cloud = "AzureCloud",
     
     [Parameter(Mandatory=$false)]
-    [string]$KeyVaultName = "",
-    
-    [Parameter(Mandatory=$false)]
     [string]$StaticWebAppName = "",
     
     [Parameter(Mandatory=$false)]
@@ -130,14 +122,10 @@ $storageSlug = ($ProjectName -replace '[^a-z0-9]', '').ToLower()
 if ($storageSlug.Length -gt 19) { $storageSlug = $storageSlug.Substring(0, 19) }
 if ($storageSlug.Length -lt 3)  { $storageSlug = $storageSlug.PadRight(3, '0') }
 
-$kvSlug = ($ProjectName -replace '[^a-zA-Z0-9-]', '').ToLower()
-if ($kvSlug.Length -gt 14) { $kvSlug = $kvSlug.Substring(0, 14) }
-
 if (-not $Location)             { $Location             = "eastus" }
 if (-not $ResourceGroupName)    { $ResourceGroupName    = "rg-$ProjectName" }
 if (-not $StorageAccountName)   { $StorageAccountName   = "${storageSlug}$(Get-Random -Minimum 10000 -Maximum 99999)" }
 if (-not $FunctionAppName)      { $FunctionAppName      = "func-$ProjectName-$(Get-Random -Minimum 10000 -Maximum 99999)" }
-if (-not $KeyVaultName)         { $KeyVaultName         = "kv-${kvSlug}-$(Get-Random -Minimum 1000 -Maximum 9999)" }
 if (-not $StaticWebAppName)     { $StaticWebAppName     = "swa-$ProjectName" }
 if (-not $AzureMapsAccountName) { $AzureMapsAccountName = "maps-$ProjectName-$(Get-Random -Minimum 1000 -Maximum 9999)" }
 
@@ -241,7 +229,6 @@ Write-Host "Resource Group:    $ResourceGroupName"
 Write-Host "Location:          $Location  (tip: set -Location to deploy closer to your workspace)"
 Write-Host "Storage Account:   $StorageAccountName"
 Write-Host "Function App:      $FunctionAppName"
-Write-Host "Key Vault:         $KeyVaultName"
 Write-Host "Static Web App:    $StaticWebAppName"
 Write-Host "Azure Maps:        $AzureMapsAccountName"
 Write-Host "Workspace ID:      $WorkspaceId"
@@ -324,30 +311,6 @@ $storageKey = az storage account keys list `
 
 Write-Success "Containers created: datasets, locks"
 
-# 3c. Grant Function App and SWA blob storage access via RBAC
-Write-Info "Getting storage account resource ID..."
-$storageId = az storage account show `
-    --name $StorageAccountName `
-    --resource-group $ResourceGroupName `
-    --query id `
-    --output tsv
-
-Write-Info "Granting Function App 'Storage Blob Data Reader' role..."
-az role assignment create `
-    --assignee $principalId `
-    --role "Storage Blob Data Reader" `
-    --scope $storageId `
-    --output none
-Write-Success "Function App granted blob storage access via RBAC"
-
-Write-Info "Granting Static Web App 'Storage Blob Data Reader' role..."
-az role assignment create `
-    --assignee $swaPrincipalId `
-    --role "Storage Blob Data Reader" `
-    --scope $storageId `
-    --output none
-Write-Success "Static Web App granted blob storage access via RBAC"
-
 # 4. Create Function App
 Write-Step "Creating Function App..."
 
@@ -385,50 +348,14 @@ az functionapp identity assign `
 
 Write-Success "Managed identity configured"
 
-# 5. Create Key Vault and Store Secrets
-Write-Step "Creating Azure Key Vault..."
-
-# Check if Key Vault already exists
-$kvExists = az keyvault show --name $KeyVaultName --resource-group $ResourceGroupName 2>$null
-
-if ($kvExists) {
-    Write-Info "Key Vault already exists: $KeyVaultName"
-} else {
-    Write-Info "Creating new Key Vault with RBAC authorization..."
-    az keyvault create `
-        --name $KeyVaultName `
-        --resource-group $ResourceGroupName `
-        --location $Location `
-        --enable-rbac-authorization true `
-        --output none
-    Write-Success "Key Vault created: $KeyVaultName (RBAC-enabled)"
-}
-
-# Get Managed Identity Principal ID for Key Vault access
+# Fetch the Function App's managed identity principal ID
 $principalId = az functionapp identity show `
     --resource-group $ResourceGroupName `
     --name $FunctionAppName `
     --query principalId `
     --output tsv
 
-# Get Key Vault resource ID for RBAC scope
-$kvResourceId = az keyvault show `
-    --name $KeyVaultName `
-    --resource-group $ResourceGroupName `
-    --query id `
-    --output tsv
-
-# Grant Function App access to Key Vault secrets using RBAC
-Write-Info "Granting Function App 'Key Vault Secrets User' role..."
-az role assignment create `
-    --assignee $principalId `
-    --role "Key Vault Secrets User" `
-    --scope $kvResourceId `
-    --output none
-
-Write-Success "Function App granted Key Vault access via RBAC (Secrets User role)"
-
-# 6. Create Azure Maps Account
+# 5. Create Azure Maps Account
 Write-Step "Creating Azure Maps Account..."
 
 # Check if Azure Maps account already exists
@@ -530,15 +457,27 @@ $swaPrincipalId = az staticwebapp identity show `
 
 Write-Info "SWA Principal ID: $swaPrincipalId"
 
-# Grant SWA access to Key Vault secrets using RBAC
-Write-Info "Granting Static Web App 'Key Vault Secrets User' role..."
+# Grant Function App and SWA blob storage access via RBAC
+Write-Step "Granting storage access roles..."
+$storageId = az storage account show `
+    --name $StorageAccountName `
+    --resource-group $ResourceGroupName `
+    --query id `
+    --output tsv
+
+az role assignment create `
+    --assignee $principalId `
+    --role "Storage Blob Data Reader" `
+    --scope $storageId `
+    --output none
+Write-Success "Function App: Storage Blob Data Reader"
+
 az role assignment create `
     --assignee $swaPrincipalId `
-    --role "Key Vault Secrets User" `
-    --scope $kvResourceId `
+    --role "Storage Blob Data Reader" `
+    --scope $storageId `
     --output none
-
-Write-Success "Static Web App granted Key Vault access via RBAC (Secrets User role)"
+Write-Success "Static Web App: Storage Blob Data Reader"
 
 # Configure SWA app settings
 Write-Info "Configuring Static Web App settings..."
@@ -549,10 +488,9 @@ az staticwebapp appsettings set `
     --setting-names `
         STORAGE_ACCOUNT_URL=$storageUrl `
         STORAGE_CONTAINER_DATASETS=datasets `
-        KEY_VAULT_NAME=$KeyVaultName `
     --output none
 
-Write-Success "Static Web App settings configured (using Key Vault for secrets)"
+Write-Success "Static Web App settings configured"
 
 # Update web/config.js with the actual storage account URL so the frontend
 # fallback matches this deployment without any manual edits.
@@ -567,18 +505,6 @@ if (Test-Path $configJsPath) {
 } else {
     Write-Info "web/config.js not found — copy web/config.sample.js to web/config.js and set STORAGE_ACCOUNT_URL = $storageUrl"
 }
-
-# Disable public network access to Key Vault (Azure services can still access via backbone)
-Write-Info "Disabling public network access to Key Vault..."
-az keyvault update `
-    --name $KeyVaultName `
-    --resource-group $ResourceGroupName `
-    --default-action Deny `
-    --bypass AzureServices `
-    --output none
-
-Write-Success "Key Vault secured: Public access disabled, Azure services can access via backbone"
-Write-Info "Function App and SWA will access Key Vault using Managed Identity over Azure backbone"
 
 # Function App-specific configuration (skip if -SkipFunctionApp is specified)
 if (-not $SkipFunctionApp) {
@@ -609,7 +535,6 @@ if (-not $SkipFunctionApp) {
             AzureWebJobsFeatureFlags=EnableWorkerIndexing `
             AZURE_MAPS_SUBSCRIPTION_KEY=$mapsKey `
             MAXMIND_LICENSE_KEY='' `
-            KEY_VAULT_NAME=$KeyVaultName `
         --output none
 
     Write-Info "Note: MAXMIND_LICENSE_KEY must be set manually (free key from maxmind.com/en/geolite2/signup)."
