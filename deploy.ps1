@@ -305,14 +305,7 @@ if ($storageExists.nameAvailable -eq $false -and $storageExists.reason -eq "Alre
 # 3. Create Blob Containers
 Write-Step "Creating blob containers..."
 
-# Get storage account key for container creation
-$storageKey = az storage account keys list `
-    --resource-group $ResourceGroupName `
-    --account-name $StorageAccountName `
-    --query '[0].value' `
-    --output tsv
-
-# Use account name (no key) for container creation - requires Azure CLI authentication
+# Use --auth-mode login (current user credential) — no storage key needed
     az storage container create `
         --name datasets `
         --account-name $StorageAccountName `
@@ -549,12 +542,12 @@ if (-not $SkipFunctionApp) {
             STORAGE_CONTAINER_DATASETS=datasets `
             DEFAULT_QUERY_TIME_WINDOW_HOURS=24 `
             INCREMENTAL_OVERLAP_MINUTES=10 `
-            AzureWebJobsFeatureFlags=EnableWorkerIndexing `
             AZURE_MAPS_SUBSCRIPTION_KEY=$mapsKey `
+            MAXMIND_ACCOUNT_ID='' `
             MAXMIND_LICENSE_KEY='' `
         --output none
 
-    Write-Info "Note: MAXMIND_LICENSE_KEY must be set manually (free key from maxmind.com/en/geolite2/signup)."
+    Write-Info "Note: MAXMIND_ACCOUNT_ID and MAXMIND_LICENSE_KEY must be set manually (free credentials from maxmind.com/en/geolite2/signup)."
     Write-Success "Application settings configured — runtime storage uses Managed Identity (no storage keys)"
 
     # 9. Assign RBAC Roles
@@ -770,8 +763,8 @@ Write-Host "`n================================================" -ForegroundColor
 if (-not $SkipFunctionApp) {
     Write-Host "`n⚠️  Important Next Steps:" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "1. Add secrets to Key Vault:" -ForegroundColor Yellow
-    Write-Host "   Required secrets for the application to function:" -ForegroundColor White
+    Write-Host "1. Configure required app settings:" -ForegroundColor Yellow
+    Write-Host "   The following settings are needed for the application to function:" -ForegroundColor White
     Write-Host ""
     Write-Host "   a) Azure Maps key: already configured automatically as AZURE_MAPS_SUBSCRIPTION_KEY." -ForegroundColor Green
     Write-Host "      To rotate: az maps account keys renew --name $AzureMapsAccountName --resource-group $ResourceGroupName --key primary" -ForegroundColor Gray
@@ -780,9 +773,9 @@ if (-not $SkipFunctionApp) {
     Write-Host "   b) Storage Account URL: already written into web/config.js as STORAGE_ACCOUNT_URL." -ForegroundColor Green
     Write-Host "      ($storageUrl)" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "   c) MaxMind License Key (REQUIRED for IP geo-enrichment):" -ForegroundColor Cyan
+    Write-Host "   c) MaxMind credentials (REQUIRED for IP geo-enrichment):" -ForegroundColor Cyan
     Write-Host "      # Sign up free at https://www.maxmind.com/en/geolite2/signup" -ForegroundColor Gray
-    Write-Host "      az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings MAXMIND_LICENSE_KEY='<your-key>'" -ForegroundColor Cyan
+    Write-Host "      az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings MAXMIND_ACCOUNT_ID='<your-account-id>' MAXMIND_LICENSE_KEY='<your-license-key>'" -ForegroundColor Cyan
     Write-Host ""
     if ($swaSecretSet) {
         Write-Host "   d) GitHub Actions SWA token: already set as AZURE_STATIC_WEB_APPS_API_TOKEN repo secret." -ForegroundColor Green
