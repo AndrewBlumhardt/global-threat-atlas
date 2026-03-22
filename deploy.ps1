@@ -557,6 +557,17 @@ if ($mapsKey) {
     $mapsKey = ''
 }
 
+# Ensure subscription-key auth is enabled on the Maps account.
+# Gov tenants commonly apply a policy that sets disableLocalAuth=true by default,
+# which causes all tile requests to return 401 even with a valid key.
+Write-Info "Ensuring Maps subscription-key auth is enabled (disableLocalAuth=false)..."
+az maps account update `
+    --name $AzureMapsAccountName `
+    --resource-group $ResourceGroupName `
+    --disable-local-auth false `
+    --output none
+Write-Success "Maps account: subscription-key auth confirmed enabled"
+
 if ($Cloud -eq 'AzureUSGovernment') {
     # Gov cloud: Static Web Apps not available - use Storage Static Website instead
     Write-Step "Configuring Storage Static Website (gov cloud - SWA not available)..."

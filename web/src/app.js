@@ -351,14 +351,21 @@ async function main() {
     }
   });
 
+  let tileErrorShown = false;
   map.events.add("error", (e) => {
     console.error("Map error:", e);
+    if (tileErrorShown) return;
+    tileErrorShown = true;
     const loadingOverlay = document.getElementById('loadingOverlay');
     if (loadingOverlay) {
+      loadingOverlay.classList.remove('hidden'); // re-show if "ready" already hid it
       const spinner = loadingOverlay.querySelector('.spinner');
       const text = loadingOverlay.querySelector('.loading-text');
       if (spinner) spinner.style.display = 'none';
-      if (text) text.textContent = 'Map failed to load. Check your Azure Maps key or try refreshing.';
+      const is401 = e?.error?.message?.includes('401') || JSON.stringify(e).includes('401');
+      if (text) text.textContent = is401
+        ? 'Map tiles failed to load (401 Unauthorized). The Azure Maps key may be invalid or subscription key auth may be disabled on the Maps account. Check the AZURE_MAPS_SUBSCRIPTION_KEY app setting.'
+        : 'Map failed to load. Check your Azure Maps key or try refreshing.';
     }
   });
 }
