@@ -273,11 +273,53 @@ For **Azure Government (GCC / GCC-High)**:
 - Storage Account with `datasets` and `locks` containers
 - Azure Maps Account (Gen2)
 - RBAC role assignments (Log Analytics Reader, Storage Blob Data Contributor)
-- GitHub Actions secrets for automatic CI/CD (requires GitHub CLI)
+- CORS configured on the Function App for the SWA hostname
 
-At the end the script prints the Static Web App URL - that is your app.
+At the end the script prints a **Next Steps** section with a deployment token and commands. Steps 4 and 5 below walk through those.
 
-**Step 4 - Add your MaxMind license key**
+**Step 4 - Deploy the frontend to your Static Web App**
+
+The map interface is hosted on the Static Web App and deployed via a GitHub Actions workflow. The workflow needs a deployment token stored as a secret in your GitHub repo before it can run — this is why the SWA shows "Waiting for deployment" after the script finishes.
+
+The deploy script prints a token in the Next Steps output. Copy it, then add it to your GitHub repo:
+
+1. Go to your GitHub repo on GitHub.com
+2. Click **Settings** (top navigation)
+3. In the left sidebar, click **Secrets and variables** → **Actions**
+4. Click **New repository secret**
+5. **Name:** `AZURE_STATIC_WEB_APPS_API_TOKEN`
+6. **Value:** paste the token printed by the deploy script
+7. Click **Add secret**
+
+Or with GitHub CLI:
+```powershell
+gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body '<token-from-deploy-output>'
+```
+
+Once the secret is saved, trigger the first deployment:
+
+1. Go to your GitHub repo → **Actions** tab
+2. Click **Azure Static Web Apps CI/CD** in the left sidebar
+3. Click **Run workflow** → **Run workflow**
+
+After about a minute the SWA status changes from "Waiting for deployment" to live. The URL is shown on the Static Web App overview page in the Azure Portal.
+
+**Step 5 - Enable automatic Function App redeployment (optional)**
+
+The deploy script already pushed the function code. This step only matters if you plan to make changes to `api/` in the future — it sets up GitHub Actions to redeploy automatically on every push.
+
+From the Next Steps output in the deploy script, run the printed command (it fetches the publish profile and saves it as a secret in one step):
+
+```powershell
+az functionapp deployment list-publishing-profiles `
+  --name <FUNCTION-APP-NAME> `
+  --resource-group <RESOURCE-GROUP> `
+  --xml | gh secret set AZURE_FUNCTIONAPP_PUBLISH_PROFILE
+```
+
+Replace `<FUNCTION-APP-NAME>` and `<RESOURCE-GROUP>` with the values printed by the deploy script. Once set, any push to `api/` on `main` triggers an automatic redeploy.
+
+**Step 6 - Add your MaxMind license key**
 
 IP enrichment uses [MaxMind GeoLite2](https://www.maxmind.com/en/geolite2/signup) - a free, locally-run database that provides city-level precision (latitude, longitude, ASN, and ISP data) on every IP lookup. It is more detailed than the coordinates Azure embeds in sign-in logs, works offline inside the Function App, and adds no per-lookup cost or external API call. A free GeoLite2 license is sufficient for personal or internal use; a paid [GeoIP2](https://www.maxmind.com/en/geoip/geoip2-databases-overview) license is recommended for production or commercial deployments.
 
@@ -292,19 +334,19 @@ az functionapp config appsettings set `
 
 Substitute the Function App name and resource group printed by the deploy script.
 
-**Step 5 - Trigger the first data refresh**
+**Step 7 - Trigger the first data refresh**
 
 Open a browser and go to:
 ```
-https://<your-function-app>.azurewebsites.net/api/refresh
+https://<your-swa-hostname>/api/refresh
 ```
 
-This runs the Sentinel → MaxMind → GeoJSON pipeline for the first time. It may take 1–2 minutes. Once complete, reload your Static Web App URL and enable the data layers.
+Use the Static Web App URL (printed on the SWA overview page), not the Function App URL directly. The Function App is behind the SWA and direct calls to `azurewebsites.net` will be blocked. The refresh may take 1-2 minutes the first time. Once complete, reload the SWA URL and enable the data layers.
 
-**Step 6 - Verify everything is working**
+**Step 8 - Verify everything is working**
 
 ```
-https://<your-function-app>.azurewebsites.net/api/health
+https://<your-swa-hostname>/api/health
 ```
 
 This returns the current status of all configuration settings and the age of each data file.
