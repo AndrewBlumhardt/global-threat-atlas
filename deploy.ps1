@@ -585,14 +585,13 @@ if (-not $SkipFunctionApp) {
             Write-Success "Assigned Log Analytics Reader on workspace (RG: $workspaceRg)"
         } else {
             Write-Warning "Could not assign Log Analytics Reader - you may not have role assignment permissions on this workspace."
-            Write-Warning "Ask a workspace Owner to run:"
-            Write-Warning "  az role assignment create --assignee $principalId --role 'Log Analytics Reader' --scope $workspaceResourceId"
+            Write-Warning "Ask a workspace Owner to grant access via the portal (see Next Steps below, item 2)."
+            Write-Warning "Function App MI principal ID to share with them: $principalId"
         }
     } else {
         Write-Warning "Workspace $WorkspaceId not found in the current subscription (it may be in a different subscription)."
-        Write-Warning "After deployment, ask a workspace Owner to run the following, replacing <workspace-resource-id>:"
-        Write-Warning "  az role assignment create --assignee $principalId --role 'Log Analytics Reader' --scope <workspace-resource-id>"
-        Write-Warning "  Workspace resource ID format: /subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.OperationalInsights/workspaces/<name>"
+        Write-Warning "Ask a workspace Owner to grant access via the portal (see Next Steps below, item 2)."
+        Write-Warning "Function App MI principal ID to share with them: $principalId"
     }
 
     # 10. Deploy Function Code
@@ -789,20 +788,21 @@ if (-not $SkipFunctionApp) {
         Write-Host "      The function code was deployed inline above — this secret is only needed for future pushes to api/." -ForegroundColor Gray
     }
     Write-Host ""
-    Write-Host "2. Assign 'Log Analytics Reader' role to the Function App on your Log Analytics Workspace" -ForegroundColor Yellow
-    Write-Host "   Principal ID: $principalId" -ForegroundColor White
+    Write-Host "2. Assign 'Log Analytics Reader' role to the Function App managed identity on your Log Analytics Workspace" -ForegroundColor Yellow
+    Write-Host "   Function App MI principal ID: $principalId" -ForegroundColor White
     Write-Host ""
-    Write-Host "   Option A - Via Function App Identity (Easiest):" -ForegroundColor Cyan
-    Write-Host "   1. Go to Azure Portal → Function App '$FunctionAppName'" -ForegroundColor White
-    Write-Host "   2. Click 'Identity' in the left menu" -ForegroundColor White
-    Write-Host "   3. Go to 'Azure role assignments' tab" -ForegroundColor White
-    Write-Host "   4. Click '+ Add role assignment'" -ForegroundColor White
-    Write-Host "   5. Scope: Select your Log Analytics Workspace" -ForegroundColor White
-    Write-Host "   6. Role: Select 'Log Analytics Reader'" -ForegroundColor White
-    Write-Host "   7. Click 'Save'" -ForegroundColor White
+    Write-Host "   If you own the workspace (same subscription) - via Azure Portal:" -ForegroundColor Cyan
+    Write-Host "   1. Go to Azure Portal -> Function App '$FunctionAppName' -> Identity (left menu)" -ForegroundColor White
+    Write-Host "   2. On the 'System assigned' tab, click 'Azure role assignments'" -ForegroundColor White
+    Write-Host "   3. Click '+ Add role assignment'" -ForegroundColor White
+    Write-Host "   4. Scope: Log Analytics Workspace  |  Resource: your workspace  |  Role: Log Analytics Reader" -ForegroundColor White
+    Write-Host "   5. Click Save" -ForegroundColor White
     Write-Host ""
-    Write-Host "   Option B - Azure CLI:" -ForegroundColor Cyan
-    Write-Host "   az role assignment create --assignee $principalId --role 'Log Analytics Reader' --scope /subscriptions/<sub-id>/resourceGroups/<workspace-rg>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>" -ForegroundColor Gray
+    Write-Host "   If the workspace is in a different subscription - send the workspace owner this:" -ForegroundColor Cyan
+    Write-Host "   1. Open Azure Portal -> Log Analytics workspace -> Access control (IAM) -> Add role assignment" -ForegroundColor White
+    Write-Host "   2. Role: Log Analytics Reader" -ForegroundColor White
+    Write-Host "   3. Members: select 'Managed identity', find '$FunctionAppName' (principal ID: $principalId)" -ForegroundColor White
+    Write-Host "   4. Click Review + assign" -ForegroundColor White
     Write-Host ""
     Write-Host "3. Test the deployment:" -ForegroundColor Yellow
     Write-Host "   Invoke-RestMethod https://$FunctionAppName.azurewebsites.net/api/health" -ForegroundColor Cyan
