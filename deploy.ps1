@@ -125,15 +125,11 @@ if ($storageSlug.Length -lt 3)  { $storageSlug = $storageSlug.PadRight(3, '0') }
 
 # SWA is only available in a subset of regions per cloud; map to the nearest valid one.
 # Government clouds use a separate set of supported SWA regions.
-$swaCommercialRegions = @('westus2','centralus','eastus2','westeurope','eastasia')
-$swaGovRegions        = @('usgovvirginia', 'usgovarizona')
+# $SwaLocation is resolved after cloud detection (cloud may be inherited from the CLI).
+$swaCommercialRegions  = @('westus2','centralus','eastus2','westeurope','eastasia')
+$swaGovRegions         = @('usgovvirginia', 'usgovarizona')
 $swaFallbackCommercial = 'eastus2'
 $swaFallbackGov        = 'usgovvirginia'
-if ($Cloud -eq 'AzureUSGovernment') {
-    $SwaLocation = if ($swaGovRegions -contains $Location) { $Location } else { $swaFallbackGov }
-} else {
-    $SwaLocation = if ($swaCommercialRegions -contains $Location) { $Location } else { $swaFallbackCommercial }
-}
 if (-not $ResourceGroupName)    { $ResourceGroupName    = "rg-$ProjectName" }
 if (-not $StaticWebAppName)     { $StaticWebAppName     = "swa-$ProjectName" }
 if (-not $AzureMapsAccountName) { $AzureMapsAccountName = "maps-$ProjectName" }
@@ -206,6 +202,13 @@ if ($Cloud) {
     $Cloud = $currentCloud
 }
 
+# Resolve SWA location now that $Cloud is known (may have been inherited from the CLI).
+if ($Cloud -eq 'AzureUSGovernment') {
+    $SwaLocation = if ($swaGovRegions -contains $Location) { $Location } else { $swaFallbackGov }
+} else {
+    $SwaLocation = if ($swaCommercialRegions -contains $Location) { $Location } else { $swaFallbackCommercial }
+}
+
 $account = az account show 2>$null | ConvertFrom-Json
 if (-not $account) {
     Write-Info "Not logged in. Starting login to $Cloud..."
@@ -242,6 +245,7 @@ if ($StorageAccountName -notmatch '^[a-z0-9]{3,24}$') {
 Write-Host "`n================================================" -ForegroundColor Magenta
 Write-Host "Deployment Plan" -ForegroundColor Magenta
 Write-Host "================================================" -ForegroundColor Magenta
+Write-Host "Cloud:             $Cloud"
 Write-Host "Project Name:      $ProjectName"
 Write-Host "Resource Group:    $ResourceGroupName"
 Write-Host "Location:          $Location"
@@ -257,6 +261,8 @@ if ($confirmation -ne "yes") {
     Write-Info "Deployment cancelled."
     exit 0
 }
+
+$startTime = Get-Date
 
 # Derive blob service endpoint - needed for gov cloud where the suffix differs
 $blobEndpoint = if ($Cloud -eq 'AzureUSGovernment') {
@@ -726,7 +732,8 @@ try {
         $base64Auth = [Convert]::ToBase64String(
             [Text.Encoding]::ASCII.GetBytes("$($creds.user):$($creds.pass)"))
         $zipBytes = [System.IO.File]::ReadAllBytes($zipPath)
-        $kuduUri = "https://$FunctionAppName.scm.azurewebsites.net/api/zipdeploy"
+        $scmHost = if ($Cloud -eq 'AzureUSGovernment') { 'azurewebsites.us' } else { 'azurewebsites.net' }
+        $kuduUri = "https://$FunctionAppName.scm.$scmHost/api/zipdeploy"
         Invoke-RestMethod -Uri $kuduUri -Method POST `
             -Headers @{ Authorization = "Basic $base64Auth"; 'Content-Type' = 'application/zip' } `
             -Body $zipBytes | Out-Null
