@@ -210,9 +210,9 @@ The included script creates all required Azure resources and deploys the app in 
 ### Scripted Deployment (Recommended)
 
 **What you need before starting:**
-- An Azure subscription with Owner or Contributor access
-- A Microsoft Sentinel workspace (note the Workspace ID - a GUID found in Azure Portal → Log Analytics workspaces → your workspace → Overview)
-- Permission to assign the `Log Analytics Reader` role on that workspace - the workspace may be in a different subscription, so you need at least `Owner` or `User Access Administrator` on it (or ask someone who does to run the assignment after deployment)
+- An Azure subscription where you have **Owner or Contributor** access (the app is deployed here)
+- A Microsoft Sentinel workspace (note the Workspace ID - a GUID found in Azure Portal → Log Analytics workspaces → your workspace → Overview). The workspace can be in a different subscription or resource group.
+- **Owner or User Access Administrator** on the Sentinel workspace resource or its subscription - required to grant the Function App `Log Analytics Reader` access. If you do not have this, the script will print the exact command to hand off to someone who does, and the app can still be deployed - just without live data until the role is assigned.
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) installed
 - [Git](https://git-scm.com/downloads) installed
 - A [GitHub account](https://github.com/join) (free) - required to fork the repo and run GitHub Actions workflows
