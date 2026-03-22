@@ -138,8 +138,9 @@ async function main() {
           await toggleCustomSourceOverlay(map, true); // Turn back on with new data
         }
         
-        // Recheck custom source availability
+        // Recheck data-dependent layer availability under the new mode
         await checkCustomSourceAvailability();
+        await checkSignInActivityAvailability();
         await checkDeviceLocationsAvailability();
       });
     }
