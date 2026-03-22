@@ -258,8 +258,13 @@ if ($confirmation -ne "yes") {
     exit 0
 }
 
-# Start deployment
-$startTime = Get-Date
+# Derive blob service endpoint - needed for gov cloud where the suffix differs
+$blobEndpoint = if ($Cloud -eq 'AzureUSGovernment') {
+    "https://$StorageAccountName.blob.core.usgovcloudapi.net"
+} else {
+    "https://$StorageAccountName.blob.core.windows.net"
+}
+
 
 # 1. Create or Verify Resource Group
 Write-Step "Checking resource group..."
@@ -292,34 +297,50 @@ if ($existingStorage) {
     Write-Success "Using existing storage account in resource group"
 } else {
     Write-Info "Creating new storage account..."
-    az storage account create `
-        --name $StorageAccountName `
-        --resource-group $ResourceGroupName `
-        --location $Location `
-        --sku Standard_LRS `
-        --kind StorageV2 `
-        --allow-blob-public-access false `
-        --min-tls-version TLS1_2 `
-        --require-infrastructure-encryption `
-        --output none
+    # --require-infrastructure-encryption is not supported in Azure Government clouds;
+    # omit it and rely on the cloud's built-in encryption enforcement.
+    $saParams = @(
+        'storage', 'account', 'create',
+        '--name', $StorageAccountName,
+        '--resource-group', $ResourceGroupName,
+        '--location', $Location,
+        '--sku', 'Standard_LRS',
+        '--kind', 'StorageV2',
+        '--allow-blob-public-access', 'false',
+        '--min-tls-version', 'TLS1_2',
+        '--output', 'none'
+    )
+    if ($Cloud -ne 'AzureUSGovernment') {
+        $saParams += '--require-infrastructure-encryption'
+    }
+    az @saParams
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Storage account creation failed (exit $LASTEXITCODE). Check the errors above."
+        exit 1
+    }
     Write-Success "Storage account created: $StorageAccountName"
 }
 
 # 3. Create Blob Containers
 Write-Step "Creating blob containers..."
 
-# Use --auth-mode login (current user credential) — no storage key needed
+# Use explicit --blob-endpoint so the CLI targets the correct cloud storage host
+# (gov cloud uses .blob.core.usgovcloudapi.net, not .blob.core.windows.net).
     az storage container create `
         --name datasets `
         --account-name $StorageAccountName `
+        --blob-endpoint $blobEndpoint `
         --auth-mode login `
         --output none
+    if ($LASTEXITCODE -ne 0) { Write-Error "Failed to create 'datasets' container."; exit 1 }
 
     az storage container create `
         --name locks `
         --account-name $StorageAccountName `
+        --blob-endpoint $blobEndpoint `
         --auth-mode login `
         --output none
+    if ($LASTEXITCODE -ne 0) { Write-Error "Failed to create 'locks' container."; exit 1 }
 
 Write-Success "Containers created: datasets, locks"
 
@@ -440,7 +461,7 @@ Write-Info "SWA deployment token retrieved — see Next Steps to set AZURE_STATI
 
 # Configure SWA app settings
 Write-Info "Configuring Static Web App settings..."
-$storageUrl = "https://$StorageAccountName.blob.core.windows.net"
+$storageUrl = $blobEndpoint
 az staticwebapp appsettings set `
     --name $StaticWebAppName `
     --resource-group $ResourceGroupName `
@@ -470,7 +491,7 @@ if (-not $SkipFunctionApp) {
     # 8. Configure App Settings
     Write-Step "Configuring application settings..."
 
-    $storageUrl = "https://$StorageAccountName.blob.core.windows.net"
+    $storageUrl = $blobEndpoint
 
     az functionapp config appsettings set `
         --resource-group $ResourceGroupName `
@@ -562,6 +583,7 @@ if (-not $SkipFunctionApp) {
                 }
                 az storage blob upload `
                     --account-name $StorageAccountName `
+                    --blob-endpoint $blobEndpoint `
                     --container-name datasets `
                     --name $blobName `
                     --file $_.FullName `
@@ -589,6 +611,7 @@ if (-not $SkipFunctionApp) {
                 }
                 az storage blob upload `
                     --account-name $StorageAccountName `
+                    --blob-endpoint $blobEndpoint `
                     --container-name datasets `
                     --name $blobName `
                     --file $_.FullName `
