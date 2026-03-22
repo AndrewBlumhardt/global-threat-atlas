@@ -930,21 +930,16 @@ try {
         if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
         Compress-Archive -Path "$buildDir\*" -DestinationPath $zipPath
 
-        # Deploy via Kudu zip deploy REST API
-        # (az functionapp deploy --type zip is preview and broken on Linux Consumption Plan)
+        # Deploy via Kudu zip deploy REST API using bearer token auth.
+        # Basic auth publishing credentials are disabled by default on newer Function Apps
+        # so we use the AAD bearer token from the current CLI session instead.
         Write-Info "Uploading zip to $FunctionAppName via Kudu..."
-        $creds = az functionapp deployment list-publishing-credentials `
-            --name $FunctionAppName `
-            --resource-group $ResourceGroupName `
-            --query '{user:publishingUserName, pass:publishingPassword}' `
-            --output json | ConvertFrom-Json
-        $base64Auth = [Convert]::ToBase64String(
-            [Text.Encoding]::ASCII.GetBytes("$($creds.user):$($creds.pass)"))
+        $bearerToken = az account get-access-token --query accessToken --output tsv
         $zipBytes = [System.IO.File]::ReadAllBytes($zipPath)
         $scmHost = if ($Cloud -eq 'AzureUSGovernment') { 'azurewebsites.us' } else { 'azurewebsites.net' }
         $kuduUri = "https://$FunctionAppName.scm.$scmHost/api/zipdeploy"
         Invoke-RestMethod -Uri $kuduUri -Method POST `
-            -Headers @{ Authorization = "Basic $base64Auth"; 'Content-Type' = 'application/zip' } `
+            -Headers @{ Authorization = "Bearer $bearerToken"; 'Content-Type' = 'application/zip' } `
             -Body $zipBytes | Out-Null
 
         Remove-Item $buildDir -Recurse -Force
