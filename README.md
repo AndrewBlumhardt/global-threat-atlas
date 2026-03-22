@@ -281,7 +281,7 @@ At the end the script prints a **Next Steps** section with a deployment token an
 
 **Step 4 - Deploy the frontend to your Static Web App**
 
-The map interface is hosted on the Static Web App and deployed via a GitHub Actions workflow. The workflow needs a deployment token stored as a secret in your GitHub repo before it can run — this is why the SWA shows "Waiting for deployment" after the script finishes.
+The map interface is hosted on the Static Web App and deployed via a GitHub Actions workflow. The workflow needs a deployment token stored as a secret in your GitHub repo before it can run - this is why the SWA shows "Waiting for deployment" after the script finishes.
 
 The deploy script prints a token in the Next Steps output. Copy it, then add it to your GitHub repo:
 
@@ -308,7 +308,7 @@ After about a minute the SWA status changes from "Waiting for deployment" to liv
 
 **Step 5 - Enable automatic Function App redeployment (optional)**
 
-The deploy script already pushed the function code. This step only matters if you plan to make changes to `api/` in the future — it sets up GitHub Actions to redeploy automatically on every push.
+The deploy script already pushed the function code. This step only matters if you plan to make changes to `api/` in the future - it sets up GitHub Actions to redeploy automatically on every push.
 
 From the Next Steps output in the deploy script, run the printed command (it fetches the publish profile and saves it as a secret in one step):
 
