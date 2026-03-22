@@ -27,9 +27,7 @@
     Default: rg-<ProjectName>
 
 .PARAMETER Location
-    Azure region for resources. Required - no default is assumed.
-    Commercial examples: eastus, westus2, uksouth, eastus2
-    Government examples: usgovvirginia, usgovarizona, usgovtexas
+    Azure region for resources (default: eastus)
 
 .PARAMETER StorageAccountName
     Storage account name (must be globally unique, lowercase, 3-24 chars, alphanumeric only).
@@ -53,24 +51,17 @@
 .PARAMETER SubscriptionId
     Azure subscription ID (uses current subscription if not specified)
 
-.PARAMETER Cloud
-    Azure cloud environment (AzureCloud, AzureUSGovernment)
-    Default: inherits whatever cloud the CLI is already set to (az cloud show).
-    Pass AzureUSGovernment explicitly if you prefer the script to switch for you
-    rather than running 'az cloud set --name AzureUSGovernment' beforehand.
-    AzureUSGovernment supports both GCC and GCC-High
+.EXAMPLE
+    .\deploy.ps1 -WorkspaceId "12345678-1234-1234-1234-123456789012"
 
 .EXAMPLE
-    .\deploy.ps1 -Location "eastus" -WorkspaceId "12345678-1234-1234-1234-123456789012"
+    .\deploy.ps1 -ProjectName "contoso-threat-map" -WorkspaceId "12345678-1234-1234-1234-123456789012"
+
+.EXAMPLE
+    .\deploy.ps1 -ProjectName "contoso-threat-map" -ResourceGroupName "rg-security-tools" -WorkspaceId "12345678-1234-1234-1234-123456789012"
 
 .EXAMPLE
     .\deploy.ps1 -ProjectName "contoso-threat-map" -Location "westus2" -WorkspaceId "12345678-1234-1234-1234-123456789012"
-
-.EXAMPLE
-    .\deploy.ps1 -ProjectName "contoso-threat-map" -ResourceGroupName "rg-security-tools" -Location "eastus" -WorkspaceId "12345678-1234-1234-1234-123456789012"
-
-.EXAMPLE
-    .\deploy.ps1 -Location "usgovvirginia" -WorkspaceId "12345678-1234-1234-1234-123456789012" -Cloud AzureUSGovernment
 
 .NOTES
     Requires Owner or Contributor role on the subscription or target resource group
@@ -84,8 +75,8 @@ param(
     [Parameter(Mandatory=$false)]
     [string]$ResourceGroupName = "",
     
-    [Parameter(Mandatory=$true)]
-    [string]$Location,
+    [Parameter(Mandatory=$false)]
+    [string]$Location = "",
     
     [Parameter(Mandatory=$false)]
     [string]$StorageAccountName = "",
@@ -98,10 +89,6 @@ param(
     
     [Parameter(Mandatory=$false)]
     [string]$SubscriptionId,
-    
-    [Parameter(Mandatory=$false)]
-    [ValidateSet("AzureCloud", "AzureUSGovernment", "")]
-    [string]$Cloud = "",    # empty = inherit the current CLI cloud
     
     [Parameter(Mandatory=$false)]
     [string]$StaticWebAppName = "",
@@ -123,13 +110,10 @@ $storageSlug = ($ProjectName -replace '[^a-z0-9]', '').ToLower()
 if ($storageSlug.Length -gt 24) { $storageSlug = $storageSlug.Substring(0, 24) }
 if ($storageSlug.Length -lt 3)  { $storageSlug = $storageSlug.PadRight(3, '0') }
 
-# SWA is only available in a subset of regions per cloud; map to the nearest valid one.
-# Government clouds use a separate set of supported SWA regions.
-# $SwaLocation is resolved after cloud detection (cloud may be inherited from the CLI).
-$swaCommercialRegions  = @('westus2','centralus','eastus2','westeurope','eastasia')
-$swaGovRegions         = @('usgovvirginia', 'usgovarizona')
-$swaFallbackCommercial = 'eastus2'
-$swaFallbackGov        = 'usgovvirginia'
+if (-not $Location)             { $Location             = "eastus" }
+# SWA is only available in a subset of regions; map to the nearest valid one
+$swaValidRegions = @('westus2','centralus','eastus2','westeurope','eastasia')
+$SwaLocation = if ($swaValidRegions -contains $Location) { $Location } else { 'eastus2' }
 if (-not $ResourceGroupName)    { $ResourceGroupName    = "rg-$ProjectName" }
 if (-not $StaticWebAppName)     { $StaticWebAppName     = "swa-$ProjectName" }
 if (-not $AzureMapsAccountName) { $AzureMapsAccountName = "maps-$ProjectName" }
@@ -181,84 +165,22 @@ try {
 Write-Step "Checking Azure login..."
 Write-Info "Required: Owner or Contributor role on subscription or target resource group"
 
-# Resolve the target cloud:
-# - If -Cloud was explicitly passed (non-empty), honour it and switch if needed.
-# - If -Cloud is empty (the default), inherit whatever cloud the CLI is already
-#   pointing at. This lets users run 'az cloud set' before the script without
-#   also needing to pass -Cloud on every invocation.
-$currentCloud = (az cloud show --query name -o tsv 2>$null).Trim()
-if (-not $currentCloud) { $currentCloud = "AzureCloud" }
-
-if ($Cloud) {
-    # Explicit cloud requested - switch if the CLI is not already there.
-    if ($currentCloud -ne $Cloud) {
-        Write-Info "Switching CLI to $Cloud (requested via -Cloud parameter)..."
-        az cloud set --name $Cloud
-        Write-Info "CLI is now targeting $Cloud"
-    }
-} else {
-    # Inherit the current CLI cloud and update \$Cloud so the rest of the script
-    # (display, validation messages) reflects the actual environment.
-    $Cloud = $currentCloud
-}
-
-# Resolve SWA location now that $Cloud is known (may have been inherited from the CLI).
-if ($Cloud -eq 'AzureUSGovernment') {
-    $SwaLocation = if ($swaGovRegions -contains $Location) { $Location } else { $swaFallbackGov }
-} else {
-    $SwaLocation = if ($swaCommercialRegions -contains $Location) { $Location } else { $swaFallbackCommercial }
-}
-
 $account = az account show 2>$null | ConvertFrom-Json
 if (-not $account) {
-    Write-Info "Not logged in. Starting login to $Cloud..."
+    Write-Info "Not logged in. Starting login..."
     az login
     $account = az account show | ConvertFrom-Json
-}
-
-# Detect a cloud/account mismatch: the CLI can cache credentials from a
-# previous commercial session even after 'az cloud set --name AzureUSGovernment'.
-# $account.environmentName tells us which cloud the cached token belongs to.
-$accountEnv = $account.environmentName
-if ($accountEnv -and ($accountEnv -ne $Cloud)) {
-    Write-Info "Cached session is for '$accountEnv' but target cloud is '$Cloud'."
-    Write-Info "Logging in to $Cloud..."
-    az login
-    $account = az account show | ConvertFrom-Json
-    $accountEnv = $account.environmentName
-    if ($accountEnv -ne $Cloud) {
-        Write-Error "Still authenticated to '$accountEnv' after login. Expected '$Cloud'."
-        Write-Info "Make sure you log in with credentials that have access to $Cloud."
-        exit 1
-    }
 }
 
 Write-Success "Logged in as: $($account.user.name)"
-Write-Success "Cloud: $Cloud"
 
-# Set subscription if specified; otherwise re-anchor the current one.
-# Re-anchoring validates that the active subscription is reachable in this
-# cloud environment - surfacing a SubscriptionNotFound error here (before the
-# user confirms) rather than silently mid-deployment.
+# Set subscription if specified
 if ($SubscriptionId) {
     Write-Step "Setting subscription to $SubscriptionId..."
     az account set --subscription $SubscriptionId
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Could not set subscription $SubscriptionId. Is this subscription accessible in $Cloud?"
-        exit 1
-    }
-    $account = az account show | ConvertFrom-Json
-    Write-Success "Subscription set: $($account.name) ($($account.id))"
+    Write-Success "Subscription set"
 } else {
-    # Re-anchor to validate subscription is reachable in the active cloud.
-    az account set --subscription $($account.id) 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Subscription '$($account.id)' ($($account.name)) is not accessible in $Cloud."
-        Write-Info "Run 'az account list' to see available subscriptions for this cloud."
-        Write-Info "Then re-run with: -SubscriptionId <gov-subscription-id>"
-        exit 1
-    }
-    Write-Success "Subscription: $($account.name) ($($account.id))"
+    Write-Info "Using current subscription: $($account.name)"
 }
 
 # Validate workspace ID format
@@ -278,11 +200,9 @@ if ($StorageAccountName -notmatch '^[a-z0-9]{3,24}$') {
 Write-Host "`n================================================" -ForegroundColor Magenta
 Write-Host "Deployment Plan" -ForegroundColor Magenta
 Write-Host "================================================" -ForegroundColor Magenta
-Write-Host "Cloud:             $Cloud"
-Write-Host "Subscription:      $($account.name) ($($account.id))"
 Write-Host "Project Name:      $ProjectName"
 Write-Host "Resource Group:    $ResourceGroupName"
-Write-Host "Location:          $Location"
+Write-Host "Location:          $Location  (tip: set -Location to deploy closer to your workspace)"
 Write-Host "Storage Account:   $StorageAccountName"
 Write-Host "Function App:      $FunctionAppName"
 Write-Host "Static Web App:    $StaticWebAppName"
@@ -296,44 +216,11 @@ if ($confirmation -ne "yes") {
     exit 0
 }
 
+# Start deployment
 $startTime = Get-Date
 
-# Pre-flight diagnostics - verify the actual live CLI state matches expectations.
-# This catches cases where the cloud or session drifted between login and execution.
-Write-Step "Pre-flight environment check..."
-$diagCloud    = (az cloud show --query name -o tsv 2>$null).Trim()
-$diagEndpoint = (az cloud show --query endpoints.resourceManager -o tsv 2>$null).Trim()
-$diagAcct     = (az account show --query "{id:id,name:name,env:environmentName,state:state}" -o json 2>$null | ConvertFrom-Json)
-Write-Info "CLI cloud:       $diagCloud"
-Write-Info "ARM endpoint:    $diagEndpoint"
-Write-Info "Subscription:    $($diagAcct.name) ($($diagAcct.id))"
-Write-Info "Env name:        $($diagAcct.env)"
-Write-Info "Sub state:       $($diagAcct.state)"
-if ($diagCloud -ne $Cloud) {
-    Write-Error "MISMATCH: script expects cloud '$Cloud' but CLI is currently '$diagCloud'."
-    Write-Info "Run: az cloud set --name $Cloud"
-    exit 1
-}
-if ($diagAcct.env -and ($diagAcct.env -ne $Cloud)) {
-    Write-Error "MISMATCH: session token is for '$($diagAcct.env)' but target cloud is '$Cloud'."
-    Write-Info "Run: az login  (log in with your $Cloud credentials)"
-    exit 1
-}
-if ($diagAcct.state -ne 'Enabled') {
-    Write-Error "Subscription is not Enabled (state: $($diagAcct.state))."
-    exit 1
-}
-Write-Success "Environment check passed"
-
-# Derive blob service endpoint - needed for gov cloud where the suffix differs
-$blobEndpoint = if ($Cloud -eq 'AzureUSGovernment') {
-    "https://$StorageAccountName.blob.core.usgovcloudapi.net"
-} else {
-    "https://$StorageAccountName.blob.core.windows.net"
-}
-
 # Ensure all required resource providers are registered.
-# New and gov subscriptions often have providers in NotRegistered state, which
+# New subscriptions often have providers in NotRegistered state, which
 # surfaces as misleading errors (e.g. "SubscriptionNotFound" from storage ARM).
 # Registering is idempotent - safe to run even if already registered.
 Write-Step "Registering required resource providers..."
@@ -359,7 +246,6 @@ foreach ($ns in $requiredProviders) {
     }
 }
 
-
 # 1. Create or Verify Resource Group
 Write-Step "Checking resource group..."
 $rgExists = az group exists --name $ResourceGroupName
@@ -379,68 +265,48 @@ if ($rgExists -eq "true") {
 
 # 2. Create or Verify Storage Account
 Write-Step "Checking storage account..."
+$storageExists = az storage account check-name --name $StorageAccountName | ConvertFrom-Json
 
-# Use 'az storage account show' instead of 'check-name' - check-name calls a
-# subscription-scoped ARM endpoint that is unreliable in government clouds.
-$existingStorage = az storage account show `
-    --name $StorageAccountName `
-    --resource-group $ResourceGroupName `
-    --subscription $($account.id) `
-    --output json 2>$null | ConvertFrom-Json
-
-if ($existingStorage) {
+if ($storageExists.nameAvailable -eq $false -and $storageExists.reason -eq "AlreadyExists") {
     Write-Info "Storage account already exists: $StorageAccountName"
-    Write-Success "Using existing storage account in resource group"
-} else {
-    Write-Info "Creating new storage account..."
-    # --require-infrastructure-encryption is not supported in Azure Government clouds;
-    # omit it and rely on the cloud's built-in encryption enforcement.
-    $saParams = @(
-        'storage', 'account', 'create',
-        '--name', $StorageAccountName,
-        '--resource-group', $ResourceGroupName,
-        '--location', $Location,
-        '--subscription', $($account.id),
-        '--sku', 'Standard_LRS',
-        '--kind', 'StorageV2',
-        '--allow-blob-public-access', 'false',
-        '--min-tls-version', 'TLS1_2',
-        '--output', 'none'
-    )
-    if ($Cloud -ne 'AzureUSGovernment') {
-        $saParams += '--require-infrastructure-encryption'
-    }
-    # Echo the exact command for troubleshooting
-    Write-Info "Running: az $($saParams -join ' ')"
-    az @saParams
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Storage account creation failed (exit $LASTEXITCODE). Check the errors above."
-        Write-Info "To run manually: az $($saParams -join ' ')"
+    # Verify it's in our resource group
+    try {
+        $existingStorage = az storage account show --name $StorageAccountName --resource-group $ResourceGroupName 2>$null | ConvertFrom-Json
+        Write-Success "Using existing storage account in resource group"
+    } catch {
+        Write-Error "Storage account '$StorageAccountName' exists but not in resource group '$ResourceGroupName'"
         exit 1
     }
+} else {
+    Write-Info "Creating new storage account..."
+    az storage account create `
+        --name $StorageAccountName `
+        --resource-group $ResourceGroupName `
+        --location $Location `
+        --sku Standard_LRS `
+        --kind StorageV2 `
+        --allow-blob-public-access false `
+        --min-tls-version TLS1_2 `
+        --require-infrastructure-encryption `
+        --output none
     Write-Success "Storage account created: $StorageAccountName"
 }
 
 # 3. Create Blob Containers
 Write-Step "Creating blob containers..."
 
-# Use explicit --blob-endpoint so the CLI targets the correct cloud storage host
-# (gov cloud uses .blob.core.usgovcloudapi.net, not .blob.core.windows.net).
+# Use --auth-mode login (current user credential) — no storage key needed
     az storage container create `
         --name datasets `
         --account-name $StorageAccountName `
-        --blob-endpoint $blobEndpoint `
         --auth-mode login `
         --output none
-    if ($LASTEXITCODE -ne 0) { Write-Error "Failed to create 'datasets' container."; exit 1 }
 
     az storage container create `
         --name locks `
         --account-name $StorageAccountName `
-        --blob-endpoint $blobEndpoint `
         --auth-mode login `
         --output none
-    if ($LASTEXITCODE -ne 0) { Write-Error "Failed to create 'locks' container."; exit 1 }
 
 Write-Success "Containers created: datasets, locks"
 
@@ -454,49 +320,21 @@ if ($funcExists) {
     Write-Info "Function app already exists: $FunctionAppName"
     Write-Info "Skipping creation, will update configuration..."
 } else {
-    if ($Cloud -eq 'AzureUSGovernment') {
-        # Consumption plan is not available in Azure Government - use a dedicated App Service Plan
-        Write-Info "Creating App Service Plan for Function App (consumption plan not available in gov cloud)..."
-        $planName = "plan-$ProjectName"
-        az appservice plan create `
-            --name $planName `
-            --resource-group $ResourceGroupName `
-            --location $Location `
-            --sku B1 `
-            --is-linux `
-            --output none
-        if ($LASTEXITCODE -ne 0) { Write-Error "Failed to create App Service Plan '$planName'."; exit 1 }
-        Write-Success "App Service Plan created: $planName"
-
-        Write-Info "Creating new function app with App Service Plan (gov cloud)..."
-        az functionapp create `
-            --resource-group $ResourceGroupName `
-            --name $FunctionAppName `
-            --storage-account $StorageAccountName `
-            --plan $planName `
-            --runtime python `
-            --runtime-version 3.11 `
-            --functions-version 4 `
-            --os-type Linux `
-            --disable-app-insights false `
-            --output none
-    } else {
-        Write-Info "Creating new function app with consumption plan..."
-
-        # Create Function App with consumption plan (no separate plan needed)
-        az functionapp create `
-            --resource-group $ResourceGroupName `
-            --name $FunctionAppName `
-            --storage-account $StorageAccountName `
-            --consumption-plan-location $Location `
-            --runtime python `
-            --runtime-version 3.11 `
-            --functions-version 4 `
-            --os-type Linux `
-            --disable-app-insights false `
-            --output none
-    }
-
+    Write-Info "Creating new function app with consumption plan..."
+    
+    # Create Function App with consumption plan (no separate plan needed)
+    az functionapp create `
+        --resource-group $ResourceGroupName `
+        --name $FunctionAppName `
+        --storage-account $StorageAccountName `
+        --consumption-plan-location $Location `
+        --runtime python `
+        --runtime-version 3.11 `
+        --functions-version 4 `
+        --os-type Linux `
+        --disable-app-insights false `
+        --output none
+    
     Write-Success "Function App created: $FunctionAppName"
 }
 
@@ -558,7 +396,7 @@ if ($mapsKey) {
 }
 
 # Ensure subscription-key auth is enabled on the Maps account.
-# Gov tenants commonly apply a policy that sets disableLocalAuth=true by default,
+# Some subscriptions apply a policy that sets disableLocalAuth=true by default,
 # which causes all tile requests to return 401 even with a valid key.
 Write-Info "Ensuring Maps subscription-key auth is enabled (disableLocalAuth=false)..."
 az maps account update `
@@ -568,105 +406,61 @@ az maps account update `
     --output none
 Write-Success "Maps account: subscription-key auth confirmed enabled"
 
-if ($Cloud -eq 'AzureUSGovernment') {
-    # Gov cloud: Static Web Apps not available - use Storage Static Website instead
-    Write-Step "Configuring Storage Static Website (gov cloud - SWA not available)..."
+# 7. Create Static Web App
+Write-Step "Creating Static Web App..."
 
-    az storage blob service-properties update `
-        --account-name $StorageAccountName `
-        --blob-endpoint $blobEndpoint `
-        --static-website `
-        --index-document index.html `
-        --404-document index.html `
-        --auth-mode login `
-        --output none
-    if ($LASTEXITCODE -ne 0) { Write-Error "Failed to enable static website on storage account."; exit 1 }
-    Write-Success "Static website enabled on storage account: $StorageAccountName"
+# Check if SWA already exists
+$swaExists = az staticwebapp show --name $StaticWebAppName --resource-group $ResourceGroupName 2>$null
 
-    # Retrieve the static website URL (e.g. https://<account>.z13.web.core.usgovcloudapi.net)
-    $staticWebsiteUrl = (az storage account show `
-        --name $StorageAccountName `
-        --resource-group $ResourceGroupName `
-        --query primaryEndpoints.web `
-        --output tsv).TrimEnd('/')
-    $swaHostname = $staticWebsiteUrl -replace 'https://', ''
-    Write-Success "Static website URL: $staticWebsiteUrl"
-
-    # Function App URL for gov - used as API_BASE_URL in config.js
-    $funcAppUrl = "https://$FunctionAppName.azurewebsites.us"
-    $swaToken = ''
-
-    # Update config.js with STORAGE_ACCOUNT_URL and API_BASE_URL before the frontend upload
-    $configJsPath = Join-Path $PSScriptRoot "web\config.js"
-    if (Test-Path $configJsPath) {
-        $configContent = Get-Content $configJsPath -Raw
-        $configContent = $configContent -replace "window\.STORAGE_ACCOUNT_URL\s*=\s*'[^']*'", "window.STORAGE_ACCOUNT_URL = '$blobEndpoint'"
-        if ($configContent -match "window\.API_BASE_URL") {
-            $configContent = $configContent -replace "window\.API_BASE_URL\s*=\s*'[^']*'", "window.API_BASE_URL = '$funcAppUrl'"
-        } else {
-            $configContent = $configContent.TrimEnd() + "`nwindow.API_BASE_URL = '$funcAppUrl';`n"
-        }
-        Set-Content $configJsPath $configContent -NoNewline
-        Write-Success "web/config.js updated: STORAGE_ACCOUNT_URL = $blobEndpoint, API_BASE_URL = $funcAppUrl"
-    } else {
-        Write-Info "web/config.js not found - copy web/config.sample.js to web/config.js and set:"
-        Write-Info "  window.STORAGE_ACCOUNT_URL = '$blobEndpoint'"
-        Write-Info "  window.API_BASE_URL = '$funcAppUrl'"
-    }
-    Write-Info "Frontend files will be uploaded to the static website container after RBAC propagation"
+if ($swaExists) {
+    Write-Info "Static Web App already exists: $StaticWebAppName"
 } else {
-    # Commercial cloud: use Static Web App
-    Write-Step "Creating Static Web App..."
-
-    # Check if SWA already exists
-    $swaExists = az staticwebapp show --name $StaticWebAppName --resource-group $ResourceGroupName 2>$null
-
-    if ($swaExists) {
-        Write-Info "Static Web App already exists: $StaticWebAppName"
-    } else {
-        Write-Info "Creating new Static Web App (Standard SKU for BYO Functions)..."
-        az staticwebapp create `
-            --name $StaticWebAppName `
-            --resource-group $ResourceGroupName `
-            --location $SwaLocation `
-            --sku "Standard" `
-            --output none
-        Write-Success "Static Web App created: $StaticWebAppName"
-    }
-
-    # Get SWA deployment token
-    $swaToken = az staticwebapp secrets list `
+    Write-Info "Creating new Static Web App (Standard SKU for BYO Functions)..."
+    az staticwebapp create `
         --name $StaticWebAppName `
         --resource-group $ResourceGroupName `
-        --query properties.apiKey `
-        --output tsv
-
-    Write-Success "Static Web App deployment token retrieved"
-    Write-Info "SWA deployment token retrieved - see Next Steps to set AZURE_STATIC_WEB_APPS_API_TOKEN"
-
-    # Configure SWA app settings
-    Write-Info "Configuring Static Web App settings..."
-    az staticwebapp appsettings set `
-        --name $StaticWebAppName `
-        --resource-group $ResourceGroupName `
-        --setting-names `
-            STORAGE_ACCOUNT_URL=$blobEndpoint `
-            STORAGE_CONTAINER_DATASETS=datasets `
+        --location $SwaLocation `
+        --sku "Standard" `
         --output none
-    Write-Success "Static Web App settings configured"
+    Write-Success "Static Web App created: $StaticWebAppName"
+}
 
-    # Update config.js with STORAGE_ACCOUNT_URL (SWA proxies /api/* so no API_BASE_URL needed)
-    $configJsPath = Join-Path $PSScriptRoot "web\config.js"
-    if (Test-Path $configJsPath) {
-        $configContent = Get-Content $configJsPath -Raw
-        $configContent = $configContent -replace "window\.STORAGE_ACCOUNT_URL\s*=\s*'[^']*'", "window.STORAGE_ACCOUNT_URL = '$blobEndpoint'"
-        Set-Content $configJsPath $configContent -NoNewline
-        Write-Success "web/config.js updated: STORAGE_ACCOUNT_URL = $blobEndpoint"
-    } else {
-        Write-Info "web/config.js not found - copy web/config.sample.js to web/config.js and set STORAGE_ACCOUNT_URL = $blobEndpoint"
-    }
-    $funcAppUrl = ''
-    $staticWebsiteUrl = ''
+# Get SWA deployment token
+$swaToken = az staticwebapp secrets list `
+    --name $StaticWebAppName `
+    --resource-group $ResourceGroupName `
+    --query properties.apiKey `
+    --output tsv
+
+Write-Success "Static Web App deployment token retrieved"
+
+Write-Info "SWA deployment token retrieved — see Next Steps to set AZURE_STATIC_WEB_APPS_API_TOKEN"
+
+# Configure SWA app settings
+Write-Info "Configuring Static Web App settings..."
+$storageUrl = "https://$StorageAccountName.blob.core.windows.net"
+az staticwebapp appsettings set `
+    --name $StaticWebAppName `
+    --resource-group $ResourceGroupName `
+    --setting-names `
+        STORAGE_ACCOUNT_URL=$storageUrl `
+        STORAGE_CONTAINER_DATASETS=datasets `
+    --output none
+
+Write-Success "Static Web App settings configured"
+
+# Update web/config.js with the actual storage account URL so the frontend
+# fallback matches this deployment without any manual edits.
+# (The value is also served at runtime by /api/config — this only affects
+# the cold-start fallback that loads before /api/config responds.)
+$configJsPath = Join-Path $PSScriptRoot "web\config.js"
+if (Test-Path $configJsPath) {
+    $configContent = Get-Content $configJsPath -Raw
+    $configContent = $configContent -replace "window\.STORAGE_ACCOUNT_URL\s*=\s*'[^']*'", "window.STORAGE_ACCOUNT_URL = '$storageUrl'"
+    Set-Content $configJsPath $configContent -NoNewline
+    Write-Success "web/config.js updated: STORAGE_ACCOUNT_URL = $storageUrl"
+} else {
+    Write-Info "web/config.js not found — copy web/config.sample.js to web/config.js and set STORAGE_ACCOUNT_URL = $storageUrl"
 }
 
 # Function App-specific configuration (skip if -SkipFunctionApp is specified)
@@ -674,8 +468,7 @@ if (-not $SkipFunctionApp) {
     # 8. Configure App Settings
     Write-Step "Configuring application settings..."
 
-    $storageUrl = $blobEndpoint
-    $laEndpoint = if ($Cloud -eq 'AzureUSGovernment') { 'https://api.loganalytics.us' } else { 'https://api.loganalytics.io' }
+    $storageUrl = "https://$StorageAccountName.blob.core.windows.net"
 
     az functionapp config appsettings set `
         --resource-group $ResourceGroupName `
@@ -687,7 +480,6 @@ if (-not $SkipFunctionApp) {
             DEFAULT_QUERY_TIME_WINDOW_HOURS=24 `
             INCREMENTAL_OVERLAP_MINUTES=10 `
             AZURE_MAPS_SUBSCRIPTION_KEY=$mapsKey `
-            LA_ENDPOINT=$laEndpoint `
             MAXMIND_ACCOUNT_ID='' `
             MAXMIND_LICENSE_KEY='' `
         --output none
@@ -695,17 +487,13 @@ if (-not $SkipFunctionApp) {
     Write-Info "Note: MAXMIND_ACCOUNT_ID and MAXMIND_LICENSE_KEY must be set manually (free credentials from maxmind.com/en/geolite2/signup)."
     Write-Success "Application settings configured"
 
-    # Configure CORS - allow requests from the frontend and local dev
+    # Configure CORS - allow requests from the Static Web App and local dev
     Write-Info "Configuring Function App CORS..."
-    if ($Cloud -ne 'AzureUSGovernment') {
-        # Commercial: retrieve SWA hostname now
-        $swaHostname = az staticwebapp show `
-            --name $StaticWebAppName `
-            --resource-group $ResourceGroupName `
-            --query defaultHostname `
-            --output tsv 2>$null
-    }
-    # Gov: $swaHostname already set from static website URL in step 7
+    $swaHostname = az staticwebapp show `
+        --name $StaticWebAppName `
+        --resource-group $ResourceGroupName `
+        --query defaultHostname `
+        --output tsv 2>$null
     if ($swaHostname) {
         az functionapp cors add `
             --name $FunctionAppName `
@@ -772,7 +560,6 @@ if (-not $SkipFunctionApp) {
                 }
                 az storage blob upload `
                     --account-name $StorageAccountName `
-                    --blob-endpoint $blobEndpoint `
                     --container-name datasets `
                     --name $blobName `
                     --file $_.FullName `
@@ -800,7 +587,6 @@ if (-not $SkipFunctionApp) {
                 }
                 az storage blob upload `
                     --account-name $StorageAccountName `
-                    --blob-endpoint $blobEndpoint `
                     --container-name datasets `
                     --name $blobName `
                     --file $_.FullName `
@@ -820,45 +606,6 @@ if (-not $SkipFunctionApp) {
         Write-Success "Demo data upload complete"
     } else {
         Write-Info "demo_data/ directory not found - skipping demo data upload"
-    }
-
-    # Gov cloud: upload frontend files to the $web static website container now that RBAC has propagated
-    if ($Cloud -eq 'AzureUSGovernment') {
-        Write-Step "Uploading frontend files to static website container..."
-        $webDir = Join-Path $PSScriptRoot "web"
-        if (Test-Path $webDir) {
-            Get-ChildItem -Path $webDir -Recurse -File | Where-Object { $_.Name -ne '.gitkeep' } | ForEach-Object {
-                $relativePath = $_.FullName.Substring($webDir.Length + 1).Replace('\', '/')
-                $contentType = switch ($_.Extension) {
-                    '.html' { 'text/html; charset=utf-8' }
-                    '.js'   { 'application/javascript' }
-                    '.css'  { 'text/css' }
-                    '.json' { 'application/json' }
-                    '.png'  { 'image/png' }
-                    '.ico'  { 'image/x-icon' }
-                    '.svg'  { 'image/svg+xml' }
-                    default { 'application/octet-stream' }
-                }
-                az storage blob upload `
-                    --account-name $StorageAccountName `
-                    --blob-endpoint $blobEndpoint `
-                    --container-name '$web' `
-                    --name $relativePath `
-                    --file $_.FullName `
-                    --content-type $contentType `
-                    --auth-mode login `
-                    --overwrite `
-                    --output none 2>$null
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Info "  Uploaded: $relativePath"
-                } else {
-                    Write-Warning "  Failed to upload: $relativePath"
-                }
-            }
-            Write-Success "Frontend files uploaded to $staticWebsiteUrl"
-        } else {
-            Write-Warning "web/ directory not found - upload frontend files manually to the '\$web' container"
-        }
     }
 
     # Log Analytics Reader — look up workspace in the current subscription only.
@@ -944,13 +691,12 @@ try {
         Compress-Archive -Path "$buildDir\*" -DestinationPath $zipPath
 
         # Deploy via Kudu zip deploy REST API using bearer token auth.
-        # Basic auth publishing credentials are disabled by default on newer Function Apps
+        # Basic auth publishing credentials are disabled by default on newer Function Apps,
         # so we use the AAD bearer token from the current CLI session instead.
         Write-Info "Uploading zip to $FunctionAppName via Kudu..."
         $bearerToken = az account get-access-token --query accessToken --output tsv
         $zipBytes = [System.IO.File]::ReadAllBytes($zipPath)
-        $scmHost = if ($Cloud -eq 'AzureUSGovernment') { 'azurewebsites.us' } else { 'azurewebsites.net' }
-        $kuduUri = "https://$FunctionAppName.scm.$scmHost/api/zipdeploy"
+        $kuduUri = "https://$FunctionAppName.scm.azurewebsites.net/api/zipdeploy"
         Invoke-RestMethod -Uri $kuduUri -Method POST `
             -Headers @{ Authorization = "Bearer $bearerToken"; 'Content-Type' = 'application/zip' } `
             -Body $zipBytes | Out-Null
@@ -968,26 +714,24 @@ try {
     Pop-Location
 }
 
-# Link Function App as the SWA backend so /api/* routes proxy correctly (commercial only)
-if ($Cloud -ne 'AzureUSGovernment') {
-    Write-Step "Linking Function App as Static Web App backend..."
-    $functionAppId = az functionapp show `
-        --name $FunctionAppName `
-        --resource-group $ResourceGroupName `
-        --query id `
-        --output tsv
+# Link Function App as the SWA backend so /api/* routes proxy correctly
+Write-Step "Linking Function App as Static Web App backend..."
+$functionAppId = az functionapp show `
+    --name $FunctionAppName `
+    --resource-group $ResourceGroupName `
+    --query id `
+    --output tsv
 
-    try {
-        az staticwebapp backends link `
-            --name $StaticWebAppName `
-            --resource-group $ResourceGroupName `
-            --backend-resource-id $functionAppId `
-            --backend-region $Location `
-            --output none
-        Write-Success "Function App linked as SWA backend - /api/* now proxies to $FunctionAppName"
-    } catch {
-        Write-Info "Backend link failed (may already be linked or require Standard SKU) - verify in portal"
-    }
+try {
+    az staticwebapp backends link `
+        --name $StaticWebAppName `
+        --resource-group $ResourceGroupName `
+        --backend-resource-id $functionAppId `
+        --backend-region $Location `
+        --output none
+    Write-Success "Function App linked as SWA backend — /api/* now proxies to $FunctionAppName"
+} catch {
+    Write-Info "Backend link failed (may already be linked or require Standard SKU) — verify in portal"
 }
 
 # Update the GitHub Actions workflow with the actual Function App name,
@@ -1038,21 +782,12 @@ if (-not $SkipFunctionApp) {
     Write-Host "Function App:      $FunctionAppName"
 }
 Write-Host "Storage Account:   $StorageAccountName"
-if ($Cloud -eq 'AzureUSGovernment') {
-    Write-Host "Static Website:    $staticWebsiteUrl"
-} else {
-    Write-Host "Static Web App:    $StaticWebAppName"
-}
+Write-Host "Static Web App:    $StaticWebAppName"
 Write-Host "Azure Maps:        $AzureMapsAccountName"
 if (-not $SkipFunctionApp) {
     Write-Host "`nApp URL:    https://$swaHostname"
-    if ($Cloud -eq 'AzureUSGovernment') {
-        Write-Host "Health:     $funcAppUrl/api/health"
-        Write-Host "Refresh:    $funcAppUrl/api/refresh"
-    } else {
-        Write-Host "Health:     https://$swaHostname/api/health"
-        Write-Host "Refresh:    https://$swaHostname/api/refresh"
-    }
+    Write-Host "Health:     https://$swaHostname/api/health"
+    Write-Host "Refresh:    https://$swaHostname/api/refresh"
 }
 Write-Host "`n================================================" -ForegroundColor Green
 
@@ -1063,16 +798,10 @@ if (-not $SkipFunctionApp) {
     Write-Host "     Sign up free: https://www.maxmind.com/en/geolite2/signup" -ForegroundColor White
     Write-Host "     az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings MAXMIND_ACCOUNT_ID='<id>' MAXMIND_LICENSE_KEY='<key>'" -ForegroundColor Cyan
     Write-Host ""
-    if ($Cloud -eq 'AzureUSGovernment') {
-        Write-Host "  2. Frontend deployed to storage static website:" -ForegroundColor Yellow
-        Write-Host "     $staticWebsiteUrl" -ForegroundColor Cyan
-        Write-Host "     To redeploy: re-run deploy.ps1, or upload web/ files manually to the '`$web' container." -ForegroundColor White
-    } else {
-        Write-Host "  2. Deploy the frontend - set this token as GitHub secret AZURE_STATIC_WEB_APPS_API_TOKEN:" -ForegroundColor Yellow
-        Write-Host "     $swaToken" -ForegroundColor Cyan
-        Write-Host "     GitHub repo -> Settings -> Secrets and variables -> Actions -> New secret" -ForegroundColor White
-        Write-Host "     Then trigger the workflow from the Actions tab (or push any change to web/)." -ForegroundColor White
-    }
+    Write-Host "  2. Deploy the frontend - set this token as GitHub secret AZURE_STATIC_WEB_APPS_API_TOKEN:" -ForegroundColor Yellow
+    Write-Host "     $swaToken" -ForegroundColor Cyan
+    Write-Host "     GitHub repo -> Settings -> Secrets and variables -> Actions -> New secret" -ForegroundColor White
+    Write-Host "     Then trigger the workflow from the Actions tab (or push any change to web/)." -ForegroundColor White
     Write-Host ""
     if (-not $funcSecretSet) {
         Write-Host "  3. (Optional) Function App CI/CD - set GitHub secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE:" -ForegroundColor Yellow

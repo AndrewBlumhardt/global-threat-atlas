@@ -48,21 +48,8 @@ _GEOIP_DB_MAX_AGE_DAYS      = 7
 # ── Managed Identity helpers ──────────────────────────────────────────────────
 
 _BLOB_RESOURCE   = 'https://storage.azure.com/'
+_LA_RESOURCE     = 'https://api.loganalytics.io/'
 _BLOB_API_VER    = '2020-04-08'
-
-
-def _la_endpoint():
-    """Return the Log Analytics REST endpoint for this cloud.
-    Commercial: https://api.loganalytics.io
-    Gov:        https://api.loganalytics.us
-    Set LA_ENDPOINT app setting to override (no trailing slash).
-    """
-    return os.environ.get('LA_ENDPOINT', 'https://api.loganalytics.io').rstrip('/')
-
-
-def _la_resource():
-    """MI token audience — must match the endpoint host."""
-    return _la_endpoint() + '/'
 
 
 def _get_mi_token(resource):
@@ -330,8 +317,8 @@ def _rows_to_tsv(rows):
 def _query_sentinel(workspace_id, kql, lookback_hours):
     """Run a KQL query against a Sentinel Log Analytics workspace via REST API."""
     max_rows = int(os.environ.get('REFRESH_MAX_ROWS', '1000000'))
-    token = _get_mi_token(_la_resource())
-    url = f'{_la_endpoint()}/v1/workspaces/{workspace_id}/query'
+    token = _get_mi_token(_LA_RESOURCE)
+    url = f'https://api.loganalytics.io/v1/workspaces/{workspace_id}/query'
     # Inject a server-side row cap to avoid unbounded responses
     capped_kql = f'{kql.rstrip()}\n| take {max_rows}'
     body = json.dumps({'query': capped_kql, 'timespan': f'PT{lookback_hours}H'}).encode()

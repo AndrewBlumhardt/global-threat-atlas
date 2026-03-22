@@ -207,6 +207,8 @@ Azure Key Vault was deliberately excluded: the only secret that would benefit is
 
 The included script creates all required Azure resources and deploys the app in one step (allow up to 15 minutes). If you prefer to create resources manually in the Azure Portal, skip to [Manual Deployment](#manual-deployment).
 
+> **Azure Government / GCCH:** This project currently targets Azure Commercial only. Azure Static Web Apps - the hosting service used for the frontend - is generally available in commercial regions but is not available in Azure Government (GCC / GCC-H). An alternative approach using Azure Blob Storage static website hosting was explored but introduced enough additional complexity (separate API origin, manual CORS configuration, no `/api/*` proxy) that Government cloud support was deferred to a future standalone project.
+
 ### Scripted Deployment (Recommended)
 
 **What you need before starting:**
@@ -244,12 +246,6 @@ A browser window will open. Sign in with an account that has Owner or Contributo
 az account set --subscription "YOUR-SUBSCRIPTION-NAME-OR-ID"
 ```
 
-> **Azure Government (GCC / GCC-H) users:** Run `az cloud set --name AzureUSGovernment` **before** `az login`. Skipping this causes the CLI to authenticate against the commercial endpoint and your government credentials will be rejected. The deployment script inherits whatever cloud the CLI is already set to, so no `-Cloud` flag is needed when you pre-set the cloud this way.
-> ```powershell
-> az cloud set --name AzureUSGovernment
-> az login
-> ```
-
 **Step 3 - Run the deployment script**
 
 ```powershell
@@ -264,7 +260,7 @@ By default, all Azure resources are named after the project name `global-threat-
 
 | Parameter | Controls | Example value |
 |---|---|---|
-| `-Location` | Azure region - **required**, deploy close to your Sentinel workspace | Commercial: `eastus`, `westus2`, `uksouth` / Government: `usgovvirginia`, `usgovarizona`, `usgovtexas` |
+| `-Location` | Azure region - **required**, deploy close to your Sentinel workspace | `eastus`, `westus2`, `uksouth`, `eastus2` |
 | `-ProjectName` | Prefix for all resource names | `contoso-threat-map` |
 | `-ResourceGroupName` | Resource group name (overrides ProjectName-derived default) | `rg-security-tools` |
 
@@ -277,13 +273,6 @@ By default, all Azure resources are named after the project name `global-threat-
 
 # Both together
 .\deploy.ps1 -ProjectName "contoso-threat-map" -ResourceGroupName "rg-security-tools" -Location "westus2" -WorkspaceId "YOUR-WORKSPACE-ID"
-```
-
-For **Azure Government (GCC / GCC-H)** - use a government region and either pre-set the cloud in Step 2 or pass `-Cloud`:
-```powershell
-.\deploy.ps1 -Location "usgovvirginia" -WorkspaceId "YOUR-WORKSPACE-ID"
-# or
-.\deploy.ps1 -Location "usgovvirginia" -WorkspaceId "YOUR-WORKSPACE-ID" -Cloud AzureUSGovernment
 ```
 
 **What the script creates:**

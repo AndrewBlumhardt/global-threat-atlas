@@ -35,7 +35,6 @@ STORAGE_ACCOUNT_NAME=${STORAGE_ACCOUNT_NAME:-"sentinelactmaps$RANDOM"}
 FUNCTION_APP_NAME=${FUNCTION_APP_NAME:-"sentinel-activity-maps-func-$RANDOM"}
 WORKSPACE_ID=""
 SUBSCRIPTION_ID=""
-CLOUD="AzureCloud"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -64,10 +63,6 @@ while [[ $# -gt 0 ]]; do
             SUBSCRIPTION_ID="$2"
             shift 2
             ;;
-        --cloud)
-            CLOUD="$2"
-            shift 2
-            ;;
         --help)
             echo "Usage: ./deploy.sh --workspace-id <WORKSPACE_ID> [OPTIONS]"
             echo ""
@@ -81,12 +76,10 @@ while [[ $# -gt 0 ]]; do
             echo "                        Default: sentinelactmapsXXXXX"
             echo "  --function-app        Function app name (default: sentinel-activity-maps-func-XXXXX)"
             echo "  --subscription        Azure subscription ID"
-            echo "  --cloud               Azure cloud (AzureCloud, AzureUSGovernment) default: AzureCloud"
             echo "  --help                Show this help message"
             echo ""
             echo "Examples:"
             echo "  ./deploy.sh --workspace-id 12345678-1234-1234-1234-123456789012"
-            echo "  ./deploy.sh --workspace-id <ID> --cloud AzureUSGovernment"
             echo ""
             echo "Note: Requires Owner or Contributor role on subscription or target resource group"
             exit 0
@@ -136,25 +129,19 @@ print_step "Checking Azure login..."
 print_info "Required: Owner or Contributor role on subscription or target resource group"
 
 if ! az account show &> /dev/null; then
-    print_info "Not logged in. Starting login to $CLOUD..."
-    if [ "$CLOUD" == "AzureUSGovernment" ]; then
-        az cloud set --name AzureUSGovernment
-        print_info "Switched to Azure US Government cloud"
-    fi
+    print_info "Not logged in. Starting login..."
     az login
 else
-    # Verify we're in the correct cloud
     CURRENT_CLOUD=$(az cloud show --query name -o tsv)
-    if [ "$CURRENT_CLOUD" != "$CLOUD" ]; then
-        print_info "Switching to $CLOUD..."
-        az cloud set --name "$CLOUD"
+    if [ "$CURRENT_CLOUD" != "AzureCloud" ]; then
+        print_info "CLI is set to $CURRENT_CLOUD - switching to AzureCloud..."
+        az cloud set --name AzureCloud
         az login
     fi
 fi
 
 ACCOUNT_USER=$(az account show --query user.name -o tsv)
 print_success "Logged in as: $ACCOUNT_USER"
-print_success "Cloud: $CLOUD"
 
 # Set subscription if specified
 if [ -n "$SUBSCRIPTION_ID" ]; then
@@ -170,7 +157,6 @@ fi
 echo -e "\n${MAGENTA}================================================${NC}"
 echo -e "${MAGENTA}Deployment Plan${NC}"
 echo -e "${MAGENTA}================================================${NC}"
-echo "Cloud:             $CLOUD"
 echo "Resource Group:    $RESOURCE_GROUP_NAME"
 echo "Location:          $LOCATION"
 echo "Storage Account:   $STORAGE_ACCOUNT_NAME"
@@ -187,16 +173,7 @@ fi
 # Start deployment
 START_TIME=$(date +%s)
 
-# Compute cloud-specific blob endpoint (used for STORAGE_ACCOUNT_URL and gov container ops)
-if [ "$CLOUD" == "AzureUSGovernment" ]; then
-    BLOB_ENDPOINT="https://$STORAGE_ACCOUNT_NAME.blob.core.usgovcloudapi.net"
-    FUNC_HOST="azurewebsites.us"
-else
-    BLOB_ENDPOINT="https://$STORAGE_ACCOUNT_NAME.blob.core.windows.net"
-    FUNC_HOST="azurewebsites.net"
-fi
-
-# Register required resource providers (critical in new gov subscriptions where none are pre-registered)
+# Register required resource providers (new subscriptions may have none pre-registered)
 print_step "Registering required resource providers..."
 for RP in Microsoft.Storage Microsoft.Web Microsoft.Maps Microsoft.Network Microsoft.Authorization; do
     STATE=$(az provider show --namespace "$RP" --query registrationState -o tsv 2>/dev/null || echo "NotRegistered")
@@ -228,42 +205,28 @@ fi
 
 # 2. Create or Verify Storage Account
 print_step "Checking storage account..."
+STORAGE_CHECK=$(az storage account check-name --name "$STORAGE_ACCOUNT_NAME" --query "nameAvailable" -o tsv)
 
-STORAGE_EXISTS=$(az storage account show \
-    --name "$STORAGE_ACCOUNT_NAME" \
-    --resource-group "$RESOURCE_GROUP_NAME" \
-    --query name -o tsv 2>/dev/null || echo "")
-
-if [ -n "$STORAGE_EXISTS" ]; then
-    print_success "Using existing storage account in resource group: $STORAGE_ACCOUNT_NAME"
-else
-    print_info "Creating new storage account..."
-    if [ "$CLOUD" == "AzureUSGovernment" ]; then
-        az storage account create \
-            --name "$STORAGE_ACCOUNT_NAME" \
-            --resource-group "$RESOURCE_GROUP_NAME" \
-            --location "$LOCATION" \
-            --sku Standard_LRS \
-            --kind StorageV2 \
-            --allow-blob-public-access false \
-            --min-tls-version TLS1_2 \
-            --require-infrastructure-encryption \
-            --output none
+if [ "$STORAGE_CHECK" == "false" ]; then
+    print_info "Storage account name already in use: $STORAGE_ACCOUNT_NAME"
+    # Verify it's in our resource group
+    if az storage account show --name "$STORAGE_ACCOUNT_NAME" --resource-group "$RESOURCE_GROUP_NAME" &> /dev/null; then
+        print_success "Using existing storage account in resource group"
     else
-        az storage account create \
-            --name "$STORAGE_ACCOUNT_NAME" \
-            --resource-group "$RESOURCE_GROUP_NAME" \
-            --location "$LOCATION" \
-            --sku Standard_LRS \
-            --kind StorageV2 \
-            --allow-blob-public-access false \
-            --min-tls-version TLS1_2 \
-            --output none
-    fi
-    if [ $? -ne 0 ]; then
-        print_error "Failed to create storage account '$STORAGE_ACCOUNT_NAME'."
+        print_error "Storage account '$STORAGE_ACCOUNT_NAME' exists but not in resource group '$RESOURCE_GROUP_NAME'"
         exit 1
     fi
+else
+    print_info "Creating new storage account..."
+    az storage account create \
+        --name "$STORAGE_ACCOUNT_NAME" \
+        --resource-group "$RESOURCE_GROUP_NAME" \
+        --location "$LOCATION" \
+        --sku Standard_LRS \
+        --kind StorageV2 \
+        --allow-blob-public-access false \
+        --min-tls-version TLS1_2 \
+        --output none
     print_success "Storage account created: $STORAGE_ACCOUNT_NAME"
 fi
 
@@ -298,52 +261,21 @@ if az functionapp show --name "$FUNCTION_APP_NAME" --resource-group "$RESOURCE_G
     print_info "Function app already exists: $FUNCTION_APP_NAME"
     print_info "Skipping creation, will update configuration..."
 else
-    if [ "$CLOUD" == "AzureUSGovernment" ]; then
-        # Consumption plan not available in gov - use a dedicated App Service Plan
-        print_info "Creating App Service Plan (consumption plan not available in gov cloud)..."
-        PLAN_NAME="plan-${FUNCTION_APP_NAME}"
-        az appservice plan create \
-            --name "$PLAN_NAME" \
-            --resource-group "$RESOURCE_GROUP_NAME" \
-            --location "$LOCATION" \
-            --sku B1 \
-            --is-linux \
-            --output none
-        if [ $? -ne 0 ]; then
-            print_error "Failed to create App Service Plan '$PLAN_NAME'."
-            exit 1
-        fi
-        print_success "App Service Plan created: $PLAN_NAME"
-
-        print_info "Creating new function app with App Service Plan (gov cloud)..."
-        az functionapp create \
-            --resource-group "$RESOURCE_GROUP_NAME" \
-            --name "$FUNCTION_APP_NAME" \
-            --storage-account "$STORAGE_ACCOUNT_NAME" \
-            --plan "$PLAN_NAME" \
-            --runtime python \
-            --runtime-version 3.11 \
-            --functions-version 4 \
-            --os-type Linux \
-            --disable-app-insights false \
-            --output none
-    else
-        print_info "Creating new function app with consumption plan..."
-
-        # Create Function App with consumption plan (no separate plan needed for consumption)
-        az functionapp create \
-            --resource-group "$RESOURCE_GROUP_NAME" \
-            --name "$FUNCTION_APP_NAME" \
-            --storage-account "$STORAGE_ACCOUNT_NAME" \
-            --consumption-plan-location "$LOCATION" \
-            --runtime python \
-            --runtime-version 3.11 \
-            --functions-version 4 \
-            --os-type Linux \
-            --disable-app-insights false \
-            --output none
-    fi
-
+    print_info "Creating new function app with consumption plan..."
+    
+    # Create Function App with consumption plan (no separate plan needed for consumption)
+    az functionapp create \
+        --resource-group "$RESOURCE_GROUP_NAME" \
+        --name "$FUNCTION_APP_NAME" \
+        --storage-account "$STORAGE_ACCOUNT_NAME" \
+        --consumption-plan-location "$LOCATION" \
+        --runtime python \
+        --runtime-version 3.11 \
+        --functions-version 4 \
+        --os-type Linux \
+        --disable-app-insights false \
+        --output none
+    
     print_success "Function App created: $FUNCTION_APP_NAME"
 fi
 
@@ -359,12 +291,7 @@ print_success "Managed identity configured"
 # 5. Configure App Settings
 print_step "Configuring application settings..."
 
-STORAGE_URL="$BLOB_ENDPOINT"
-if [ "$CLOUD" == "AzureUSGovernment" ]; then
-    LA_ENDPOINT="https://api.loganalytics.us"
-else
-    LA_ENDPOINT="https://api.loganalytics.io"
-fi
+STORAGE_URL="https://$STORAGE_ACCOUNT_NAME.blob.core.windows.net"
 
 # Switch AzureWebJobsStorage from key-based (set by functionapp create) to identity-based.
 # This allows the storage account to have shared key access disabled.
@@ -385,7 +312,6 @@ az functionapp config appsettings set \
         STORAGE_CONTAINER_DATASETS=datasets \
         DEFAULT_QUERY_TIME_WINDOW_HOURS=24 \
         INCREMENTAL_OVERLAP_MINUTES=10 \
-        LA_ENDPOINT="$LA_ENDPOINT" \
     --output none
 
 print_success "Application settings configured — runtime storage uses Managed Identity (no storage keys)"
@@ -497,8 +423,8 @@ echo "Function App:      $FUNCTION_APP_NAME"
 echo "Storage Account:   $STORAGE_ACCOUNT_NAME"
 echo ""
 echo "Function Endpoints:"
-echo "  Health:  https://$FUNCTION_APP_NAME.$FUNC_HOST/api/health"
-echo "  Refresh: https://$FUNCTION_APP_NAME.$FUNC_HOST/api/refresh"
+echo "  Health:  https://$FUNCTION_APP_NAME.azurewebsites.net/api/health"
+echo "  Refresh: https://$FUNCTION_APP_NAME.azurewebsites.net/api/refresh"
 echo -e "${GREEN}================================================${NC}"
 
 echo -e "\n${YELLOW}⚠️  Important Next Steps:${NC}"
@@ -518,9 +444,9 @@ echo -e "   ${CYAN}Option B - Azure CLI:${NC}"
 echo "   az role assignment create --assignee $PRINCIPAL_ID --role 'Log Analytics Reader' --scope /subscriptions/<sub-id>/resourceGroups/<workspace-rg>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>"
 echo ""
 echo -e "${YELLOW}2. Test the deployment:${NC}"
-echo -e "   ${CYAN}curl https://$FUNCTION_APP_NAME.$FUNC_HOST/api/health${NC}"
+echo -e "   ${CYAN}curl https://$FUNCTION_APP_NAME.azurewebsites.net/api/health${NC}"
 echo ""
 echo -e "${YELLOW}3. Trigger a data refresh:${NC}"
-echo -e "   ${CYAN}curl -X POST https://$FUNCTION_APP_NAME.$FUNC_HOST/api/refresh${NC}"
+echo -e "   ${CYAN}curl -X POST https://$FUNCTION_APP_NAME.azurewebsites.net/api/refresh${NC}"
 
 echo -e "\n${GREEN}✓ Deployment script completed successfully!${NC}"

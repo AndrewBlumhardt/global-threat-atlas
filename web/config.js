@@ -13,5 +13,5 @@
 window.CUSTOM_LAYER_DISPLAY_NAME = 'Custom Source';
 
 // Storage fallbacks (overridden at runtime by /api/config values)
-window.STORAGE_ACCOUNT_URL = 'https://sentinelmapsstore.blob.core.windows.net';
+window.STORAGE_ACCOUNT_URL = 'https://globalthreatatlas.blob.core.windows.net';
 window.DATASETS_CONTAINER = 'datasets';
