@@ -20,11 +20,12 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     logger.info('Config API endpoint called')
 
     config = {
-        'azureMapsKey':            os.environ.get('AZURE_MAPS_SUBSCRIPTION_KEY', ''),
-        'storageAccountUrl':       os.environ.get('STORAGE_ACCOUNT_URL', ''),
-        'datasetsContainer':       os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets'),
-        'customLayerDisplayName':  os.environ.get('CUSTOM_LAYER_DISPLAY_NAME', ''),
-        'configSource':            'swa',
+        'azureMapsKey':                 os.environ.get('AZURE_MAPS_SUBSCRIPTION_KEY', ''),
+        'storageAccountUrl':             os.environ.get('STORAGE_ACCOUNT_URL', ''),
+        'datasetsContainer':             os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets'),
+        'customLayerDisplayName':        os.environ.get('CUSTOM_LAYER_DISPLAY_NAME', ''),
+        'liveRefreshIntervalMinutes':    int(os.environ.get('LIVE_REFRESH_INTERVAL_MINUTES') or '5'),
+        'configSource':                  'swa',
     }
 
     return func.HttpResponse(

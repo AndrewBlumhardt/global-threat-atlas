@@ -321,6 +321,34 @@ async function main() {
     setInterval(() => {
       if (!document.hidden) fetch('/api/health').catch(() => {});
     }, 14 * 60 * 1000);
+
+    // Live layer refresh — reloads device and sign-in data from storage on a fixed interval
+    // while the tab is visible. Pauses automatically when the tab is hidden.
+    // Controlled by LIVE_REFRESH_INTERVAL_MINUTES (default 5). Set to 0 to disable.
+    const liveRefreshMs = (appConfig?.liveRefreshIntervalMinutes ?? 5) * 60 * 1000;
+    if (liveRefreshMs > 0) {
+      setInterval(async () => {
+        if (document.hidden) return; // tab not visible — no keep-alive signal, skip poll
+
+        // Reload currently-active blob-backed layers to show the latest data from storage.
+        const signInEnabled = document.getElementById('layerSignInActivity')?.checked;
+        const devicesEnabled = document.getElementById('layerDeviceLocations')?.checked;
+        if (signInEnabled) {
+          await toggleSignInActivityOverlay(map, false);
+          await toggleSignInActivityOverlay(map, true);
+        }
+        if (devicesEnabled) {
+          await toggleDeviceLocationsOverlay(map, false);
+          await toggleDeviceLocationsOverlay(map, true);
+        }
+        // Re-probe availability for layers not yet enabled, in case fresh data arrived.
+        if (!signInEnabled) checkSignInActivityAvailability();
+        if (!devicesEnabled) checkDeviceLocationsAvailability();
+
+        // Trigger a backend refresh so storage blobs are updated for the next poll cycle.
+        fetch('/api/refresh').catch(() => {});
+      }, liveRefreshMs);
+    }
   });
 
   map.events.add("error", (e) => {

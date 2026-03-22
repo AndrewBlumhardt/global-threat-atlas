@@ -441,6 +441,7 @@ All settings are configured automatically by the deploy script except `MAXMIND_A
 | `REFRESH_MAX_ROWS` | Row cap for KQL query results | `1000000` |
 | `TICKER_MAX_ITEMS` | Maximum number of cybersecurity headlines shown in the news ticker | `10` |
 | `TICKER_SPEED_S` | News ticker scroll speed in seconds - lower is faster | `70` |
+| `LIVE_REFRESH_INTERVAL_MINUTES` | How often the map reloads device and sign-in layers while the page is open. Set to `0` to disable. To get live updates, set `REFRESH_DEVICE_FREQUENCY_MINUTES` and `REFRESH_SIGNIN_FREQUENCY_MINUTES` to the same value so the backend actually re-queries Sentinel each cycle. | `5` |
 
 ### CI/CD
 
