@@ -177,25 +177,22 @@ try {
 Write-Step "Checking Azure login..."
 Write-Info "Required: Owner or Contributor role on subscription or target resource group"
 
+# Set the target cloud FIRST so all subsequent az commands (including az account show)
+# target the correct endpoint. This prevents a machine already logged in to commercial
+# from bypassing the cloud switch when -Cloud AzureUSGovernment is specified.
+$targetCloud = if ($Cloud -eq "AzureUSGovernment") { "AzureUSGovernment" } else { "AzureCloud" }
+$currentCloud = az cloud show --query name -o tsv 2>$null
+if ($currentCloud -ne $targetCloud) {
+    Write-Info "Switching CLI to $Cloud..."
+    az cloud set --name $targetCloud
+    Write-Info "CLI is now targeting $Cloud"
+}
+
 $account = az account show 2>$null | ConvertFrom-Json
 if (-not $account) {
     Write-Info "Not logged in. Starting login to $Cloud..."
-    if ($Cloud -eq "AzureUSGovernment") {
-        az cloud set --name AzureUSGovernment
-        Write-Info "Switched to Azure US Government cloud"
-    }
     az login
     $account = az account show | ConvertFrom-Json
-} else {
-    # Verify we're in the correct cloud
-    $currentCloud = az cloud show --query name -o tsv
-    $targetCloud = if ($Cloud -eq "AzureUSGovernment") { "AzureUSGovernment" } else { "AzureCloud" }
-    if ($currentCloud -ne $targetCloud) {
-        Write-Info "Switching to $Cloud..."
-        az cloud set --name $targetCloud
-        az login
-        $account = az account show | ConvertFrom-Json
-    }
 }
 
 Write-Success "Logged in as: $($account.user.name)"

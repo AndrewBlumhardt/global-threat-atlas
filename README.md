@@ -235,6 +235,11 @@ cd global-threat-atlas
 
 **Step 2 - Sign in to Azure**
 
+> **Azure Government (GCC / GCC-High) users:** Run this command first to point the Azure CLI at the government cloud **before** signing in. Skipping this step causes the CLI to authenticate against the commercial endpoint and your government credentials will be rejected.
+> ```powershell
+> az cloud set --name AzureUSGovernment
+> ```
+
 ```powershell
 az login
 ```
