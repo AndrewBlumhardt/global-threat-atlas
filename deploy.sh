@@ -360,6 +360,11 @@ print_success "Managed identity configured"
 print_step "Configuring application settings..."
 
 STORAGE_URL="$BLOB_ENDPOINT"
+if [ "$CLOUD" == "AzureUSGovernment" ]; then
+    LA_ENDPOINT="https://api.loganalytics.us"
+else
+    LA_ENDPOINT="https://api.loganalytics.io"
+fi
 
 # Switch AzureWebJobsStorage from key-based (set by functionapp create) to identity-based.
 # This allows the storage account to have shared key access disabled.
@@ -380,6 +385,7 @@ az functionapp config appsettings set \
         STORAGE_CONTAINER_DATASETS=datasets \
         DEFAULT_QUERY_TIME_WINDOW_HOURS=24 \
         INCREMENTAL_OVERLAP_MINUTES=10 \
+        LA_ENDPOINT="$LA_ENDPOINT" \
     --output none
 
 print_success "Application settings configured — runtime storage uses Managed Identity (no storage keys)"

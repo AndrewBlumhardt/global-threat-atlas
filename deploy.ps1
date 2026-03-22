@@ -664,6 +664,7 @@ if (-not $SkipFunctionApp) {
     Write-Step "Configuring application settings..."
 
     $storageUrl = $blobEndpoint
+    $laEndpoint = if ($Cloud -eq 'AzureUSGovernment') { 'https://api.loganalytics.us' } else { 'https://api.loganalytics.io' }
 
     az functionapp config appsettings set `
         --resource-group $ResourceGroupName `
@@ -675,6 +676,7 @@ if (-not $SkipFunctionApp) {
             DEFAULT_QUERY_TIME_WINDOW_HOURS=24 `
             INCREMENTAL_OVERLAP_MINUTES=10 `
             AZURE_MAPS_SUBSCRIPTION_KEY=$mapsKey `
+            LA_ENDPOINT=$laEndpoint `
             MAXMIND_ACCOUNT_ID='' `
             MAXMIND_LICENSE_KEY='' `
         --output none
