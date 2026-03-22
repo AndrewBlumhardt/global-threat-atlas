@@ -535,6 +535,37 @@ if (-not $SkipFunctionApp) {
     Start-Sleep -Seconds 30
     $demoDataDir = Join-Path $PSScriptRoot "demo_data"
     if (Test-Path $demoDataDir) {
+        # Static files that also live at the container root so they are available
+        # without demo mode. threat-actors.tsv drives the threat actors heatmap;
+        # custom-source.geojson is the starter template users replace with their own data.
+        $staticRootFiles = @('threat-actors.tsv', 'custom-source.geojson')
+        Get-ChildItem -Path $demoDataDir -File | Where-Object { $_.Name -in $staticRootFiles } | ForEach-Object {
+            $blobName = $_.Name   # container root, not demo_data/
+            $uploaded = $false
+            foreach ($delaySec in @(0, 30, 60)) {
+                if ($delaySec -gt 0) {
+                    Write-Info "  Retrying $blobName in ${delaySec}s (RBAC still propagating)..."
+                    Start-Sleep -Seconds $delaySec
+                }
+                az storage blob upload `
+                    --account-name $StorageAccountName `
+                    --container-name datasets `
+                    --name $blobName `
+                    --file $_.FullName `
+                    --auth-mode login `
+                    --overwrite `
+                    --output none 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Uploaded (root): $blobName"
+                    $uploaded = $true
+                    break
+                }
+            }
+            if (-not $uploaded) {
+                Write-Warning "Failed to upload $blobName to container root after 3 attempts"
+            }
+        }
+
         Get-ChildItem -Path $demoDataDir -File | Where-Object { $_.Name -ne '.gitkeep' } | ForEach-Object {
             $blobName = "demo_data/$($_.Name)"
             $uploaded = $false
