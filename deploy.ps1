@@ -352,6 +352,24 @@ if ($rgExists -eq "true") {
 
 # 2. Create or Verify Storage Account
 Write-Step "Checking storage account..."
+
+# Ensure Microsoft.Storage resource provider is registered in this subscription.
+# In new or gov subscriptions the provider may not be registered, which surfaces
+# as a misleading "SubscriptionNotFound" error from the storage ARM endpoint.
+Write-Info "Verifying Microsoft.Storage provider registration..."
+$storageProviderState = az provider show --namespace Microsoft.Storage --query registrationState -o tsv 2>$null
+if ($storageProviderState -ne 'Registered') {
+    Write-Info "Registering Microsoft.Storage provider (state: $storageProviderState)..."
+    az provider register --namespace Microsoft.Storage --wait
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to register Microsoft.Storage provider. Check subscription permissions."
+        exit 1
+    }
+    Write-Success "Microsoft.Storage provider registered"
+} else {
+    Write-Success "Microsoft.Storage provider already registered"
+}
+
 # Use 'az storage account show' instead of 'check-name' - check-name calls a
 # subscription-scoped ARM endpoint that is unreliable in government clouds.
 $existingStorage = az storage account show `
@@ -372,7 +390,7 @@ if ($existingStorage) {
         '--name', $StorageAccountName,
         '--resource-group', $ResourceGroupName,
         '--location', $Location,
-        '--subscription', $account.id,
+        '--subscription', $($account.id),
         '--sku', 'Standard_LRS',
         '--kind', 'StorageV2',
         '--allow-blob-public-access', 'false',
@@ -382,9 +400,12 @@ if ($existingStorage) {
     if ($Cloud -ne 'AzureUSGovernment') {
         $saParams += '--require-infrastructure-encryption'
     }
+    # Echo the exact command for troubleshooting
+    Write-Info "Running: az $($saParams -join ' ')"
     az @saParams
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Storage account creation failed (exit $LASTEXITCODE). Check the errors above."
+        Write-Info "To run manually: az $($saParams -join ' ')"
         exit 1
     }
     Write-Success "Storage account created: $StorageAccountName"
