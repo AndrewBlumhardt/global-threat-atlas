@@ -241,7 +241,9 @@ az account set --subscription "YOUR-SUBSCRIPTION-NAME-OR-ID"
 .\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID"
 ```
 
-Replace `YOUR-WORKSPACE-ID` with the GUID from Step 1. The script will display a deployment plan and ask you to confirm before creating anything. It takes approximately 5 minutes.
+Replace `YOUR-WORKSPACE-ID` with the GUID from Step 1. The script will display a deployment plan and ask you to confirm before creating anything.
+
+The script produces detailed output for every step - read it carefully as it includes important values you will need in Steps 4 and 5 (the SWA deployment token and Function App publish profile command). Deployment can take up to 15 minutes, primarily due to Function App provisioning and package installation.
 
 By default, all Azure resources are named after the project name `global-threat-atlas` and placed in a resource group called `rg-global-threat-atlas`. Both can be customised independently:
 
