@@ -212,6 +212,7 @@ The included script creates all required Azure resources and deploys the app in 
 **What you need before starting:**
 - An Azure subscription with Owner or Contributor access
 - A Microsoft Sentinel workspace (note the Workspace ID - a GUID found in Azure Portal → Log Analytics workspaces → your workspace → Overview)
+- Permission to assign the `Log Analytics Reader` role on that workspace - the workspace may be in a different subscription, so you need at least `Owner` or `User Access Administrator` on it (or ask someone who does to run the assignment after deployment)
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) installed
 - [Git](https://git-scm.com/downloads) installed
 - A [GitHub account](https://github.com/join) (free) - required to fork the repo and run GitHub Actions workflows

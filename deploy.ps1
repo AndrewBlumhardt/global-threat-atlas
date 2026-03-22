@@ -566,24 +566,41 @@ if (-not $SkipFunctionApp) {
         Write-Info "demo_data/ directory not found - skipping demo data upload"
     }
 
-    # Log Analytics Reader - look up workspace resource ID by workspace GUID
-    # az resource list does not surface properties.customerId reliably; use the
-    # monitor log-analytics API which returns it in the top-level response.
-    Write-Info "Looking up Log Analytics workspace to assign Log Analytics Reader..."
-    $workspaceResourceId = az monitor log-analytics workspace list `
-        --query "[?customerId=='$WorkspaceId'].id | [0]" `
-        --output tsv 2>$null
+    # Log Analytics Reader — search ALL accessible subscriptions in this tenant.
+    # The Sentinel workspace is often in a different subscription from where the
+    # Function App is deployed, so we can't limit the search to the current sub.
+    Write-Info "Looking up Log Analytics workspace '$WorkspaceId' across all accessible subscriptions..."
+    $workspaceResourceId = $null
+    $allSubs = az account list --query "[].id" --output tsv 2>$null
+    foreach ($subId in $allSubs) {
+        $found = az monitor log-analytics workspace list --subscription $subId `
+            --query "[?customerId=='$WorkspaceId'].id | [0]" `
+            --output tsv 2>$null
+        if ($found) {
+            $workspaceResourceId = $found
+            break
+        }
+    }
     if ($workspaceResourceId) {
-        az role assignment create `
+        $workspaceRg  = ($workspaceResourceId -split '/')[4]
+        $workspaceSub = ($workspaceResourceId -split '/')[2]
+        Write-Info "Found workspace in subscription $workspaceSub (RG: $workspaceRg) - assigning Log Analytics Reader..."
+        $assignResult = az role assignment create `
             --assignee $principalId `
             --role "Log Analytics Reader" `
             --scope $workspaceResourceId `
-            --output none
-        $workspaceRg = ($workspaceResourceId -split '/')[4]
-        Write-Success "Assigned Log Analytics Reader (workspace RG: $workspaceRg)"
+            --output none 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Assigned Log Analytics Reader on workspace (RG: $workspaceRg)"
+        } else {
+            Write-Warning "Could not assign Log Analytics Reader - you may not have role assignment permissions on subscription $workspaceSub."
+            Write-Warning "Ask an Owner of that subscription to run:"
+            Write-Warning "  az role assignment create --assignee $principalId --role 'Log Analytics Reader' --scope $workspaceResourceId"
+        }
     } else {
-        Write-Info "Workspace $WorkspaceId not found in current subscription - assign Log Analytics Reader manually:"
-        Write-Info "  az role assignment create --assignee $principalId --role 'Log Analytics Reader' --scope <workspace-resource-id>"
+        Write-Warning "Workspace $WorkspaceId not found in any accessible subscription."
+        Write-Warning "If it is in a tenant you are not logged into, ask an Owner to run:"
+        Write-Warning "  az role assignment create --assignee $principalId --role 'Log Analytics Reader' --scope <workspace-resource-id>"
     }
 
     # 10. Deploy Function Code
