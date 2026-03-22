@@ -219,13 +219,29 @@ if (-not $account) {
 Write-Success "Logged in as: $($account.user.name)"
 Write-Success "Cloud: $Cloud"
 
-# Set subscription if specified
+# Set subscription if specified; otherwise re-anchor the current one.
+# Re-anchoring validates that the active subscription is reachable in this
+# cloud environment - surfacing a SubscriptionNotFound error here (before the
+# user confirms) rather than silently mid-deployment.
 if ($SubscriptionId) {
     Write-Step "Setting subscription to $SubscriptionId..."
     az account set --subscription $SubscriptionId
-    Write-Success "Subscription set"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Could not set subscription $SubscriptionId. Is this subscription accessible in $Cloud?"
+        exit 1
+    }
+    $account = az account show | ConvertFrom-Json
+    Write-Success "Subscription set: $($account.name) ($($account.id))"
 } else {
-    Write-Info "Using current subscription: $($account.name)"
+    # Re-anchor to validate subscription is reachable in the active cloud.
+    az account set --subscription $($account.id) 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Subscription '$($account.id)' ($($account.name)) is not accessible in $Cloud."
+        Write-Info "Run 'az account list' to see available subscriptions for this cloud."
+        Write-Info "Then re-run with: -SubscriptionId <gov-subscription-id>"
+        exit 1
+    }
+    Write-Success "Subscription: $($account.name) ($($account.id))"
 }
 
 # Validate workspace ID format
@@ -246,6 +262,7 @@ Write-Host "`n================================================" -ForegroundColor
 Write-Host "Deployment Plan" -ForegroundColor Magenta
 Write-Host "================================================" -ForegroundColor Magenta
 Write-Host "Cloud:             $Cloud"
+Write-Host "Subscription:      $($account.name) ($($account.id))"
 Write-Host "Project Name:      $ProjectName"
 Write-Host "Resource Group:    $ResourceGroupName"
 Write-Host "Location:          $Location"
