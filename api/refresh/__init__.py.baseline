@@ -1,0 +1,769 @@
+"""
+Data refresh pipeline for Sentinel Activity Maps.
+
+Three independent pipelines ΓÇö each with its own frequency, lookback, and output files:
+
+  MDE Devices  : KQL ΓåÆ mde-devices.tsv ΓåÆ MaxMind ΓåÆ mde-devices.geojson
+  Sign-in      : KQL ΓåÆ signin-activity.tsv ΓåÆ MaxMind ΓåÆ signin-activity.geojson
+  Threat Intel : KQL ΓåÆ threat-intel-indicators.tsv ΓåÆ MaxMind ΓåÆ threat-intel-indicators.geojson
+
+Each pipeline checks its own freshness; stale pipelines run, fresh ones are skipped.
+
+Required app settings:
+  STORAGE_ACCOUNT_URL         ΓÇö https://<account>.blob.core.windows.net
+  STORAGE_CONTAINER_DATASETS  ΓÇö blob container name (default: datasets)
+  SENTINEL_WORKSPACE_ID       ΓÇö Log Analytics workspace GUID
+  MAXMIND_ACCOUNT_ID          ΓÇö MaxMind GeoIP account ID
+  MAXMIND_LICENSE_KEY         ΓÇö MaxMind GeoIP license key
+
+Optional app settings:
+  REFRESH_DEVICE_FREQUENCY_MINUTES    ΓÇö how often to refresh MDE devices (default: 1440 = 24 h)
+  REFRESH_DEVICE_LOOKBACK_HOURS       ΓÇö how far back to query MDE data (default: 168)
+  REFRESH_SIGNIN_FREQUENCY_MINUTES    ΓÇö how often to refresh sign-in activity (default: 1440 = 24 h)
+  REFRESH_SIGNIN_LOOKBACK_HOURS       ΓÇö how far back to query sign-in data (default: 168)
+  REFRESH_THREATINTEL_FREQUENCY_HOURS ΓÇö how often to refresh threat intel (default: 24)
+  SENTINEL_DEVICES_KQL                ΓÇö override default MDE KQL query
+  SENTINEL_SIGNIN_KQL                 ΓÇö override default sign-in KQL query
+  SENTINEL_THREATINTEL_KQL            ΓÇö override default threat intel KQL query
+"""
+import azure.functions as func
+import base64
+import geoip2.database
+import io
+import json
+import logging
+import os
+import tarfile
+from datetime import datetime, timedelta, timezone
+from urllib import error as urllib_error
+from urllib import request as urllib_request
+
+logger = logging.getLogger(__name__)
+
+_THREATINTEL_LOOKBACK_HOURS = 360  # 15 days ΓÇö static, not configurable
+_GEOIP_DB_PATH              = '/tmp/GeoLite2-City.mmdb'
+_GEOIP_DB_MAX_AGE_DAYS      = 7
+
+
+# ΓöÇΓöÇ Managed Identity helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+_BLOB_RESOURCE   = 'https://storage.azure.com/'
+_LA_RESOURCE     = 'https://api.loganalytics.io/'
+_BLOB_API_VER    = '2020-04-08'
+
+
+def _get_mi_token(resource):
+    """Acquire a bearer token via the App Service MSI endpoint (IMDS fallback for local)."""
+    identity_endpoint = os.environ.get('IDENTITY_ENDPOINT')
+    identity_header   = os.environ.get('IDENTITY_HEADER')
+    if identity_endpoint and identity_header:
+        url = f'{identity_endpoint}?resource={resource}&api-version=2019-08-01'
+        req = urllib_request.Request(url)
+        req.add_header('X-IDENTITY-HEADER', identity_header)
+    else:
+        url = ('http://169.254.169.254/metadata/identity/oauth2/token'
+               f'?api-version=2018-02-01&resource={resource}')
+        req = urllib_request.Request(url, headers={'Metadata': 'true'})
+    with urllib_request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read())['access_token']
+
+
+# ΓöÇΓöÇ Blob helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+def _blob_url(container, blob_name):
+    url = os.environ.get('STORAGE_ACCOUNT_URL', '').rstrip('/')
+    if not url:
+        raise EnvironmentError('STORAGE_ACCOUNT_URL not configured')
+    return f'{url}/{container}/{blob_name}'
+
+
+def _blob_age_hours(container, blob_name):
+    """Return hours since last modification, or None if the blob does not exist."""
+    from email.utils import parsedate_to_datetime
+    try:
+        token = _get_mi_token(_BLOB_RESOURCE)
+        req = urllib_request.Request(_blob_url(container, blob_name), method='HEAD')
+        req.add_header('Authorization', f'Bearer {token}')
+        req.add_header('x-ms-version', _BLOB_API_VER)
+        with urllib_request.urlopen(req, timeout=10) as resp:
+            last_mod = resp.headers.get('Last-Modified')
+            if not last_mod:
+                return None
+            return (datetime.now(timezone.utc) - parsedate_to_datetime(last_mod)).total_seconds() / 3600
+    except urllib_error.HTTPError as e:
+        if e.code == 404:
+            return None
+        logger.warning(f'Blob HEAD {blob_name}: HTTP {e.code}')
+        return None
+    except Exception as e:
+        logger.warning(f'Blob HEAD {blob_name}: {e}')
+        return None
+
+
+def _is_locked(container):
+    """True if another refresh is in progress (lock blob written within last 30 min)."""
+    age = _blob_age_hours(container, 'refresh.lock')
+    return age is not None and age < 0.5
+
+
+def _set_lock(container, locked):
+    try:
+        token = _get_mi_token(_BLOB_RESOURCE)
+        url = _blob_url(container, 'refresh.lock')
+        if locked:
+            data = datetime.now(timezone.utc).isoformat().encode()
+            req = urllib_request.Request(url, data=data, method='PUT')
+            req.add_header('Authorization', f'Bearer {token}')
+            req.add_header('x-ms-version', _BLOB_API_VER)
+            req.add_header('x-ms-blob-type', 'BlockBlob')
+            req.add_header('Content-Type', 'text/plain')
+            req.add_header('Content-Length', str(len(data)))
+            urllib_request.urlopen(req, timeout=10).close()
+        else:
+            req = urllib_request.Request(url, method='DELETE')
+            req.add_header('Authorization', f'Bearer {token}')
+            req.add_header('x-ms-version', _BLOB_API_VER)
+            try:
+                urllib_request.urlopen(req, timeout=10).close()
+            except urllib_error.HTTPError as e:
+                if e.code != 404:
+                    raise
+    except Exception as e:
+        logger.warning(f'Lock update failed: {e}')
+
+
+def _upload(container, blob_name, data_bytes, content_type='application/json'):
+    """
+    Upload bytes to blob storage.
+    Uses block-blob staging for payloads > 4 MB to avoid the single-PUT 256 MB limit.
+    Handles files up to ~190 GB (50 000 blocks ├ù 4 MB).
+    """
+    _BLOCK_SIZE = 4 * 1024 * 1024  # 4 MB
+    token = _get_mi_token(_BLOB_RESOURCE)
+    url   = _blob_url(container, blob_name)
+
+    if len(data_bytes) <= _BLOCK_SIZE:
+        # Fast path ΓÇö single PUT
+        req = urllib_request.Request(url, data=data_bytes, method='PUT')
+        req.add_header('Authorization',   f'Bearer {token}')
+        req.add_header('x-ms-version',     _BLOB_API_VER)
+        req.add_header('x-ms-blob-type',   'BlockBlob')
+        req.add_header('Content-Type',      content_type)
+        req.add_header('Content-Length',    str(len(data_bytes)))
+        urllib_request.urlopen(req, timeout=120).close()
+        return
+
+    # Staged block upload
+    block_ids = []
+    for i, offset in enumerate(range(0, len(data_bytes), _BLOCK_SIZE)):
+        chunk    = data_bytes[offset:offset + _BLOCK_SIZE]
+        block_id = base64.b64encode(f'{i:08d}'.encode()).decode()
+        block_ids.append(block_id)
+        put_url  = f'{url}?comp=block&blockid={urllib_request.quote(block_id)}'
+        req = urllib_request.Request(put_url, data=chunk, method='PUT')
+        req.add_header('Authorization',  f'Bearer {token}')
+        req.add_header('x-ms-version',    _BLOB_API_VER)
+        req.add_header('Content-Length',  str(len(chunk)))
+        urllib_request.urlopen(req, timeout=120).close()
+
+    # Commit block list
+    block_xml = (
+        '<?xml version="1.0" encoding="utf-8"?><BlockList>'
+        + ''.join(f'<Latest>{bid}</Latest>' for bid in block_ids)
+        + '</BlockList>'
+    ).encode()
+    commit_url = f'{url}?comp=blocklist'
+    req = urllib_request.Request(commit_url, data=block_xml, method='PUT')
+    req.add_header('Authorization',  f'Bearer {token}')
+    req.add_header('x-ms-version',    _BLOB_API_VER)
+    req.add_header('Content-Type',    content_type)
+    req.add_header('x-ms-blob-content-type', content_type)
+    req.add_header('Content-Length',  str(len(block_xml)))
+    urllib_request.urlopen(req, timeout=60).close()
+    logger.info(f'Block-blob upload complete: {blob_name} ({len(data_bytes) // 1024 // 1024} MB, {len(block_ids)} blocks)')
+
+
+# ΓöÇΓöÇ GeoIP database (MaxMind GeoLite2) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+def _get_geoip_reader(_retry=True):
+    """
+    Return a geoip2.database.Reader backed by a locally cached GeoLite2-City.mmdb.
+    Downloads the database from MaxMind on first call or when older than 7 days.
+    If the cached file fails validation it is deleted and re-downloaded once.
+    Returns None if credentials are missing or download fails.
+    """
+    needs_download = True
+    if os.path.exists(_GEOIP_DB_PATH):
+        age = datetime.now(timezone.utc) - datetime.fromtimestamp(
+            os.path.getmtime(_GEOIP_DB_PATH), tz=timezone.utc
+        )
+        if age < timedelta(days=_GEOIP_DB_MAX_AGE_DAYS):
+            needs_download = False
+
+    if needs_download:
+        license_key = os.environ.get('MAXMIND_LICENSE_KEY', '').strip()
+        if not license_key:
+            logger.warning('MAXMIND_LICENSE_KEY not configured ΓÇö geo enrichment unavailable')
+            return None
+        # Use the legacy geoip_download endpoint (license_key as query param, no Basic auth).
+        # This is the format documented by MaxMind for GeoLite2 free-tier downloads.
+        url     = f'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key={license_key}&suffix=tar.gz'
+        req     = urllib_request.Request(url)
+        tmp_tar = _GEOIP_DB_PATH + '.tar.gz'
+        try:
+            logger.info('Downloading GeoLite2-City database from MaxMindΓÇª')
+            with urllib_request.urlopen(req, timeout=180) as resp, open(tmp_tar, 'wb') as fh:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+        except urllib_error.HTTPError as e:
+            body = e.read().decode('utf-8', errors='replace')[:500]
+            logger.error(f'GeoLite2-City download failed: HTTP {e.code} {e.reason} ΓÇö {body}')
+            return None
+        except Exception as e:
+            logger.error(f'GeoLite2-City download failed: {e}')
+            return None
+        try:
+            with tarfile.open(tmp_tar, mode='r:gz') as tar:
+                for member in tar.getmembers():
+                    if member.name.endswith('.mmdb'):
+                        f = tar.extractfile(member)
+                        with open(_GEOIP_DB_PATH, 'wb') as out:
+                            out.write(f.read())
+                        break
+            logger.info(f'GeoLite2-City.mmdb cached at {_GEOIP_DB_PATH}')
+        except Exception as e:
+            logger.error(f'GeoLite2-City extraction failed: {e}')
+            return None
+        finally:
+            try:
+                os.remove(tmp_tar)
+            except OSError:
+                pass
+
+    try:
+        reader = geoip2.database.Reader(_GEOIP_DB_PATH)
+        # Quick sanity-check: every valid MaxMind DB can look up a well-known IP
+        reader.city('8.8.8.8')
+        return reader
+    except Exception as e:
+        logger.warning(f'GeoLite2-City.mmdb validation failed ({e}) ΓÇö deleting and re-downloading')
+        try:
+            os.remove(_GEOIP_DB_PATH)
+        except OSError:
+            pass
+        # Retry once with a fresh download; if that also fails, return None
+        if _retry:
+            return _get_geoip_reader(_retry=False)
+        logger.error('GeoLite2-City.mmdb failed validation after fresh download ΓÇö geo enrichment unavailable')
+        return None
+
+
+# ΓöÇΓöÇ MaxMind geo enrichment (GeoLite2-City local DB) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+def _enrich_ips(ips, cache, reader):
+    """
+    Enrich unique IPs with geolocation from the local GeoLite2-City DB.
+    IPs not found in the DB (private ranges, some cloud IPs) are stored with
+    null coordinates and will be dropped from the GeoJSON output.
+    Re-runs on every pipeline call ΓÇö GeoLite2 is an in-process file read
+    (microseconds per IP, no network, no rate limits) so caching between runs
+    has no benefit.
+    """
+    new_ips = [ip for ip in ips if ip and ip not in cache]
+    if not new_ips:
+        return
+    if reader is None:
+        logger.warning('GeoLite2 DB unavailable ΓÇö geo enrichment skipped; no features will be generated')
+        return
+    logger.info(f'GeoLite2: enriching {len(new_ips)} IPs')
+    resolved = 0
+    for ip in new_ips:
+        try:
+            r = reader.city(ip)
+            cache[ip] = {
+                'latitude':  r.location.latitude,
+                'longitude': r.location.longitude,
+                'country':   r.country.iso_code or '',
+                'state':     r.subdivisions.most_specific.name or '',
+                'city':      r.city.name or '',
+            }
+            if r.location.latitude is not None:
+                resolved += 1
+        except Exception:
+            cache[ip] = {'latitude': None, 'longitude': None, 'country': '', 'state': '', 'city': ''}
+    unresolved = len(new_ips) - resolved
+    logger.info(f'GeoLite2: {resolved}/{len(new_ips)} IPs resolved' +
+                (f'; {unresolved} not in DB (private/cloud ranges) ΓÇö those IPs will be excluded from GeoJSON' if unresolved else ''))
+
+def _rows_to_tsv(rows):
+    """Serialize a list of dicts to TSV bytes (UTF-8), safe for blob upload."""
+    if not rows:
+        return b''
+    headers = list(rows[0].keys())
+    lines = ['\t'.join(headers)]
+    for row in rows:
+        lines.append('\t'.join(
+            str(row.get(h, '') or '').replace('\t', ' ').replace('\r', '').replace('\n', ' ')
+            for h in headers
+        ))
+    return '\n'.join(lines).encode('utf-8')
+
+
+# ΓöÇΓöÇ Sentinel ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+def _query_sentinel(workspace_id, kql, lookback_hours):
+    """Run a KQL query against a Sentinel Log Analytics workspace via REST API."""
+    max_rows = int(os.environ.get('REFRESH_MAX_ROWS', '1000000'))
+    token = _get_mi_token(_LA_RESOURCE)
+    url = f'https://api.loganalytics.io/v1/workspaces/{workspace_id}/query'
+    # Inject a server-side row cap to avoid unbounded responses
+    capped_kql = f'{kql.rstrip()}\n| take {max_rows}'
+    body = json.dumps({'query': capped_kql, 'timespan': f'PT{lookback_hours}H'}).encode()
+    req = urllib_request.Request(url, data=body, method='POST')
+    req.add_header('Authorization', f'Bearer {token}')
+    req.add_header('Content-Type', 'application/json')
+    try:
+        with urllib_request.urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read())
+    except urllib_error.HTTPError as e:
+        body = e.read().decode('utf-8', errors='replace')
+        raise RuntimeError(f'Log Analytics query HTTP {e.code}: {body}') from e
+    tables = result.get('tables', [])
+    if not tables:
+        return []
+    t    = tables[0]
+    cols = [c['name'] for c in t['columns']]
+    rows = [dict(zip(cols, row)) for row in t['rows']]
+    if len(rows) >= max_rows:
+        logger.warning(f'Query returned {len(rows)} rows ΓÇö hit REFRESH_MAX_ROWS cap ({max_rows}). '
+                       'Increase REFRESH_MAX_ROWS if data is being truncated.')
+    return rows
+
+
+def _devices_lookback():
+    return int(os.environ.get('REFRESH_DEVICE_LOOKBACK_HOURS', '168'))
+
+
+def _signin_lookback():
+    return int(os.environ.get('REFRESH_SIGNIN_LOOKBACK_HOURS', '168'))
+
+
+def _default_devices_kql():
+    hours = _devices_lookback()
+    return (
+        'DeviceInfo\n'
+        f'| where TimeGenerated > ago({hours}h)\n'
+        '| summarize arg_max(TimeGenerated, *) by DeviceId\n'
+        '| where isnotempty(PublicIP)\n'
+        '| project TimeGenerated, DeviceName, DeviceId, OSPlatform, DeviceType,\n'
+        '          CloudPlatforms, OnboardingStatus, PublicIP, SensorHealthState, ExposureLevel\n'
+    )
+
+
+def _default_signin_kql():
+    hours = _signin_lookback()
+    return (
+        'SigninLogs\n'
+        f'| where TimeGenerated > ago({hours}h)\n'
+        '| where isnotempty(IPAddress)\n'
+        '| summarize arg_max(TimeGenerated, *) by IPAddress, UserPrincipalName\n'
+        '| extend Latitude = parse_json(tostring(LocationDetails.geoCoordinates)).latitude\n'
+        '| extend Longitude = parse_json(tostring(LocationDetails.geoCoordinates)).longitude\n'
+        '| extend CountryOrRegion = tostring(LocationDetails.countryOrRegion)\n'
+        '| extend State = tostring(LocationDetails.state)\n'
+        '| extend City = tostring(LocationDetails.city)\n'
+        '| extend Details = tostring(Status.additionalDetails)\n'
+        '| extend Browser = tostring(DeviceDetail.browser)\n'
+        '| extend isManaged = tostring(DeviceDetail.isManaged)\n'
+        '| extend isCompliant = tostring(DeviceDetail.isCompliant)\n'
+        '| extend OperatingSystem = tostring(DeviceDetail.operatingSystem)\n'
+        '| extend DeviceId = tostring(DeviceDetail.deviceId)\n'
+        '| extend UserDisplayName = tostring(Identity)\n'
+        '| project TimeGenerated, UserDisplayName, UserPrincipalName, IPAddress,\n'
+        '          Latitude, Longitude, CountryOrRegion, State, City,\n'
+        '          DeviceId, AppDisplayName, ClientAppUsed, Browser, OperatingSystem,\n'
+        '          isManaged, isCompliant, ConditionalAccessStatus,\n'
+        '          ResultSignature, RiskState, Details\n'
+    )
+
+
+def _default_threatintel_kql():
+    return (
+        'ThreatIntelIndicators\n'
+        '| where TimeGenerated > ago(15d)\n'
+        '| where IsActive == "true" and IsDeleted == "false"\n'
+        r'| where ObservableValue matches regex @"^\d{1,3}(\.\d{1,3}){3}$"' + '\n'
+        '| summarize arg_max(TimeGenerated, *) by ObservableValue\n'
+        '| extend TLPLevel = tostring(AdditionalFields.TLPLevel)\n'
+        '| extend Description = Data.description\n'
+        '| extend Type = parse_json(tostring(Data.indicator_types))[0]\n'
+        '| extend Method = Data.pattern_type\n'
+        '| project ObservableValue, Type, Description, Confidence, SourceSystem, TLPLevel, Method, ValidUntil\n'
+    )
+
+
+# ΓöÇΓöÇ GeoJSON builders ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+
+def _geojson_bytes(features):
+    """Serialize a features list to a GeoJSON FeatureCollection as UTF-8 bytes."""
+    return json.dumps(
+        {'type': 'FeatureCollection', 'features': features},
+        ensure_ascii=False,
+        default=str,
+    ).encode('utf-8')
+
+def _parse_signin_location(location_val):
+    """
+    Extract country/city strings from the SigninLogs Location field.
+    Azure AD populates countryOrRegion/city but geoCoordinates is often empty,
+    so we only use this for metadata ΓÇö coordinates come from MaxMind.
+    """
+    try:
+        if isinstance(location_val, str):
+            loc = json.loads(location_val)
+        elif isinstance(location_val, dict):
+            loc = location_val
+        else:
+            return {}
+        return {
+            'countryOrRegion': loc.get('countryOrRegion', ''),
+            'city':            loc.get('city', ''),
+            'state':           loc.get('state', ''),
+        }
+    except Exception:
+        return {}
+
+
+def _device_geojson(rows, geo_cache):
+    features = []
+    no_geo = 0
+    for row in rows:
+        ip  = (row.get('PublicIP') or '').strip()
+        geo = geo_cache.get(ip, {})
+        lat, lon = geo.get('latitude'), geo.get('longitude')
+        if lat is None or lon is None:
+            no_geo += 1
+            continue
+        features.append({
+            'type': 'Feature',
+            'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
+            'properties': {
+                'TimeGenerated':     str(row.get('TimeGenerated', '')),
+                'DeviceName':        row.get('DeviceName', ''),
+                'DeviceId':          row.get('DeviceId', ''),
+                'DeviceType':        row.get('DeviceType', ''),
+                'OSPlatform':        row.get('OSPlatform', ''),
+                'OperatingSystem':   row.get('OSPlatform', ''),
+                'CloudPlatform':     row.get('CloudPlatforms', ''),
+                'OnboardingStatus':  row.get('OnboardingStatus', ''),
+                'isManaged':         'True' if row.get('OnboardingStatus') == 'Onboarded' else 'False',
+                'IPAddress':         ip,
+                'PublicIP':          ip,
+                'SensorHealthState': row.get('SensorHealthState', ''),
+                'ExposureLevel':     row.get('ExposureLevel', ''),
+                'CountryOrRegion':   geo.get('country', ''),
+                'State':             geo.get('state', ''),
+                'City':              geo.get('city', ''),
+                'Latitude':          lat,
+                'Longitude':         lon,
+            },
+        })
+    if no_geo:
+        logger.warning(f'mde-devices: {no_geo}/{no_geo + len(features)} devices skipped ΓÇö no geo coordinates (MaxMind could not resolve IP)')
+    return {'type': 'FeatureCollection', 'features': features}
+
+
+def _signin_geojson(rows, geo_cache):
+    """Build GeoJSON from sign-in rows.
+    Primary coordinates: Latitude/Longitude from KQL (LocationDetails.geoCoordinates).
+    Fallback: MaxMind on IPAddress when Azure AD geo coords are absent.
+    """
+    features = []
+    no_geo = 0
+    for row in rows:
+        try:
+            lat = float(row.get('Latitude') or '')
+            lon = float(row.get('Longitude') or '')
+        except (TypeError, ValueError):
+            lat, lon = None, None
+        ip = (row.get('IPAddress') or '').strip()
+        # MaxMind fallback
+        if lat is None or lon is None:
+            geo = geo_cache.get(ip, {})
+            lat = geo.get('latitude')
+            lon = geo.get('longitude')
+        if lat is None or lon is None:
+            no_geo += 1
+            continue
+        features.append({
+            'type': 'Feature',
+            'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
+            'properties': {
+                'TimeGenerated':           str(row.get('TimeGenerated', '')),
+                'UserDisplayName':         row.get('UserDisplayName', ''),
+                'UserPrincipalName':       row.get('UserPrincipalName', ''),
+                'IPAddress':               ip,
+                'Latitude':                lat,
+                'Longitude':               lon,
+                'CountryOrRegion':         row.get('CountryOrRegion', ''),
+                'State':                   row.get('State', ''),
+                'City':                    row.get('City', ''),
+                'DeviceId':                row.get('DeviceId', ''),
+                'ResourceDisplayName':     row.get('AppDisplayName', ''),
+                'ClientAppUsed':           row.get('ClientAppUsed', ''),
+                'Browser':                 row.get('Browser', ''),
+                'OperatingSystem':         row.get('OperatingSystem', ''),
+                'isManaged':               row.get('isManaged', ''),
+                'isCompliant':             row.get('isCompliant', ''),
+                'ConditionalAccessStatus': row.get('ConditionalAccessStatus', ''),
+                'ResultSignature':         row.get('ResultSignature', ''),
+                'RiskState':               row.get('RiskState', ''),
+                'Details':                 row.get('Details', ''),
+            },
+        })
+    if no_geo:
+        logger.warning(f'signin-activity: {no_geo}/{no_geo + len(features)} rows skipped ΓÇö no geo coordinates')
+    return {'type': 'FeatureCollection', 'features': features}
+
+
+def _threatintel_geojson(rows, geo_cache):
+    features = []
+    for row in rows:
+        ip  = (row.get('ObservableValue') or '').strip()
+        geo = geo_cache.get(ip, {})
+        lat, lon = geo.get('latitude'), geo.get('longitude')
+        if lat is None or lon is None:
+            continue
+        features.append({
+            'type': 'Feature',
+            'geometry': {'type': 'Point', 'coordinates': [lon, lat]},
+            'properties': {
+                'ObservableValue': ip,
+                'Type':            str(row.get('Type', '')),
+                'Description':     str(row.get('Description', '')),
+                'Confidence':      row.get('Confidence', ''),
+                'SourceSystem':    row.get('SourceSystem', ''),
+                'TLPLevel':        row.get('TLPLevel', ''),
+                'Method':          str(row.get('Method', '')),
+                'ValidUntil':      str(row.get('ValidUntil', '')),
+                'Country':         geo.get('country', ''),
+                'City':            geo.get('city', ''),
+            },
+        })
+    return {'type': 'FeatureCollection', 'features': features}
+
+
+# ΓöÇΓöÇ Per-pipeline refresh frequency ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+# How often each pipeline is allowed to re-run.  A browser opening (or
+# reopening) the SWA always calls /api/refresh, so these values prevent
+# redundant Sentinel queries when multiple tabs/browsers are open.
+# Env-var overrides are still honoured; edit the defaults here to change
+# the baseline without touching Azure App Settings.
+
+_DEFAULT_DEVICE_FREQUENCY_HOURS    = 24.0   # re-query MDE devices once per day
+_DEFAULT_SIGNIN_FREQUENCY_HOURS    = 24.0   # re-query sign-in activity once per day
+_DEFAULT_THREATINTEL_FREQUENCY_HOURS = 24.0 # re-query threat intel once per day
+
+
+def _device_frequency_hours():
+    return float(os.environ.get('REFRESH_DEVICE_FREQUENCY_MINUTES',
+                                str(_DEFAULT_DEVICE_FREQUENCY_HOURS * 60))) / 60.0
+
+
+def _signin_frequency_hours():
+    return float(os.environ.get('REFRESH_SIGNIN_FREQUENCY_MINUTES',
+                                str(_DEFAULT_SIGNIN_FREQUENCY_HOURS * 60))) / 60.0
+
+
+def _threatintel_frequency_hours():
+    return float(os.environ.get('REFRESH_THREATINTEL_FREQUENCY_HOURS',
+                                str(_DEFAULT_THREATINTEL_FREQUENCY_HOURS)))
+
+
+# ΓöÇΓöÇ Individual pipeline runners ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+def _run_devices(workspace_id, container, reader=None):
+    """KQL ΓåÆ enrich IPs ΓåÆ TSV (with geo columns) ΓåÆ GeoJSON ΓåÆ blob."""
+    kql      = os.environ.get('SENTINEL_DEVICES_KQL') or _default_devices_kql()
+    lookback = _devices_lookback()
+    rows     = _query_sentinel(workspace_id, kql, lookback)
+    geo_cache = {}
+    ips = list({r.get('PublicIP', '').strip() for r in rows if r.get('PublicIP', '').strip()})
+    _enrich_ips(ips, geo_cache, reader)
+    resolved = sum(1 for v in geo_cache.values() if v.get('latitude') is not None)
+    for row in rows:
+        geo = geo_cache.get((row.get('PublicIP') or '').strip(), {})
+        row['Latitude']        = geo.get('latitude', '') or ''
+        row['Longitude']       = geo.get('longitude', '') or ''
+        row['CountryOrRegion'] = geo.get('country', '') or ''
+        row['State']           = geo.get('state', '') or ''
+        row['City']            = geo.get('city', '') or ''
+    _upload(container, 'mde-devices.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
+    gj = _device_geojson(rows, geo_cache)
+    _upload(container, 'mde-devices.geojson', _geojson_bytes(gj['features']))
+    logger.info(f"mde-devices ΓÇö {len(rows)} rows, {len(gj['features'])} features, {resolved}/{len(ips)} IPs geo-resolved")
+    return {'rows': len(rows), 'features': len(gj['features']), 'ips_total': len(ips), 'ips_resolved': resolved, 'geo_db': reader is not None}
+
+
+def _run_signin(workspace_id, container, reader=None):
+    """KQL ΓåÆ enrich IPs where Azure AD has no coords ΓåÆ TSV (with geo columns) ΓåÆ GeoJSON ΓåÆ blob."""
+    kql      = os.environ.get('SENTINEL_SIGNIN_KQL') or _default_signin_kql()
+    lookback = _signin_lookback()
+    rows     = _query_sentinel(workspace_id, kql, lookback)
+    geo_cache = {}
+    null_geo_ips = list({
+        r.get('IPAddress', '').strip()
+        for r in rows
+        if r.get('IPAddress', '').strip()
+        and not (r.get('Latitude') and r.get('Longitude'))
+    })
+    if null_geo_ips:
+        logger.info(f'signin-activity: {len(null_geo_ips)} IPs missing Azure AD geo coords ΓÇö enriching via GeoLite2')
+        _enrich_ips(null_geo_ips, geo_cache, reader)
+    # Stamp fallback geo onto rows that had no Azure AD coordinates
+    for row in rows:
+        if not (row.get('Latitude') and row.get('Longitude')):
+            geo = geo_cache.get((row.get('IPAddress') or '').strip(), {})
+            row['Latitude']        = geo.get('latitude', '') or ''
+            row['Longitude']       = geo.get('longitude', '') or ''
+            row['CountryOrRegion'] = row.get('CountryOrRegion') or geo.get('country', '') or ''
+            row['State']           = row.get('State') or geo.get('state', '') or ''
+            row['City']            = row.get('City') or geo.get('city', '') or ''
+    resolved = sum(1 for v in geo_cache.values() if v.get('latitude') is not None)
+    _upload(container, 'signin-activity.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
+    gj = _signin_geojson(rows, geo_cache)
+    _upload(container, 'signin-activity.geojson', _geojson_bytes(gj['features']))
+    logger.info(f"signin-activity ΓÇö {len(rows)} rows, {len(gj['features'])} features, {resolved}/{len(null_geo_ips)} fallback IPs geo-resolved")
+    return {'rows': len(rows), 'features': len(gj['features']), 'fallback_ips_total': len(null_geo_ips), 'fallback_ips_resolved': resolved, 'geo_db': reader is not None}
+
+
+def _run_threatintel(workspace_id, container, reader=None):
+    """KQL ΓåÆ enrich IPs ΓåÆ TSV (with geo columns) ΓåÆ GeoJSON ΓåÆ blob."""
+    kql  = os.environ.get('SENTINEL_THREATINTEL_KQL') or _default_threatintel_kql()
+    rows = _query_sentinel(workspace_id, kql, _THREATINTEL_LOOKBACK_HOURS)
+    geo_cache = {}
+    ips = list({r.get('ObservableValue', '').strip() for r in rows if r.get('ObservableValue', '').strip()})
+    _enrich_ips(ips, geo_cache, reader)
+    for row in rows:
+        geo = geo_cache.get((row.get('ObservableValue') or '').strip(), {})
+        row['Latitude']        = geo.get('latitude', '') or ''
+        row['Longitude']       = geo.get('longitude', '') or ''
+        row['CountryOrRegion'] = geo.get('country', '') or ''
+        row['State']           = geo.get('state', '') or ''
+        row['City']            = geo.get('city', '') or ''
+    resolved = sum(1 for v in geo_cache.values() if v.get('latitude') is not None)
+    _upload(container, 'threat-intel-indicators.tsv', _rows_to_tsv(rows), 'text/tab-separated-values')
+    gj = _threatintel_geojson(rows, geo_cache)
+    _upload(container, 'threat-intel-indicators.geojson', _geojson_bytes(gj['features']))
+    logger.info(f"threat-intel-indicators ΓÇö {len(rows)} rows, {len(gj['features'])} features, {resolved}/{len(ips)} IPs geo-resolved")
+    return {'rows': len(rows), 'features': len(gj['features']), 'ips_total': len(ips), 'ips_resolved': resolved, 'geo_db': reader is not None}
+
+
+# ΓöÇΓöÇ Entry point ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+def _ok(data, status_code=200):
+    return func.HttpResponse(
+        body=json.dumps(data, indent=2),
+        status_code=status_code,
+        mimetype='application/json',
+        headers={'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store'},
+    )
+
+
+def main(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Refresh pipeline entry point. Each pipeline checks its own freshness threshold
+    independently ΓÇö a single request may refresh some datasets and skip others.
+
+    Query params:
+      check=true                          ΓÇö report freshness only, run nothing
+      force=true                          ΓÇö bypass all freshness checks, run all pipelines
+      pipeline=devices|signin|threatintel ΓÇö run only the named pipeline
+    """
+    if req.method == 'OPTIONS':
+        return func.HttpResponse(status_code=200, headers={
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+        })
+
+    container    = os.environ.get('STORAGE_CONTAINER_DATASETS', 'datasets')
+    check_only   = req.params.get('check', '').lower() == 'true'
+    force        = req.params.get('force', '').lower() == 'true'
+    only         = req.params.get('pipeline', '').lower()
+    workspace_id = os.environ.get('SENTINEL_WORKSPACE_ID', '')
+
+    # Per-pipeline freshness ΓÇö keyed by TSV blob (written first, most accurate timestamp)
+    pipelines = {
+        'devices':     ('mde-devices.tsv',             _device_frequency_hours()),
+        'signin':      ('signin-activity.tsv',          _signin_frequency_hours()),
+        'threatintel': ('threat-intel-indicators.tsv',  _threatintel_frequency_hours()),
+    }
+
+    freshness = {}
+    for name, (tsv_blob, freq_h) in pipelines.items():
+        age_h = _blob_age_hours(container, tsv_blob)
+        freshness[name] = {
+            'tsv_blob':        tsv_blob,
+            'age_hours':       round(age_h, 3) if age_h is not None else None,
+            'frequency_hours': round(freq_h, 4),
+            'fresh':           age_h is not None and age_h < freq_h,
+        }
+
+    if check_only:
+        overall = 'fresh' if all(v['fresh'] for v in freshness.values()) else 'stale'
+        return _ok({'status': overall, 'pipelines': freshness})
+
+    if not workspace_id:
+        return _ok({'status': 'skipped', 'message': 'SENTINEL_WORKSPACE_ID is not configured.'})
+
+    if _is_locked(container) and not force and not only:
+        return _ok({'status': 'running', 'message': 'A refresh is already in progress.'})
+
+    # Decide which pipelines to run
+    if only:
+        to_run = [only] if only in pipelines else []
+    elif force:
+        to_run = list(pipelines.keys())
+    else:
+        to_run = [name for name, info in freshness.items() if not info['fresh']]
+
+    if not to_run:
+        return _ok({'status': 'fresh', 'message': 'All datasets are current.', 'pipelines': freshness})
+
+    runners = {
+        'devices':     _run_devices,
+        'signin':      _run_signin,
+        'threatintel': _run_threatintel,
+    }
+
+    _set_lock(container, True)
+    reader = _get_geoip_reader()
+    try:
+        started = datetime.now(timezone.utc)
+        results = {}
+        for name in to_run:
+            try:
+                results[name] = runners[name](workspace_id, container, reader)
+            except Exception as e:
+                logger.error(f'{name} pipeline failed: {e}', exc_info=True)
+                results[name] = {'error': str(e)}
+        elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+        return _ok({
+            'status':          'updated',
+            'elapsed_seconds': round(elapsed, 1),
+            'ran':             to_run,
+            'skipped':         [n for n in pipelines if n not in to_run],
+            'results':         results,
+        })
+    except Exception as e:
+        logger.error(f'Pipeline error: {e}', exc_info=True)
+        return _ok({'status': 'error', 'error': str(e)}, status_code=500)
+    finally:
+        if reader:
+            reader.close()
+        _set_lock(container, False)
