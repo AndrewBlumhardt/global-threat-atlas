@@ -298,6 +298,33 @@ if ($confirmation -ne "yes") {
 
 $startTime = Get-Date
 
+# Pre-flight diagnostics - verify the actual live CLI state matches expectations.
+# This catches cases where the cloud or session drifted between login and execution.
+Write-Step "Pre-flight environment check..."
+$diagCloud    = (az cloud show --query name -o tsv 2>$null).Trim()
+$diagEndpoint = (az cloud show --query endpoints.resourceManager -o tsv 2>$null).Trim()
+$diagAcct     = (az account show --query "{id:id,name:name,env:environmentName,state:state}" -o json 2>$null | ConvertFrom-Json)
+Write-Info "CLI cloud:       $diagCloud"
+Write-Info "ARM endpoint:    $diagEndpoint"
+Write-Info "Subscription:    $($diagAcct.name) ($($diagAcct.id))"
+Write-Info "Env name:        $($diagAcct.env)"
+Write-Info "Sub state:       $($diagAcct.state)"
+if ($diagCloud -ne $Cloud) {
+    Write-Error "MISMATCH: script expects cloud '$Cloud' but CLI is currently '$diagCloud'."
+    Write-Info "Run: az cloud set --name $Cloud"
+    exit 1
+}
+if ($diagAcct.env -and ($diagAcct.env -ne $Cloud)) {
+    Write-Error "MISMATCH: session token is for '$($diagAcct.env)' but target cloud is '$Cloud'."
+    Write-Info "Run: az login  (log in with your $Cloud credentials)"
+    exit 1
+}
+if ($diagAcct.state -ne 'Enabled') {
+    Write-Error "Subscription is not Enabled (state: $($diagAcct.state))."
+    exit 1
+}
+Write-Success "Environment check passed"
+
 # Derive blob service endpoint - needed for gov cloud where the suffix differs
 $blobEndpoint = if ($Cloud -eq 'AzureUSGovernment') {
     "https://$StorageAccountName.blob.core.usgovcloudapi.net"
@@ -330,6 +357,7 @@ Write-Step "Checking storage account..."
 $existingStorage = az storage account show `
     --name $StorageAccountName `
     --resource-group $ResourceGroupName `
+    --subscription $($account.id) `
     --output json 2>$null | ConvertFrom-Json
 
 if ($existingStorage) {
@@ -344,6 +372,7 @@ if ($existingStorage) {
         '--name', $StorageAccountName,
         '--resource-group', $ResourceGroupName,
         '--location', $Location,
+        '--subscription', $account.id,
         '--sku', 'Standard_LRS',
         '--kind', 'StorageV2',
         '--allow-blob-public-access', 'false',
