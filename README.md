@@ -356,7 +356,7 @@ https://<your-swa-hostname>/api/refresh
 
 Use the Static Web App URL (printed on the SWA overview page), not the Function App URL directly. The Function App is behind the SWA and direct calls to `azurewebsites.net` will be blocked. The refresh may take 1-2 minutes the first time. Once complete, reload the SWA URL and enable the data layers.
 
-> **Note:** Blob-based layers (Devices, Sign-ins, Threat Intel) will be greyed out in the map menu until the function has completed its first refresh and written the data files to storage.
+> **Note:** Blob-based layers (Devices, Sign-ins, Threat Intel) will be greyed out in the map menu until the function has completed its first refresh and written the data files to storage. The refresh requires the Function App Managed Identity to have the **Log Analytics Reader** role on the Sentinel workspace - if the refresh returns an error or produces no data, verify this role assignment first.
 
 **Step 8 - Verify everything is working**
 
@@ -467,29 +467,89 @@ See [api/README.md](api/README.md) for full parameter and response details.
 
 ## Troubleshooting
 
+### Deployment checklist
+
+If the app is not working after deployment, work through this checklist in order.
+
+**1. All four core resources exist in the same resource group**
+
+In the Azure Portal, confirm these resources are present:
+- Storage Account
+- Function App (with Application Insights auto-created alongside it)
+- Azure Maps Account
+- Static Web App
+
+If any are missing, re-run `deploy.ps1` or create them manually following [Manual Deployment](#manual-deployment).
+
+**2. Function App has all expected functions**
+
+In the Azure Portal, go to Function App -> Functions and confirm these are listed: `config`, `data`, `enrich_geo`, `generate_geojson`, `health`, `lookup-ip`, `news`, `refresh`. If the list is empty or missing functions, the deployment did not complete. Check your GitHub repository Actions tab for failures in the function deploy workflow (`main_func-<name>.yml`).
+
+**3. Static Web App is deployed and linked to the Function App**
+
+- In the Azure Portal, go to Static Web App -> GitHub Actions runs and confirm the frontend build completed successfully.
+- Go to Static Web App -> Settings -> APIs and confirm the Function App is listed as a linked backend. If not, link it manually.
+- Navigating to the SWA URL should load the map, not a 404 page.
+
+**4. Function App environment variables are complete**
+
+Go to Function App -> Environment variables and confirm all required settings from the [Function App settings reference](#function-app-settings-reference) are present. Pay particular attention to `MAXMIND_ACCOUNT_ID`, `MAXMIND_LICENSE_KEY`, `AZURE_MAPS_SUBSCRIPTION_KEY`, `STORAGE_ACCOUNT_URL`, and `SENTINEL_WORKSPACE_ID`.
+
+**5. MaxMind and Azure Maps keys are valid**
+
+- For MaxMind: log in at [maxmind.com](https://www.maxmind.com) and confirm the account ID and license key match what is set in the Function App. An invalid key will cause IP enrichment to fail silently.
+- For Azure Maps: go to Azure Maps Account -> Authentication and copy the primary key. Confirm it matches `AZURE_MAPS_SUBSCRIPTION_KEY` in the Function App settings.
+
+**6. Managed Identity role assignments**
+
+Go to Function App -> Identity -> Azure role assignments and confirm these three roles are assigned:
+- **Storage Blob Data Contributor** on the Storage Account - required for writing enriched data
+- **Storage Blob Data Reader** on the Storage Account - required for serving files to the browser
+- **Log Analytics Reader** on the Sentinel Log Analytics workspace - required for KQL queries
+
+Missing role assignments are the most common cause of a successful deployment that returns no data.
+
+**7. Demo and dataset files exist in blob storage**
+
+Go to Storage Account -> Containers -> `datasets` in the Azure Portal Storage Browser. After deployment you should see `threat-actors.tsv` and `custom-source.geojson` at the container root, plus GeoJSON data files after the first successful refresh. If the container is empty, the deploy script may not have completed the upload step.
+
+**8. Use the health endpoint to confirm configuration**
+
+Open a browser and go to:
+```
+https://<your-swa-hostname>/api/health
+```
+This returns the status of every required setting and the age of each data blob. Missing settings and missing blobs are clearly flagged. This is the fastest way to confirm what is and is not working.
+
+**9. Check GitHub Actions for workflow failures**
+
+In your forked repository, go to the Actions tab and check for failed runs in both workflows (the SWA deploy workflow and the function deploy workflow). A red X on either means the code was not deployed. Re-running the failed workflow after fixing any configuration issues is usually sufficient.
+
+---
+
+### Runtime issues
+
 **Map does not load / blank page**
-- Open browser developer tools (F12) and check the console for errors.
-- Call `/api/config` directly and confirm `azureMapsKey` is present and non-empty.
-- Verify `AZURE_MAPS_SUBSCRIPTION_KEY` is set in Function App app settings.
-- Wait 30-60 seconds after first deployment for the Function App cold start.
+- Open browser developer tools (F12) -> Console tab and look for errors. You can safely ignore `favicon.ico` 404s, third-party cookie warnings, and any CORS preflight messages that resolve successfully.
+- Navigate directly to `https://<your-swa-hostname>/api/config` and confirm the response includes a non-empty `azureMapsKey`. An empty key means `AZURE_MAPS_SUBSCRIPTION_KEY` is not set.
+- Wait 30-60 seconds after first deployment for the Function App cold start to complete.
 
 **Layers are greyed out**
-- Data has not been refreshed yet. Call `/api/refresh` manually.
-- Check `/api/health` to see blob freshness and whether all required settings are configured.
-- Confirm `SENTINEL_WORKSPACE_ID`, `MAXMIND_ACCOUNT_ID`, and `MAXMIND_LICENSE_KEY` are set.
+- Blob-based layers are greyed out until the first refresh has written data files to storage. Call `/api/refresh` to trigger it.
+- Open `/api/health` in the browser to see blob freshness and whether all required settings are configured.
+- Confirm `SENTINEL_WORKSPACE_ID`, `MAXMIND_ACCOUNT_ID`, and `MAXMIND_LICENSE_KEY` are set and the Managed Identity has **Log Analytics Reader** on the workspace.
 
 **No data on the map after refresh**
-- Confirm the Managed Identity has **Log Analytics Reader** on the Sentinel workspace and **Storage Blob Data Contributor** on the storage account.
-- Call `/api/refresh?check=true` to see pipeline freshness without triggering a run.
-- Call `/api/refresh?force=true` to bypass the freshness check and force all pipelines.
-- Check Function App logs for KQL or MaxMind errors.
+- Confirm all three Managed Identity role assignments from the deployment checklist above are in place.
+- Call `/api/refresh?force=true` to bypass the freshness check and force all pipelines to run immediately.
+- Check Function App -> Monitor -> Logs for KQL errors (usually a missing workspace ID or insufficient permissions) or MaxMind errors (usually a bad license key).
 
 **401 / 403 errors**
-- Verify Managed Identity is enabled on the Function App.
-- Check RBAC role assignments in the Azure Portal.
+- Verify that System-assigned Managed Identity is enabled on the Function App (Function App -> Identity -> Status = On).
+- Check all three RBAC role assignments are present as described in the deployment checklist.
 
 **IP lookup returns no result**
-- Confirm `MAXMIND_ACCOUNT_ID` and `MAXMIND_LICENSE_KEY` are set.
+- Confirm `MAXMIND_ACCOUNT_ID` and `MAXMIND_LICENSE_KEY` are set correctly.
 - Private, reserved, and some cloud-provider IPs are excluded by design.
 
 **Data is stale**
