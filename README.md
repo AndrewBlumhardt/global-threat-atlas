@@ -281,6 +281,8 @@ At the end the script prints a **Next Steps** section with a deployment token an
 
 **Step 4 - Deploy the frontend to your Static Web App**
 
+> **Note:** The SWA will show "Waiting for deployment" until this step is complete.
+
 The map interface is hosted on the Static Web App and deployed via a GitHub Actions workflow. The workflow needs a deployment token stored as a secret in your GitHub repo before it can run - this is why the SWA shows "Waiting for deployment" after the script finishes.
 
 The deploy script prints a token in the Next Steps output. Copy it, then add it to your GitHub repo:
