@@ -779,65 +779,33 @@ Write-Host "Storage Account:   $StorageAccountName"
 Write-Host "Static Web App:    $StaticWebAppName"
 Write-Host "Azure Maps:        $AzureMapsAccountName"
 if (-not $SkipFunctionApp) {
-    Write-Host "`nFunction Endpoints:"
-    Write-Host "  Health:  https://$FunctionAppName.azurewebsites.net/api/health"
-    Write-Host "  Refresh: https://$FunctionAppName.azurewebsites.net/api/refresh"
+    Write-Host "`nApp URL:    https://$swaHostname"
+    Write-Host "Health:     https://$swaHostname/api/health"
+    Write-Host "Refresh:    https://$swaHostname/api/refresh"
 }
 Write-Host "`n================================================" -ForegroundColor Green
 
 if (-not $SkipFunctionApp) {
-    Write-Host "`n⚠️  Important Next Steps:" -ForegroundColor Yellow
+    Write-Host "`n  Next Steps:" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "1. Configure required app settings:" -ForegroundColor Yellow
-    Write-Host "   The following settings are needed for the application to function:" -ForegroundColor White
+    Write-Host "  1. Add MaxMind credentials (required for IP geo-enrichment):" -ForegroundColor Yellow
+    Write-Host "     Sign up free: https://www.maxmind.com/en/geolite2/signup" -ForegroundColor White
+    Write-Host "     az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings MAXMIND_ACCOUNT_ID='<id>' MAXMIND_LICENSE_KEY='<key>'" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "   a) Azure Maps key: already configured automatically as AZURE_MAPS_SUBSCRIPTION_KEY." -ForegroundColor Green
-    Write-Host "      To rotate: az maps account keys renew --name $AzureMapsAccountName --resource-group $ResourceGroupName --key primary" -ForegroundColor Gray
-    Write-Host "      Then:      az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings AZURE_MAPS_SUBSCRIPTION_KEY=<new-key>" -ForegroundColor Gray
+    Write-Host "  2. Deploy the frontend - set this token as GitHub secret AZURE_STATIC_WEB_APPS_API_TOKEN:" -ForegroundColor Yellow
+    Write-Host "     $swaToken" -ForegroundColor Cyan
+    Write-Host "     GitHub repo -> Settings -> Secrets and variables -> Actions -> New secret" -ForegroundColor White
+    Write-Host "     Then trigger the workflow from the Actions tab (or push any change to web/)." -ForegroundColor White
     Write-Host ""
-    Write-Host "   b) Storage Account URL: already written into web/config.js as STORAGE_ACCOUNT_URL." -ForegroundColor Green
-    Write-Host "      ($storageUrl)" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "   c) MaxMind credentials (REQUIRED for IP geo-enrichment):" -ForegroundColor Cyan
-    Write-Host "      # Sign up free at https://www.maxmind.com/en/geolite2/signup" -ForegroundColor Gray
-    Write-Host "      az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings MAXMIND_ACCOUNT_ID='<your-account-id>' MAXMIND_LICENSE_KEY='<your-license-key>'" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "   d) Deploy the frontend - set the SWA token as a GitHub secret, then trigger the workflow:" -ForegroundColor Yellow
-    Write-Host "      1. gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body '$swaToken'" -ForegroundColor Cyan
-    Write-Host "         Or: GitHub repo -> Settings -> Secrets and variables -> Actions -> New secret" -ForegroundColor White
-    Write-Host "         Name: AZURE_STATIC_WEB_APPS_API_TOKEN   Value: $swaToken" -ForegroundColor White
-    Write-Host "      2. Push any change to web/ (or run the workflow manually from GitHub Actions tab)" -ForegroundColor White
-    Write-Host "      SWA will show 'Waiting for deployment' until the workflow runs." -ForegroundColor Gray
-    Write-Host ""
-    if ($funcSecretSet) {
-        Write-Host "   e) Function App GitHub Actions deploy: AZURE_FUNCTIONAPP_PUBLISH_PROFILE already set." -ForegroundColor Green
-        Write-Host "      Push any change to api/ to trigger a redeploy via GitHub Actions." -ForegroundColor Gray
-        Write-Host "      To rotate: az functionapp deployment list-publishing-profiles --name $FunctionAppName --resource-group $ResourceGroupName --xml | gh secret set AZURE_FUNCTIONAPP_PUBLISH_PROFILE" -ForegroundColor Gray
-    } else {
-        Write-Host "   e) Function App GitHub Actions deploy (for ongoing CI/CD):" -ForegroundColor Yellow
-        Write-Host "      az functionapp deployment list-publishing-profiles --name $FunctionAppName --resource-group $ResourceGroupName --xml | gh secret set AZURE_FUNCTIONAPP_PUBLISH_PROFILE" -ForegroundColor Cyan
-        Write-Host "      The function code was deployed inline above — this secret is only needed for future pushes to api/." -ForegroundColor Gray
+    if (-not $funcSecretSet) {
+        Write-Host "  3. (Optional) Function App CI/CD - set GitHub secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE:" -ForegroundColor Yellow
+        Write-Host "     az functionapp deployment list-publishing-profiles --name $FunctionAppName --resource-group $ResourceGroupName --xml | gh secret set AZURE_FUNCTIONAPP_PUBLISH_PROFILE" -ForegroundColor Cyan
+        Write-Host "     The function code is already deployed - this is only needed for future pushes to api/." -ForegroundColor White
+        Write-Host ""
     }
+    Write-Host "  4. Grant Log Analytics Reader on your Sentinel workspace to the Function App MI:" -ForegroundColor Yellow
+    Write-Host "     Function App MI principal ID: $principalId" -ForegroundColor White
+    Write-Host "     See README.md - Deployment section for portal instructions (same-sub and cross-sub)." -ForegroundColor White
     Write-Host ""
-    Write-Host "2. Assign 'Log Analytics Reader' role to the Function App managed identity on your Log Analytics Workspace" -ForegroundColor Yellow
-    Write-Host "   Function App MI principal ID: $principalId" -ForegroundColor White
-    Write-Host ""
-    Write-Host "   If you own the workspace (same subscription) - via Azure Portal:" -ForegroundColor Cyan
-    Write-Host "   1. Go to Azure Portal -> Function App '$FunctionAppName' -> Identity (left menu)" -ForegroundColor White
-    Write-Host "   2. On the 'System assigned' tab, click 'Azure role assignments'" -ForegroundColor White
-    Write-Host "   3. Click '+ Add role assignment'" -ForegroundColor White
-    Write-Host "   4. Scope: Log Analytics Workspace  |  Resource: your workspace  |  Role: Log Analytics Reader" -ForegroundColor White
-    Write-Host "   5. Click Save" -ForegroundColor White
-    Write-Host ""
-    Write-Host "   If the workspace is in a different subscription - send the workspace owner this:" -ForegroundColor Cyan
-    Write-Host "   1. Open Azure Portal -> Log Analytics workspace -> Access control (IAM) -> Add role assignment" -ForegroundColor White
-    Write-Host "   2. Role: Log Analytics Reader" -ForegroundColor White
-    Write-Host "   3. Members: select 'Managed identity', find '$FunctionAppName' (principal ID: $principalId)" -ForegroundColor White
-    Write-Host "   4. Click Review + assign" -ForegroundColor White
-    Write-Host ""
-    Write-Host "3. Test the deployment:" -ForegroundColor Yellow
-    Write-Host "   Invoke-RestMethod https://$FunctionAppName.azurewebsites.net/api/health" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "4. Trigger a data refresh:" -ForegroundColor Yellow
-    Write-Host "   Invoke-RestMethod https://$FunctionAppName.azurewebsites.net/api/refresh" -ForegroundColor Cyan
+    Write-Host "  See README.md for full configuration options, custom data, and troubleshooting." -ForegroundColor Gray
 }
