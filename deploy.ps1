@@ -27,7 +27,9 @@
     Default: rg-<ProjectName>
 
 .PARAMETER Location
-    Azure region for resources (default: eastus)
+    Azure region for resources. Required - no default is assumed.
+    Commercial examples: eastus, westus2, uksouth, eastus2
+    Government examples: usgovvirginia, usgovarizona, usgovtexas
 
 .PARAMETER StorageAccountName
     Storage account name (must be globally unique, lowercase, 3-24 chars, alphanumeric only).
@@ -59,19 +61,16 @@
     AzureUSGovernment supports both GCC and GCC-High
 
 .EXAMPLE
-    .\deploy.ps1 -WorkspaceId "12345678-1234-1234-1234-123456789012"
-
-.EXAMPLE
-    .\deploy.ps1 -ProjectName "contoso-threat-map" -WorkspaceId "12345678-1234-1234-1234-123456789012"
-
-.EXAMPLE
-    .\deploy.ps1 -ProjectName "contoso-threat-map" -ResourceGroupName "rg-security-tools" -WorkspaceId "12345678-1234-1234-1234-123456789012"
+    .\deploy.ps1 -Location "eastus" -WorkspaceId "12345678-1234-1234-1234-123456789012"
 
 .EXAMPLE
     .\deploy.ps1 -ProjectName "contoso-threat-map" -Location "westus2" -WorkspaceId "12345678-1234-1234-1234-123456789012"
 
 .EXAMPLE
-    .\deploy.ps1 -WorkspaceId "12345678-1234-1234-1234-123456789012" -Cloud AzureUSGovernment
+    .\deploy.ps1 -ProjectName "contoso-threat-map" -ResourceGroupName "rg-security-tools" -Location "eastus" -WorkspaceId "12345678-1234-1234-1234-123456789012"
+
+.EXAMPLE
+    .\deploy.ps1 -Location "usgovvirginia" -WorkspaceId "12345678-1234-1234-1234-123456789012" -Cloud AzureUSGovernment
 
 .NOTES
     Requires Owner or Contributor role on the subscription or target resource group
@@ -85,8 +84,8 @@ param(
     [Parameter(Mandatory=$false)]
     [string]$ResourceGroupName = "",
     
-    [Parameter(Mandatory=$false)]
-    [string]$Location = "",
+    [Parameter(Mandatory=$true)]
+    [string]$Location,
     
     [Parameter(Mandatory=$false)]
     [string]$StorageAccountName = "",
@@ -124,10 +123,17 @@ $storageSlug = ($ProjectName -replace '[^a-z0-9]', '').ToLower()
 if ($storageSlug.Length -gt 24) { $storageSlug = $storageSlug.Substring(0, 24) }
 if ($storageSlug.Length -lt 3)  { $storageSlug = $storageSlug.PadRight(3, '0') }
 
-if (-not $Location)             { $Location             = "eastus" }
-# SWA is only available in a subset of regions; map to the nearest valid one
-$swaValidRegions = @('westus2','centralus','eastus2','westeurope','eastasia')
-$SwaLocation = if ($swaValidRegions -contains $Location) { $Location } else { 'eastus2' }
+# SWA is only available in a subset of regions per cloud; map to the nearest valid one.
+# Government clouds use a separate set of supported SWA regions.
+$swaCommercialRegions = @('westus2','centralus','eastus2','westeurope','eastasia')
+$swaGovRegions        = @('usgovvirginia', 'usgovarizona')
+$swaFallbackCommercial = 'eastus2'
+$swaFallbackGov        = 'usgovvirginia'
+if ($Cloud -eq 'AzureUSGovernment') {
+    $SwaLocation = if ($swaGovRegions -contains $Location) { $Location } else { $swaFallbackGov }
+} else {
+    $SwaLocation = if ($swaCommercialRegions -contains $Location) { $Location } else { $swaFallbackCommercial }
+}
 if (-not $ResourceGroupName)    { $ResourceGroupName    = "rg-$ProjectName" }
 if (-not $StaticWebAppName)     { $StaticWebAppName     = "swa-$ProjectName" }
 if (-not $AzureMapsAccountName) { $AzureMapsAccountName = "maps-$ProjectName" }
@@ -238,7 +244,7 @@ Write-Host "Deployment Plan" -ForegroundColor Magenta
 Write-Host "================================================" -ForegroundColor Magenta
 Write-Host "Project Name:      $ProjectName"
 Write-Host "Resource Group:    $ResourceGroupName"
-Write-Host "Location:          $Location  (tip: set -Location to deploy closer to your workspace)"
+Write-Host "Location:          $Location"
 Write-Host "Storage Account:   $StorageAccountName"
 Write-Host "Function App:      $FunctionAppName"
 Write-Host "Static Web App:    $StaticWebAppName"

@@ -253,10 +253,10 @@ az account set --subscription "YOUR-SUBSCRIPTION-NAME-OR-ID"
 **Step 3 - Run the deployment script**
 
 ```powershell
-.\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID"
+.\deploy.ps1 -Location "eastus" -WorkspaceId "YOUR-WORKSPACE-ID"
 ```
 
-Replace `YOUR-WORKSPACE-ID` with the GUID from Step 1. The script will display a deployment plan and ask you to confirm before creating anything.
+Replace `YOUR-WORKSPACE-ID` with the GUID from Step 1 and `-Location` with an Azure region close to your Sentinel workspace.
 
 The script produces detailed output for every step - read it carefully as it includes important values you will need in Steps 4 and 5 (the SWA deployment token and Function App publish profile command). Deployment can take **up to 15 minutes**, primarily due to Function App provisioning and package installation.
 
@@ -264,28 +264,26 @@ By default, all Azure resources are named after the project name `global-threat-
 
 | Parameter | Controls | Example value |
 |---|---|---|
+| `-Location` | Azure region - **required**, deploy close to your Sentinel workspace | Commercial: `eastus`, `westus2`, `uksouth` / Government: `usgovvirginia`, `usgovarizona`, `usgovtexas` |
 | `-ProjectName` | Prefix for all resource names | `contoso-threat-map` |
 | `-ResourceGroupName` | Resource group name (overrides ProjectName-derived default) | `rg-security-tools` |
-| `-Location` | Azure region - **recommended**, deploy close to your Sentinel workspace | `westus2`, `eastus`, `uksouth` |
 
 ```powershell
 # Custom project name (all resources share the same prefix)
 .\deploy.ps1 -ProjectName "contoso-threat-map" -Location "westus2" -WorkspaceId "YOUR-WORKSPACE-ID"
 
-# Custom resource group name only
-.\deploy.ps1 -ResourceGroupName "rg-security-tools" -WorkspaceId "YOUR-WORKSPACE-ID"
+# Custom resource group name
+.\deploy.ps1 -Location "eastus" -ResourceGroupName "rg-security-tools" -WorkspaceId "YOUR-WORKSPACE-ID"
 
 # Both together
 .\deploy.ps1 -ProjectName "contoso-threat-map" -ResourceGroupName "rg-security-tools" -Location "westus2" -WorkspaceId "YOUR-WORKSPACE-ID"
 ```
 
-For **Azure Government (GCC / GCC-H)** - the script inherits the cloud you set in Step 2, so no extra flag is needed:
+For **Azure Government (GCC / GCC-H)** - use a government region and either pre-set the cloud in Step 2 or pass `-Cloud`:
 ```powershell
-.\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID"
-```
-Alternatively, pass `-Cloud AzureUSGovernment` directly (the script will switch the CLI for you):
-```powershell
-.\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID" -Cloud AzureUSGovernment
+.\deploy.ps1 -Location "usgovvirginia" -WorkspaceId "YOUR-WORKSPACE-ID"
+# or
+.\deploy.ps1 -Location "usgovvirginia" -WorkspaceId "YOUR-WORKSPACE-ID" -Cloud AzureUSGovernment
 ```
 
 **What the script creates:**
