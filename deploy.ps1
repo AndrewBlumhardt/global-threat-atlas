@@ -567,10 +567,11 @@ if (-not $SkipFunctionApp) {
     }
 
     # Log Analytics Reader - look up workspace resource ID by workspace GUID
+    # az resource list does not surface properties.customerId reliably; use the
+    # monitor log-analytics API which returns it in the top-level response.
     Write-Info "Looking up Log Analytics workspace to assign Log Analytics Reader..."
-    $workspaceResourceId = az resource list `
-        --resource-type Microsoft.OperationalInsights/workspaces `
-        --query "[?properties.customerId=='$WorkspaceId'].id | [0]" `
+    $workspaceResourceId = az monitor log-analytics workspace list `
+        --query "[?customerId=='$WorkspaceId'].id | [0]" `
         --output tsv 2>$null
     if ($workspaceResourceId) {
         az role assignment create `
