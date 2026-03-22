@@ -332,6 +332,33 @@ $blobEndpoint = if ($Cloud -eq 'AzureUSGovernment') {
     "https://$StorageAccountName.blob.core.windows.net"
 }
 
+# Ensure all required resource providers are registered.
+# New and gov subscriptions often have providers in NotRegistered state, which
+# surfaces as misleading errors (e.g. "SubscriptionNotFound" from storage ARM).
+# Registering is idempotent - safe to run even if already registered.
+Write-Step "Registering required resource providers..."
+$requiredProviders = @(
+    'Microsoft.Storage',        # Storage accounts, blob containers
+    'Microsoft.Web',            # Function Apps, App Service
+    'Microsoft.Maps',           # Azure Maps
+    'Microsoft.Network',        # VNet, DNS (implicit dependency of Function App)
+    'Microsoft.Authorization'   # RBAC role assignments
+)
+foreach ($ns in $requiredProviders) {
+    $state = (az provider show --namespace $ns --query registrationState -o tsv 2>$null).Trim()
+    if ($state -eq 'Registered') {
+        Write-Success "$ns - already registered"
+    } else {
+        Write-Info "$ns - registering (current state: $state)..."
+        az provider register --namespace $ns --wait
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to register $ns. Check subscription permissions."
+            exit 1
+        }
+        Write-Success "$ns - registered"
+    }
+}
+
 
 # 1. Create or Verify Resource Group
 Write-Step "Checking resource group..."
@@ -352,23 +379,6 @@ if ($rgExists -eq "true") {
 
 # 2. Create or Verify Storage Account
 Write-Step "Checking storage account..."
-
-# Ensure Microsoft.Storage resource provider is registered in this subscription.
-# In new or gov subscriptions the provider may not be registered, which surfaces
-# as a misleading "SubscriptionNotFound" error from the storage ARM endpoint.
-Write-Info "Verifying Microsoft.Storage provider registration..."
-$storageProviderState = az provider show --namespace Microsoft.Storage --query registrationState -o tsv 2>$null
-if ($storageProviderState -ne 'Registered') {
-    Write-Info "Registering Microsoft.Storage provider (state: $storageProviderState)..."
-    az provider register --namespace Microsoft.Storage --wait
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to register Microsoft.Storage provider. Check subscription permissions."
-        exit 1
-    }
-    Write-Success "Microsoft.Storage provider registered"
-} else {
-    Write-Success "Microsoft.Storage provider already registered"
-}
 
 # Use 'az storage account show' instead of 'check-name' - check-name calls a
 # subscription-scoped ARM endpoint that is unreliable in government clouds.
