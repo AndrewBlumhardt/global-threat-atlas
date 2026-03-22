@@ -216,6 +216,23 @@ if (-not $account) {
     $account = az account show | ConvertFrom-Json
 }
 
+# Detect a cloud/account mismatch: the CLI can cache credentials from a
+# previous commercial session even after 'az cloud set --name AzureUSGovernment'.
+# $account.environmentName tells us which cloud the cached token belongs to.
+$accountEnv = $account.environmentName
+if ($accountEnv -and ($accountEnv -ne $Cloud)) {
+    Write-Info "Cached session is for '$accountEnv' but target cloud is '$Cloud'."
+    Write-Info "Logging in to $Cloud..."
+    az login
+    $account = az account show | ConvertFrom-Json
+    $accountEnv = $account.environmentName
+    if ($accountEnv -ne $Cloud) {
+        Write-Error "Still authenticated to '$accountEnv' after login. Expected '$Cloud'."
+        Write-Info "Make sure you log in with credentials that have access to $Cloud."
+        exit 1
+    }
+}
+
 Write-Success "Logged in as: $($account.user.name)"
 Write-Success "Cloud: $Cloud"
 
