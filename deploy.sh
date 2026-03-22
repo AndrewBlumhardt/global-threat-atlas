@@ -130,6 +130,7 @@ print_info "Required: Owner or Contributor role on subscription or target resour
 
 if ! az account show &> /dev/null; then
     print_info "Not logged in. Starting login..."
+    az cloud set --name AzureCloud
     az login
 else
     CURRENT_CLOUD=$(az cloud show --query name -o tsv)

@@ -168,8 +168,17 @@ Write-Info "Required: Owner or Contributor role on subscription or target resour
 $account = az account show 2>$null | ConvertFrom-Json
 if (-not $account) {
     Write-Info "Not logged in. Starting login..."
+    az cloud set --name AzureCloud
     az login
     $account = az account show | ConvertFrom-Json
+} else {
+    $currentCloud = az cloud show --query name -o tsv
+    if ($currentCloud -ne "AzureCloud") {
+        Write-Info "CLI is set to $currentCloud - switching to AzureCloud..."
+        az cloud set --name AzureCloud
+        az login
+        $account = az account show | ConvertFrom-Json
+    }
 }
 
 Write-Success "Logged in as: $($account.user.name)"
