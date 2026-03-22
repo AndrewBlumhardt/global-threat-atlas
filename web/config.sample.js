@@ -16,3 +16,7 @@ window.DATASETS_CONTAINER = 'datasets';
 // Uncomment to force all data requests through the Function App API
 // (required when the storage container has public access disabled).
 // window.USE_FUNCTION_API_ONLY = true;
+
+// Function App base URL - set this for gov cloud deployments where SWA is not available.
+// deploy.ps1 writes this automatically. Leave empty for commercial (SWA proxies /api/*).
+// window.API_BASE_URL = 'https://func-global-threat-atlas.azurewebsites.us';

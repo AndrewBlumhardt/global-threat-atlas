@@ -11,7 +11,7 @@ import { showCountryDetails, initPanelControls } from "./ui/panelManager.js";
 import { addAutoScrollControl } from "./ui/autoScroll.js";
 import { addDownloadControl } from "./ui/downloadControl.js";
 import { enableDragAndDrop } from "./ui/dragDropGeoJSON.js";
-import { setDemoMode, resolveDataUrl, isDemoMode } from "./shared/demoMode.js";
+import { setDemoMode, resolveDataUrl, isDemoMode, getApiUrl } from "./shared/demoMode.js";
 import { lookupAndPlaceIP, clearAllLookups } from "./overlays/ipLookupOverlay.js";
 import { toggleNewsTicker } from "./ui/newsTicker.js";
 
@@ -43,14 +43,14 @@ async function main() {
   // The function checks blob staleness cheaply and only runs the full
   // Sentinel → MaxMind → GeoJSON pipeline when data is older than REFRESH_INTERVAL_HOURS.
   // The SWA reads current blob data right away; this updates it asynchronously.
-  fetch('/api/refresh').catch(() => {});
+  fetch(getApiUrl('/api/refresh')).catch(() => {});
 
   // Resolve app config — use the promise started early in index.html (already in-flight)
   // so we don't pay a full round-trip delay here.
   let appConfig = null;
   try {
     const configFetch = window._configPromise ||
-      fetch('/api/config').then(r => r.ok ? r.json() : null).catch(() => null);
+      fetch(getApiUrl('/api/config')).then(r => r.ok ? r.json() : null).catch(() => null);
 
     // After 5s show a status update so the user knows a cold start is in progress,
     // then keep waiting — the Azure Maps key must come from the API.
@@ -319,7 +319,7 @@ async function main() {
     // Keep the function warm during active sessions to reduce cold-start latency.
     // Pings /api/health every 14 minutes; skips when the tab is hidden.
     setInterval(() => {
-      if (!document.hidden) fetch('/api/health').catch(() => {});
+      if (!document.hidden) fetch(getApiUrl('/api/health')).catch(() => {});
     }, 14 * 60 * 1000);
 
     // Live layer refresh — reloads device and sign-in data from storage on a fixed interval
@@ -346,7 +346,7 @@ async function main() {
         if (!devicesEnabled) checkDeviceLocationsAvailability();
 
         // Trigger a backend refresh so storage blobs are updated for the next poll cycle.
-        fetch('/api/refresh').catch(() => {});
+        fetch(getApiUrl('/api/refresh')).catch(() => {});
       }, liveRefreshMs);
     }
   });

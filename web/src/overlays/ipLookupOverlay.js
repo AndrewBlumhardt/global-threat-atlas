@@ -8,6 +8,7 @@
  */
 
 import { showIPLookupDetails } from "../ui/panelManager.js";
+import { getApiUrl } from "../shared/demoMode.js";
 
 // Track active markers so they can all be cleared at once
 const activeMarkers = [];
@@ -26,7 +27,7 @@ export async function lookupAndPlaceIP(map, ip) {
   ip = ip.trim();
 
   try {
-    const resp = await fetch(`/api/lookup-ip?ip=${encodeURIComponent(ip)}`);
+    const resp = await fetch(getApiUrl(`/api/lookup-ip?ip=${encodeURIComponent(ip)}`));
     const data = await resp.json();
 
     if (!resp.ok) {

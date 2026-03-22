@@ -1,4 +1,5 @@
-const API_URL = '/api/news';
+import { getApiUrl } from '../shared/demoMode.js';
+const API_URL = getApiUrl('/api/news');
 const TICKER_HEIGHT = 40; // px — must match .news-ticker height in CSS
 
 let _tickerEl = null;

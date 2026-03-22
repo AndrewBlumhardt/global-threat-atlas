@@ -14,12 +14,14 @@ function getFunctionAppBaseUrl() {
 }
 
 /**
- * Build API URL path for either direct Function App calls or same-origin fallback.
+ * Build API URL for either direct Function App calls (gov cloud) or same-origin fallback (SWA).
+ * In gov cloud, window.API_BASE_URL is set to the Function App URL by deploy.ps1.
+ * In commercial, SWA proxies /api/* so the base URL is empty and paths stay relative.
  */
 export function getApiUrl(path) {
-  // In production, all API calls are proxied through SWA to the Function App
+  const base = (window.API_BASE_URL || '').replace(/\/$/, '');
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return normalizedPath;
+  return base + normalizedPath;
 }
 
 /**

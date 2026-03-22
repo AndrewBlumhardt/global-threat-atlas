@@ -22,7 +22,7 @@
   <!-- Load config.js FIRST so global vars are available -->
   <script src="./config.js"></script>
   <!-- Kick off /api/config fetch immediately so it is already in-flight when app.js runs -->
-  <script>window._configPromise = fetch('/api/config').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });</script>
+  <script>window._configPromise = fetch((window.API_BASE_URL||'').replace(/\/$/,'') + '/api/config').then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });</script>
   <link rel="stylesheet" href="./styles/app.css" />
 </head>
 <body>
