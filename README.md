@@ -356,6 +356,8 @@ https://<your-swa-hostname>/api/refresh
 
 Use the Static Web App URL (printed on the SWA overview page), not the Function App URL directly. The Function App is behind the SWA and direct calls to `azurewebsites.net` will be blocked. The refresh may take 1-2 minutes the first time. Once complete, reload the SWA URL and enable the data layers.
 
+> **Note:** Blob-based layers (Devices, Sign-ins, Threat Intel) will be greyed out in the map menu until the function has completed its first refresh and written the data files to storage.
+
 **Step 8 - Verify everything is working**
 
 ```
@@ -373,8 +375,6 @@ The deployment uploads a sample `custom-source.geojson` to the `datasets` blob c
 **Ways to create a GeoJSON file:**
 - Export from tools like [geojson.io](https://geojson.io), QGIS, or ArcGIS
 - Drag and drop any GeoJSON file onto the map for a temporary preview before committing it to storage
-- Use the `/api/enrich_geo` endpoint to batch geo-enrich a list of IPs to coordinates
-- Use the `/api/generate_geojson` endpoint to convert an enriched TSV blob in storage to GeoJSON
 
 **To replace the custom source file:**
 
