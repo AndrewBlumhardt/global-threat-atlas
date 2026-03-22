@@ -366,6 +366,28 @@ This returns the current status of all configuration settings and the age of eac
 
 ---
 
+### Custom Source layer
+
+The deployment uploads a sample `custom-source.geojson` to the `datasets` blob container so the Custom Source layer is visible immediately. Replace it with your own GeoJSON FeatureCollection at any time - each feature's properties appear in the map popup.
+
+**Ways to create a GeoJSON file:**
+- Export from tools like [geojson.io](https://geojson.io), QGIS, or ArcGIS
+- Drag and drop any GeoJSON file onto the map for a temporary preview before committing it to storage
+- Use the `/api/enrich_geo` endpoint to batch geo-enrich a list of IPs to coordinates
+- Use the `/api/generate_geojson` endpoint to convert an enriched TSV blob in storage to GeoJSON
+
+**To replace the custom source file:**
+
+1. In the Azure Portal, go to your Storage Account -> Containers -> `datasets`
+2. Upload your file named `custom-source.geojson`, overwriting the existing one
+
+**To rename the layer in the map menu:**
+
+1. In the Azure Portal, go to your Function App -> Environment variables
+2. Add or update `CUSTOM_LAYER_DISPLAY_NAME` with your preferred display name
+
+---
+
 ### Manual Deployment
 
 If you prefer the Azure Portal over the CLI, create the following resources in the same resource group in this order:
@@ -415,37 +437,10 @@ All settings are configured automatically by the deploy script except `MAXMIND_A
 | `SENTINEL_DEVICES_KQL` | Override default MDE KQL query | Built-in |
 | `SENTINEL_SIGNIN_KQL` | Override default sign-in KQL query | Built-in |
 | `SENTINEL_THREATINTEL_KQL` | Override default threat intel KQL query | Built-in |
-| `CUSTOM_LAYER_DISPLAY_NAME` | Display name for the custom GeoJSON layer | `Custom Source` |
+| `CUSTOM_LAYER_DISPLAY_NAME` | Display name for the custom GeoJSON overlay layer in the map menu | `Custom Source` |
 | `REFRESH_MAX_ROWS` | Row cap for KQL query results | `1000000` |
-
-### Custom Source layer
-
-The deployment uploads a sample `custom-source.geojson` to the `datasets` blob container root so the Custom Source layer is visible immediately. Replace it with your own data at any time:
-
-1. Create or export a GeoJSON FeatureCollection. Each feature can include any properties - they appear in the map popups.
-2. Upload it to the `datasets` container with the name `custom-source.geojson`:
-
-   ```powershell
-   az storage blob upload \
-     --account-name <storage-account-name> \
-     --container-name datasets \
-     --name custom-source.geojson \
-     --file path\to\your-file.geojson \
-     --auth-mode login --overwrite
-   ```
-
-3. To rename the layer in the map UI, set the `CUSTOM_LAYER_DISPLAY_NAME` app setting on the Function App:
-
-   ```powershell
-   az functionapp config appsettings set \
-     --name <function-app-name> \
-     --resource-group <resource-group> \
-     --settings CUSTOM_LAYER_DISPLAY_NAME="Threat Actors"
-   ```
-
-   Or: Azure Portal -> Function App -> Environment variables -> add `CUSTOM_LAYER_DISPLAY_NAME`.
-| `TICKER_MAX_ITEMS` | Max headlines returned by `/api/news` | `10` |
-| `TICKER_SPEED_S` | Cyber News ticker scroll duration in seconds (lower = faster) | `70` |
+| `TICKER_MAX_ITEMS` | Maximum number of cybersecurity headlines shown in the news ticker | `10` |
+| `TICKER_SPEED_S` | News ticker scroll speed in seconds - lower is faster | `70` |
 
 ### CI/CD
 
