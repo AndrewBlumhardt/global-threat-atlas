@@ -280,18 +280,16 @@ if ($rgExists -eq "true") {
 
 # 2. Create or Verify Storage Account
 Write-Step "Checking storage account..."
-$storageExists = az storage account check-name --name $StorageAccountName | ConvertFrom-Json
+# Use 'az storage account show' instead of 'check-name' - check-name calls a
+# subscription-scoped ARM endpoint that is unreliable in government clouds.
+$existingStorage = az storage account show `
+    --name $StorageAccountName `
+    --resource-group $ResourceGroupName `
+    --output json 2>$null | ConvertFrom-Json
 
-if ($storageExists.nameAvailable -eq $false -and $storageExists.reason -eq "AlreadyExists") {
+if ($existingStorage) {
     Write-Info "Storage account already exists: $StorageAccountName"
-    # Verify it's in our resource group
-    try {
-        $existingStorage = az storage account show --name $StorageAccountName --resource-group $ResourceGroupName 2>$null | ConvertFrom-Json
-        Write-Success "Using existing storage account in resource group"
-    } catch {
-        Write-Error "Storage account '$StorageAccountName' exists but not in resource group '$ResourceGroupName'"
-        exit 1
-    }
+    Write-Success "Using existing storage account in resource group"
 } else {
     Write-Info "Creating new storage account..."
     az storage account create `
