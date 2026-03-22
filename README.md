@@ -235,11 +235,6 @@ cd global-threat-atlas
 
 **Step 2 - Sign in to Azure**
 
-> **Azure Government (GCC / GCC-High) users:** Run this command first to point the Azure CLI at the government cloud **before** signing in. Skipping this step causes the CLI to authenticate against the commercial endpoint and your government credentials will be rejected.
-> ```powershell
-> az cloud set --name AzureUSGovernment
-> ```
-
 ```powershell
 az login
 ```
@@ -248,6 +243,12 @@ A browser window will open. Sign in with an account that has Owner or Contributo
 ```powershell
 az account set --subscription "YOUR-SUBSCRIPTION-NAME-OR-ID"
 ```
+
+> **Azure Government (GCC / GCC-H) users:** Run `az cloud set --name AzureUSGovernment` **before** `az login`. Skipping this causes the CLI to authenticate against the commercial endpoint and your government credentials will be rejected. The deployment script inherits whatever cloud the CLI is already set to, so no `-Cloud` flag is needed when you pre-set the cloud this way.
+> ```powershell
+> az cloud set --name AzureUSGovernment
+> az login
+> ```
 
 **Step 3 - Run the deployment script**
 
@@ -278,7 +279,11 @@ By default, all Azure resources are named after the project name `global-threat-
 .\deploy.ps1 -ProjectName "contoso-threat-map" -ResourceGroupName "rg-security-tools" -Location "westus2" -WorkspaceId "YOUR-WORKSPACE-ID"
 ```
 
-For **Azure Government (GCC / GCC-High)**:
+For **Azure Government (GCC / GCC-H)** - the script inherits the cloud you set in Step 2, so no extra flag is needed:
+```powershell
+.\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID"
+```
+Alternatively, pass `-Cloud AzureUSGovernment` directly (the script will switch the CLI for you):
 ```powershell
 .\deploy.ps1 -WorkspaceId "YOUR-WORKSPACE-ID" -Cloud AzureUSGovernment
 ```

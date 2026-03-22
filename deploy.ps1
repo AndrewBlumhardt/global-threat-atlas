@@ -53,7 +53,9 @@
 
 .PARAMETER Cloud
     Azure cloud environment (AzureCloud, AzureUSGovernment)
-    Default: AzureCloud (Commercial)
+    Default: inherits whatever cloud the CLI is already set to (az cloud show).
+    Pass AzureUSGovernment explicitly if you prefer the script to switch for you
+    rather than running 'az cloud set --name AzureUSGovernment' beforehand.
     AzureUSGovernment supports both GCC and GCC-High
 
 .EXAMPLE
@@ -99,8 +101,8 @@ param(
     [string]$SubscriptionId,
     
     [Parameter(Mandatory=$false)]
-    [ValidateSet("AzureCloud", "AzureUSGovernment")]
-    [string]$Cloud = "AzureCloud",
+    [ValidateSet("AzureCloud", "AzureUSGovernment", "")]
+    [string]$Cloud = "",    # empty = inherit the current CLI cloud
     
     [Parameter(Mandatory=$false)]
     [string]$StaticWebAppName = "",
@@ -177,15 +179,25 @@ try {
 Write-Step "Checking Azure login..."
 Write-Info "Required: Owner or Contributor role on subscription or target resource group"
 
-# Set the target cloud FIRST so all subsequent az commands (including az account show)
-# target the correct endpoint. This prevents a machine already logged in to commercial
-# from bypassing the cloud switch when -Cloud AzureUSGovernment is specified.
-$targetCloud = if ($Cloud -eq "AzureUSGovernment") { "AzureUSGovernment" } else { "AzureCloud" }
-$currentCloud = az cloud show --query name -o tsv 2>$null
-if ($currentCloud -ne $targetCloud) {
-    Write-Info "Switching CLI to $Cloud..."
-    az cloud set --name $targetCloud
-    Write-Info "CLI is now targeting $Cloud"
+# Resolve the target cloud:
+# - If -Cloud was explicitly passed (non-empty), honour it and switch if needed.
+# - If -Cloud is empty (the default), inherit whatever cloud the CLI is already
+#   pointing at. This lets users run 'az cloud set' before the script without
+#   also needing to pass -Cloud on every invocation.
+$currentCloud = (az cloud show --query name -o tsv 2>$null).Trim()
+if (-not $currentCloud) { $currentCloud = "AzureCloud" }
+
+if ($Cloud) {
+    # Explicit cloud requested - switch if the CLI is not already there.
+    if ($currentCloud -ne $Cloud) {
+        Write-Info "Switching CLI to $Cloud (requested via -Cloud parameter)..."
+        az cloud set --name $Cloud
+        Write-Info "CLI is now targeting $Cloud"
+    }
+} else {
+    # Inherit the current CLI cloud and update \$Cloud so the rest of the script
+    # (display, validation messages) reflects the actual environment.
+    $Cloud = $currentCloud
 }
 
 $account = az account show 2>$null | ConvertFrom-Json
