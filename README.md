@@ -527,6 +527,22 @@ In your forked repository, go to the Actions tab and check for failed runs in bo
 
 ---
 
+### Expected pip warnings during deployment
+
+The deploy script runs `pip install` for the Function App dependencies. The following messages may appear and are safe to ignore - they are conflicts in your local Python environment unrelated to the function's own packages:
+
+```
+WARNING: Ignoring invalid distribution ~ransformers (...)
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed.
+  tensorflow-intel 2.18.0 requires ml-dtypes<0.5.0,...
+  tensorflow-intel 2.18.0 requires tensorboard<2.19,...
+  thinc 8.3.6 requires numpy<3.0.0,...
+```
+
+These warnings do not affect the deployed Function App, which runs in an isolated Linux container with its own clean environment.
+
+---
+
 ### Runtime issues
 
 **Map does not load / blank page**
