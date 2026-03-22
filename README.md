@@ -214,15 +214,23 @@ The included script creates all required Azure resources and deploys the app in 
 - A Microsoft Sentinel workspace (note the Workspace ID - a GUID found in Azure Portal → Log Analytics workspaces → your workspace → Overview)
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) installed
 - [Git](https://git-scm.com/downloads) installed
+- A [GitHub account](https://github.com/join) (free) - required to fork the repo and run GitHub Actions workflows
 - (Recommended) [GitHub CLI](https://cli.github.com/) for automatic CI/CD wiring
 
-**Step 1 - Clone the repo**
+**Step 1 - Fork and clone the repo**
 
-Open PowerShell and run:
+You need your own copy of this repository on GitHub so that the GitHub Actions workflows run under your account and you can store secrets against it.
+
+1. Click **Fork** at the top right of this page on GitHub
+2. Accept the defaults and click **Create fork**
+3. Open PowerShell and clone your fork (replace `YOUR-GITHUB-USERNAME`):
+
 ```powershell
-git clone https://github.com/AndrewBlumhardt/global-threat-atlas.git
+git clone https://github.com/YOUR-GITHUB-USERNAME/global-threat-atlas.git
 cd global-threat-atlas
 ```
+
+> **Why fork instead of just clone?** Secrets (like the SWA deployment token set in Step 4) are stored against a GitHub repo. If you clone this repo directly you cannot add secrets to it, and the GitHub Actions workflows that deploy the frontend and function app will not run for you.
 
 **Step 2 - Sign in to Azure**
 
