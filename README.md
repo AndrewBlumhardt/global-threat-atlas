@@ -7,7 +7,7 @@
 An Azure-hosted interactive map for SOC and threat intelligence teams. Displays geo-enriched security data from Microsoft Sentinel on a global Azure Maps canvas. Designed for wall displays and analyst dashboards.
 
 **Layers:**
-- Sign-in activity (success and failure events from Azure AD)
+- Sign-in activity (success and failure events from Microsoft Entra ID)
 - Device locations (last-known public IP from Microsoft Defender for Endpoint)
 - Threat intelligence indicators (active IP IOCs from Sentinel ThreatIntelIndicators)
 - Threat actor heatmap (country-level attribution from a static TSV)
@@ -65,7 +65,7 @@ Before any application code runs, [web/config.js](web/config.js) is loaded synch
 
 The `/api/config` endpoint ([api/config/\_\_init\_\_.py](api/config/__init__.py)) reads the Azure Maps key, storage URL, container name, and custom layer display name from the Function App's environment and returns them as JSON. The response carries `Cache-Control: no-cache` so the browser never reuses a stale key.
 
-### 3. Map initialisation
+### 3. Map initialization
 
 Once config resolves, [web/src/map/map-init.js](web/src/map/map-init.js) creates the Atlas map control using the subscription key received from the API. The key authenticates all tile requests to the Azure Maps CDN for base road tiles, weather overlays, and other Atlas-hosted content. When the map fires its `ready` event the loading overlay is dismissed and all layer controls, UI components, and event handlers are wired up.
 
@@ -78,7 +78,7 @@ For each pipeline the function does a lightweight HEAD against the corresponding
 - A `refresh.lock` blob is written to prevent concurrent runs if multiple sessions open at the same time.
 - The GeoLite2-City MaxMind database is checked at `/tmp/`. If absent or older than 7 days it is downloaded from MaxMind using `MAXMIND_ACCOUNT_ID` and `MAXMIND_LICENSE_KEY`, extracted in memory, and written to the local filesystem. All three pipelines share one open reader for the duration of the call.
 - Each pipeline runs KQL against the Sentinel Log Analytics workspace using a Managed Identity token.
-- For MDE devices and threat intel, every unique public IP is resolved against the local GeoLite2 binary database (no network, microseconds per lookup). For sign-in activity, Azure AD already provides coordinates for most events and MaxMind is only called for IPs where those fields are empty.
+- For MDE devices and threat intel, every unique public IP is resolved against the local GeoLite2 binary database (no network, microseconds per lookup). For sign-in activity, Microsoft Entra ID already provides coordinates for most events and MaxMind is only called for IPs where those fields are empty.
 - Each pipeline uploads enriched data to Blob Storage as TSV first, then as a GeoJSON FeatureCollection. All writes use a Managed Identity token. Payloads over 4 MB use block staging.
 - The lock blob is deleted when all pipelines complete.
 
@@ -160,8 +160,8 @@ The Azure Static Web App frontend is intentionally public; no login is required 
 
 For production deployments, consider these additional controls available from the SWA portal or `staticwebapp.config.json`:
 - **IP allow-listing:** restrict the app to your corporate IP ranges if it is for internal SOC use only
-- **Password protection:** SWA supports a simple site-wide password (Standard tier) as a lightweight gating mechanism without requiring Azure AD
-- **Azure AD authentication:** SWA can front the entire app with Entra ID authentication, requiring users to sign in before the map loads
+- **Password protection:** SWA supports a simple site-wide password (Standard tier) as a lightweight gating mechanism without requiring Microsoft Entra ID
+- **Microsoft Entra ID authentication:** SWA can front the entire app with Entra ID authentication, requiring users to sign in before the map loads
 
 None of these are required for a demo deployment with synthetic data. They matter as soon as the map displays real Sentinel data.
 
@@ -172,7 +172,7 @@ All API routes are anonymous HTTP triggers; there is no API key or bearer token 
 For environments where additional hardening is warranted:
 - **CORS restriction:** restrict allowed origins to the SWA hostname in the Function App's CORS settings so the endpoints reject direct browser calls from other origins
 - **Inbound network restriction:** use the Function App's access restriction rules to allow only the SWA's outbound IP range, blocking all other callers
-- **Azure AD authentication:** enable Easy Auth on the Function App and require a valid Entra ID token; SWA can be configured to pass through the user's token automatically
+- **Microsoft Entra ID authentication:** enable Easy Auth on the Function App and require a valid Entra ID token; SWA can be configured to pass through the user's token automatically
 
 ### Blob Storage Access
 
