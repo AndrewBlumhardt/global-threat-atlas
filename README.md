@@ -2,7 +2,7 @@
 
 <img src="https://raw.githubusercontent.com/AndrewBlumhardt/global-threat-atlas/main/images/screenshot-global-threat-map.png" alt="Global Threat Activity Map" width="600"/>
 
-[Live Demo](https://jolly-cliff-0f92c201e.2.azurestaticapps.net/)
+[Live Demo](https://icy-bay-09a00970f.7.azurestaticapps.net/)
 
 An Azure-hosted interactive map for SOC and threat intelligence teams. Displays geo-enriched security data from Microsoft Sentinel on a global Azure Maps canvas. Designed for wall displays and analyst dashboards.
 
