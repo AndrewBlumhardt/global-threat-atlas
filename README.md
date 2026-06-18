@@ -216,6 +216,8 @@ The included script creates all required Azure resources and deploys the app in 
 - A Microsoft Sentinel workspace (note the Workspace ID - a GUID found in Azure Portal → Log Analytics workspaces → your workspace → Overview). The workspace can be in a different subscription or resource group.
 - **Owner or User Access Administrator** on the Sentinel workspace resource or its subscription - required to grant the Function App `Log Analytics Reader` access. If you do not have this, the script will print the exact command to hand off to someone who does, and the app can still be deployed - just without live data until the role is assigned.
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) installed
+- [Node.js](https://nodejs.org/) installed (required for SWA CLI frontend publish)
+- [Azure Static Web Apps CLI](https://azure.github.io/static-web-apps-cli/docs/use/install/) installed (`npm install -g @azure/static-web-apps-cli`)
 - [Git](https://git-scm.com/downloads) installed
 - A [GitHub account](https://github.com/join) (free) - required to fork the repo and run GitHub Actions workflows
 - (Recommended) [GitHub CLI](https://cli.github.com/) for automatic CI/CD wiring
@@ -285,34 +287,11 @@ By default, all Azure resources are named after the project name `global-threat-
 
 At the end the script prints a **Next Steps** section with a deployment token and commands. Steps 4 and 5 below walk through those.
 
-**Step 4 - Deploy the frontend to your Static Web App**
+**Step 4 - Frontend deployment is handled by the script**
 
-> **Note:** The SWA will show "Waiting for deployment" until this step is complete.
+The deploy script now publishes `web/` directly to Static Web App using the SWA CLI and the token it retrieves from Azure.
 
-The map interface is hosted on the Static Web App and deployed via a GitHub Actions workflow. The workflow needs a deployment token stored as a secret in your GitHub repo before it can run - this is why the SWA shows "Waiting for deployment" after the script finishes.
-
-The deploy script prints a token in the Next Steps output. Copy it, then add it to your GitHub repo:
-
-1. Go to your GitHub repo on GitHub.com
-2. Click **Settings** (top navigation)
-3. In the left sidebar, click **Secrets and variables** → **Actions**
-4. Click **New repository secret**
-5. **Name:** `AZURE_STATIC_WEB_APPS_API_TOKEN`
-6. **Value:** paste the token printed by the deploy script
-7. Click **Add secret**
-
-Or with GitHub CLI:
-```powershell
-gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body '<token-from-deploy-output>'
-```
-
-Once the secret is saved, trigger the first deployment:
-
-1. Go to your GitHub repo → **Actions** tab
-2. Click **Azure Static Web Apps CI/CD** in the left sidebar
-3. Click **Run workflow** → **Run workflow**
-
-After about a minute the SWA status changes from "Waiting for deployment" to live. The URL is shown on the Static Web App overview page in the Azure Portal.
+> **Note:** If the SWA shows "Waiting for deployment," rerun the deploy script and watch for the `Deploying frontend to Static Web App...` step. This is the step that clears the waiting state.
 
 **Step 5 - Enable automatic Function App redeployment (optional)**
 

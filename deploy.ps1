@@ -161,6 +161,24 @@ try {
     Write-Info "Azure Functions Core Tools not found (optional for deployment)"
 }
 
+# Check Node.js (required for SWA CLI)
+try {
+    $nodeVersion = node --version 2>$null
+    Write-Success "Node.js version $nodeVersion"
+} catch {
+    Write-Error "Node.js not found. Required for Static Web App deployment: https://nodejs.org"
+    exit 1
+}
+
+# Check Azure Static Web Apps CLI
+try {
+    $swaVersion = swa --version 2>$null
+    Write-Success "Azure Static Web Apps CLI version $swaVersion"
+} catch {
+    Write-Error "Azure Static Web Apps CLI not found. Install with: npm install -g @azure/static-web-apps-cli"
+    exit 1
+}
+
 # Login check with cloud support
 Write-Step "Checking Azure login..."
 Write-Info "Required: Owner or Contributor role on subscription or target resource group"
@@ -443,7 +461,17 @@ $swaToken = az staticwebapp secrets list `
 
 Write-Success "Static Web App deployment token retrieved"
 
-Write-Info "SWA deployment token retrieved — see Next Steps to set AZURE_STATIC_WEB_APPS_API_TOKEN"
+# Deploy frontend directly to SWA using the deployment token.
+# This avoids dependency on GitHub Actions for initial publish.
+Write-Step "Deploying frontend to Static Web App..."
+$webPath = Join-Path $PSScriptRoot "web"
+swa deploy $webPath --deployment-token $swaToken --env production
+if ($LASTEXITCODE -eq 0) {
+    Write-Success "Frontend deployed to Static Web App"
+} else {
+    Write-Error "Frontend deployment failed. Check SWA CLI output above."
+    exit 1
+}
 
 # Configure SWA app settings
 Write-Info "Configuring Static Web App settings..."
@@ -807,18 +835,13 @@ if (-not $SkipFunctionApp) {
     Write-Host "     Sign up free: https://www.maxmind.com/en/geolite2/signup" -ForegroundColor White
     Write-Host "     az functionapp config appsettings set --name $FunctionAppName --resource-group $ResourceGroupName --settings MAXMIND_ACCOUNT_ID='<id>' MAXMIND_LICENSE_KEY='<key>'" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  2. Deploy the frontend - set this token as GitHub secret AZURE_STATIC_WEB_APPS_API_TOKEN:" -ForegroundColor Yellow
-    Write-Host "     $swaToken" -ForegroundColor Cyan
-    Write-Host "     GitHub repo -> Settings -> Secrets and variables -> Actions -> New secret" -ForegroundColor White
-    Write-Host "     Then trigger the workflow from the Actions tab (or push any change to web/)." -ForegroundColor White
-    Write-Host ""
     if (-not $funcSecretSet) {
-        Write-Host "  3. (Optional) Function App CI/CD - set GitHub secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE:" -ForegroundColor Yellow
+        Write-Host "  2. (Optional) Function App CI/CD - set GitHub secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE:" -ForegroundColor Yellow
         Write-Host "     az functionapp deployment list-publishing-profiles --name $FunctionAppName --resource-group $ResourceGroupName --xml | gh secret set AZURE_FUNCTIONAPP_PUBLISH_PROFILE" -ForegroundColor Cyan
         Write-Host "     The function code is already deployed - this is only needed for future pushes to api/." -ForegroundColor White
         Write-Host ""
     }
-    Write-Host "  4. Grant Log Analytics Reader on your Sentinel workspace to the Function App MI:" -ForegroundColor Yellow
+    Write-Host "  3. Verify Log Analytics Reader on your Sentinel workspace for the Function App MI:" -ForegroundColor Yellow
     Write-Host "     Function App MI principal ID: $principalId" -ForegroundColor White
     Write-Host "     See README.md - Deployment section for portal instructions (same-sub and cross-sub)." -ForegroundColor White
     Write-Host ""
